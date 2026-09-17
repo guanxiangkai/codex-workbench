@@ -19,11 +19,12 @@ from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
 from .model_catalog import configured_models
+from .model_observations import ModelObservations
 from .other_accounts import other_accounts
 from .account_usage import AccountUsage
 from .view_cache import ViewCache
 from .execution_pages import ExecutionPages
-from .source_versions import SourceVersions
+from .source_versions import SourceVersions, stamp
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
@@ -53,6 +54,7 @@ class Workbench:
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
         self.execution_pages=ExecutionPages()
         self.account_usage=account_usage or AccountUsage()
+        self.model_observations=ModelObservations(self.data_dir)
         self._closing=False;self.lock=threading.RLock();self._turn_cursors={}
 
     def manifest(self,page,known_revision=None):
@@ -94,9 +96,8 @@ class Workbench:
 
     def _model_catalog_revision(self):
         """模型配置文件变化时使模型及服务投影失效，不启动轮询。"""
-        path=self.resources_dir/'models/catalog.json'
-        try:stat=path.stat();return (stat.st_mtime_ns,stat.st_size)
-        except FileNotFoundError:return None
+        return tuple(stamp(path) for path in (self.resources_dir/'models/catalog.json',
+                     self.model_observations.path,Path(str(self.model_observations.path)+'-journal')))
 
     def _models(self):
         result=configured_models(self.resources_dir/'models/catalog.json')
@@ -112,7 +113,7 @@ class Workbench:
                     model['base_url']='';model['configuration_status']='invalid_endpoint'
             except ValueError:model['base_url']='';model['configuration_status']='invalid_endpoint'
             result.append(model)
-        return result
+        return self.model_observations.project(result)
 
     def _other_accounts(self, refresh=False):
         """目录默认只读；其他账户页按显式密钥绑定刷新用量，不改写配置目录。"""

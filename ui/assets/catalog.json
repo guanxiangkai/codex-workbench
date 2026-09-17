@@ -1,0 +1,7413 @@
+{
+  "icons": [
+    {
+      "id": "briefcase",
+      "name": "公文包",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "briefcase",
+        "briefcase"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\" /><rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "contact",
+      "name": "联系人",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "contact",
+        "contact"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 2v2\" /><path d=\"M7 21v-2a2 2 0 012-2h6a2 2 0 012 2v2\" /><path d=\"M8 2v2\" /><circle cx=\"12\" cy=\"10\" r=\"3\" /><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "users",
+      "name": "团队成员",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "users",
+        "users"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><path d=\"M16 3.128a4 4 0 0 1 0 7.744\" /><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" /><circle cx=\"9\" cy=\"7\" r=\"4\" /></svg>"
+    },
+    {
+      "id": "user-round",
+      "name": "用户",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "user-round",
+        "user",
+        "round"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"8\" r=\"5\" /><path d=\"M20 21a8 8 0 0 0-16 0\" /></svg>"
+    },
+    {
+      "id": "user-plus",
+      "name": "添加用户",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "user-plus",
+        "user",
+        "plus"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><circle cx=\"9\" cy=\"7\" r=\"4\" /><line x1=\"19\" x2=\"19\" y1=\"8\" y2=\"14\" /><line x1=\"22\" x2=\"16\" y1=\"11\" y2=\"11\" /></svg>"
+    },
+    {
+      "id": "handshake",
+      "name": "合作握手",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "handshake",
+        "handshake"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m11 17 2 2a1 1 0 1 0 3-3\" /><path d=\"m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4\" /><path d=\"m21 3 1 11h-2\" /><path d=\"M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3\" /><path d=\"M3 4h8\" /></svg>"
+    },
+    {
+      "id": "calendar",
+      "name": "日历",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "calendar",
+        "calendar"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M8 2v3\" /><path d=\"M16 2v3\" /><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" /><path d=\"M3 9h18\" /></svg>"
+    },
+    {
+      "id": "calendar-days",
+      "name": "日程日历",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "calendar-days",
+        "calendar",
+        "days"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M8 2v3\" /><path d=\"M16 2v3\" /><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" /><path d=\"M3 9h18\" /><path d=\"M8 13h.01\" /><path d=\"M12 13h.01\" /><path d=\"M16 13h.01\" /><path d=\"M8 17h.01\" /><path d=\"M12 17h.01\" /><path d=\"M16 17h.01\" /></svg>"
+    },
+    {
+      "id": "clock",
+      "name": "时钟",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "clock",
+        "clock"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 6v6l4 2\" /></svg>"
+    },
+    {
+      "id": "alarm-clock",
+      "name": "闹钟",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "alarm-clock",
+        "alarm",
+        "clock"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"13\" r=\"8\" /><path d=\"M12 9v4l2 2\" /><path d=\"M5 3 2 6\" /><path d=\"m22 6-3-3\" /><path d=\"M6.38 18.7 4 21\" /><path d=\"M17.64 18.67 20 21\" /></svg>"
+    },
+    {
+      "id": "bell",
+      "name": "通知铃铛",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "bell",
+        "bell"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" /></svg>"
+    },
+    {
+      "id": "mail",
+      "name": "邮件",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "mail",
+        "mail"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\" /><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "send",
+      "name": "发送",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "send",
+        "send"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z\" /><path d=\"m21.854 2.147-10.94 10.939\" /></svg>"
+    },
+    {
+      "id": "phone",
+      "name": "电话",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "phone",
+        "phone"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384\" /></svg>"
+    },
+    {
+      "id": "map-pin",
+      "name": "地点标记",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "map-pin",
+        "map",
+        "pin"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\" /><circle cx=\"12\" cy=\"10\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "globe",
+      "name": "全球网络",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "globe",
+        "globe"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\" /><path d=\"M2 12h20\" /></svg>"
+    },
+    {
+      "id": "languages",
+      "name": "多语言",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "languages",
+        "languages"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m5 8 6 6\" /><path d=\"m4 14 6-6 2-3\" /><path d=\"M2 5h12\" /><path d=\"M7 2h1\" /><path d=\"m22 22-5-10-5 10\" /><path d=\"M14 18h6\" /></svg>"
+    },
+    {
+      "id": "badge-dollar-sign",
+      "name": "图标：badge dollar sign",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "badge-dollar-sign",
+        "badge",
+        "dollar",
+        "sign"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z\" /><path d=\"M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8\" /><path d=\"M12 18V6\" /></svg>"
+    },
+    {
+      "id": "credit-card",
+      "name": "图标：credit card",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "credit-card",
+        "credit",
+        "card"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"2\" /><line x1=\"2\" x2=\"22\" y1=\"10\" y2=\"10\" /><path d=\"M6 14h2\" /></svg>"
+    },
+    {
+      "id": "receipt",
+      "name": "图标：receipt",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "receipt",
+        "receipt"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 17V7\" /><path d=\"M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8\" /><path d=\"M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z\" /></svg>"
+    },
+    {
+      "id": "wallet",
+      "name": "图标：wallet",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "wallet",
+        "wallet"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1\" /><path d=\"M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4\" /></svg>"
+    },
+    {
+      "id": "shopping-cart",
+      "name": "图标：shopping cart",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "shopping-cart",
+        "shopping",
+        "cart"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m2.05 2.05 1.099-.028a1 1 0 0 1 1.008.815l2.69 14.347A1 1 0 0 0 7.83 18H18\" /><path d=\"M4.563 5h16.435a1 1 0 0 1 .981 1.204l-1.026 6.226A2 2 0 0 1 18.962 14H6.25\" /><circle cx=\"18\" cy=\"20\" r=\"2\" /><circle cx=\"8\" cy=\"20\" r=\"2\" /></svg>"
+    },
+    {
+      "id": "package",
+      "name": "图标：package",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "package",
+        "package"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z\" /><path d=\"M12 22V12\" /><polyline points=\"3.29 7 12 12 20.71 7\" /><path d=\"m7.5 4.27 9 5.15\" /></svg>"
+    },
+    {
+      "id": "truck",
+      "name": "图标：truck",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "truck",
+        "truck"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2\" /><path d=\"M15 18H9\" /><path d=\"M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14\" /><circle cx=\"17\" cy=\"18\" r=\"2\" /><circle cx=\"7\" cy=\"18\" r=\"2\" /></svg>"
+    },
+    {
+      "id": "box",
+      "name": "图标：box",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "box",
+        "box"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z\" /><path d=\"m3.3 7 8.7 5 8.7-5\" /><path d=\"M12 22V12\" /></svg>"
+    },
+    {
+      "id": "warehouse",
+      "name": "图标：warehouse",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "warehouse",
+        "warehouse"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M18 21V10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v11\" /><path d=\"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 1.132-1.803l7.95-3.974a2 2 0 0 1 1.837 0l7.948 3.974A2 2 0 0 1 22 8z\" /><path d=\"M6 13h12\" /><path d=\"M6 17h12\" /></svg>"
+    },
+    {
+      "id": "chart-bar",
+      "name": "图标：chart bar",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "chart-bar",
+        "chart",
+        "bar"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /><path d=\"M7 16h8\" /><path d=\"M7 11h12\" /><path d=\"M7 6h3\" /></svg>"
+    },
+    {
+      "id": "chart-line",
+      "name": "图标：chart line",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "chart-line",
+        "chart",
+        "line"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /><path d=\"m19 9-5 5-4-4-3 3\" /></svg>"
+    },
+    {
+      "id": "chart-pie",
+      "name": "图标：chart pie",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "chart-pie",
+        "chart",
+        "pie"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z\" /><path d=\"M21.21 15.89A10 10 0 1 1 8 2.83\" /></svg>"
+    },
+    {
+      "id": "trending-up",
+      "name": "图标：trending up",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "trending-up",
+        "trending",
+        "up"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 7h6v6\" /><path d=\"m22 7-8.5 8.5-5-5L2 17\" /></svg>"
+    },
+    {
+      "id": "calculator",
+      "name": "图标：calculator",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "calculator",
+        "calculator"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"16\" height=\"20\" x=\"4\" y=\"2\" rx=\"2\" /><line x1=\"8\" x2=\"16\" y1=\"6\" y2=\"6\" /><line x1=\"16\" x2=\"16\" y1=\"14\" y2=\"18\" /><path d=\"M16 10h.01\" /><path d=\"M12 10h.01\" /><path d=\"M8 10h.01\" /><path d=\"M12 14h.01\" /><path d=\"M8 14h.01\" /><path d=\"M12 18h.01\" /><path d=\"M8 18h.01\" /></svg>"
+    },
+    {
+      "id": "file-text",
+      "name": "图标：file text",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "file-text",
+        "file",
+        "text"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M10 9H8\" /><path d=\"M16 13H8\" /><path d=\"M16 17H8\" /></svg>"
+    },
+    {
+      "id": "files",
+      "name": "图标：files",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "files",
+        "files"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8\" /><path d=\"M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z\" /><path d=\"M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1\" /></svg>"
+    },
+    {
+      "id": "folder",
+      "name": "图标：folder",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "folder",
+        "folder"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" /></svg>"
+    },
+    {
+      "id": "folder-open",
+      "name": "图标：folder open",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "folder-open",
+        "folder",
+        "open"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\" /></svg>"
+    },
+    {
+      "id": "archive",
+      "name": "图标：archive",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "archive",
+        "archive"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"20\" height=\"5\" x=\"2\" y=\"3\" rx=\"1\" /><path d=\"M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8\" /><path d=\"M10 12h4\" /></svg>"
+    },
+    {
+      "id": "clipboard",
+      "name": "图标：clipboard",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "clipboard",
+        "clipboard"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\" /></svg>"
+    },
+    {
+      "id": "notebook-pen",
+      "name": "图标：notebook pen",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "notebook-pen",
+        "notebook",
+        "pen"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4\" /><path d=\"M2 6h4\" /><path d=\"M2 10h4\" /><path d=\"M2 14h4\" /><path d=\"M2 18h4\" /><path d=\"M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z\" /></svg>"
+    },
+    {
+      "id": "pen-line",
+      "name": "图标：pen line",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "pen-line",
+        "pen",
+        "line"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13 21h8\" /><path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /></svg>"
+    },
+    {
+      "id": "pencil",
+      "name": "图标：pencil",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "pencil",
+        "pencil"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /><path d=\"m15 5 4 4\" /></svg>"
+    },
+    {
+      "id": "signature",
+      "name": "图标：signature",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "signature",
+        "signature"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m21 17-2.156-1.868A.5.5 0 0 0 18 15.5v.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1c0-2.545-3.991-3.97-8.5-4a1 1 0 0 0 0 5c4.153 0 4.745-11.295 5.708-13.5a2.5 2.5 0 1 1 3.31 3.284\" /><path d=\"M3 21h18\" /></svg>"
+    },
+    {
+      "id": "stamp",
+      "name": "图标：stamp",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "stamp",
+        "stamp"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-6 0c0 2 1 2 1 3.5V13\" /><path d=\"M20 15.5a2.5 2.5 0 0 0-2.5-2.5h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1z\" /><path d=\"M5 22h14\" /></svg>"
+    },
+    {
+      "id": "check",
+      "name": "图标：check",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "check",
+        "check"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 6 9 17l-5-5\" /></svg>"
+    },
+    {
+      "id": "circle-check",
+      "name": "图标：circle check",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "circle-check",
+        "circle",
+        "check"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m16 9-5.5 5.5L8 12\" /></svg>"
+    },
+    {
+      "id": "square-check-big",
+      "name": "图标：square check big",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "square-check-big",
+        "square",
+        "check",
+        "big"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344\" /><path d=\"m9 11 3 3L22 4\" /></svg>"
+    },
+    {
+      "id": "list-checks",
+      "name": "图标：list checks",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "list-checks",
+        "list",
+        "checks"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13 5h8\" /><path d=\"M13 12h8\" /><path d=\"M13 19h8\" /><path d=\"m3 17 2 2 4-4\" /><path d=\"m3 7 2 2 4-4\" /></svg>"
+    },
+    {
+      "id": "search",
+      "name": "搜索",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "search",
+        "search"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m21 21-4.34-4.34\" /><circle cx=\"11\" cy=\"11\" r=\"8\" /></svg>"
+    },
+    {
+      "id": "scan-search",
+      "name": "图标：scan search",
+      "category": "商务办公",
+      "keywords": [
+        "商务",
+        "办公",
+        "公司",
+        "管理",
+        "scan-search",
+        "scan",
+        "search"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 7V5a2 2 0 0 1 2-2h2\" /><path d=\"M17 3h2a2 2 0 0 1 2 2v2\" /><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\" /><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\" /><circle cx=\"12\" cy=\"12\" r=\"3\" /><path d=\"m16 16-1.9-1.9\" /></svg>"
+    },
+    {
+      "id": "settings",
+      "name": "设置",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "settings",
+        "settings"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "wrench",
+      "name": "图标：wrench",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "wrench",
+        "wrench"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z\" /></svg>"
+    },
+    {
+      "id": "cog",
+      "name": "图标：cog",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "cog",
+        "cog"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11 10.27 7 3.34\" /><path d=\"m11 13.73-4 6.93\" /><path d=\"M12 22v-2\" /><path d=\"M12 2v2\" /><path d=\"M14 12h8\" /><path d=\"m17 20.66-1-1.73\" /><path d=\"m17 3.34-1 1.73\" /><path d=\"M2 12h2\" /><path d=\"m20.66 17-1.73-1\" /><path d=\"m20.66 7-1.73 1\" /><path d=\"m3.34 17 1.73-1\" /><path d=\"m3.34 7 1.73 1\" /><circle cx=\"12\" cy=\"12\" r=\"2\" /><circle cx=\"12\" cy=\"12\" r=\"8\" /></svg>"
+    },
+    {
+      "id": "sliders-horizontal",
+      "name": "图标：sliders horizontal",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "sliders-horizontal",
+        "sliders",
+        "horizontal"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 5H3\" /><path d=\"M12 19H3\" /><path d=\"M14 3v4\" /><path d=\"M16 17v4\" /><path d=\"M21 12h-9\" /><path d=\"M21 19h-5\" /><path d=\"M21 5h-7\" /><path d=\"M8 10v4\" /><path d=\"M8 12H3\" /></svg>"
+    },
+    {
+      "id": "shield",
+      "name": "安全防护",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "shield",
+        "shield"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /></svg>"
+    },
+    {
+      "id": "shield-check",
+      "name": "图标：shield check",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "shield-check",
+        "shield",
+        "check"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" /><path d=\"m9 12 2 2 4-4\" /></svg>"
+    },
+    {
+      "id": "lock",
+      "name": "锁定",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "lock",
+        "lock"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" /></svg>"
+    },
+    {
+      "id": "key",
+      "name": "密钥",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "key",
+        "key"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m2 21 9.6-9.6\" /><path d=\"m7.5 15.5 2.3 2.3a1 1 0 0 1 0 1.4l-2.1 2.1a1 1 0 0 1-1.4 0L4 19\" /><circle cx=\"15.5\" cy=\"7.5\" r=\"5.5\" /></svg>"
+    },
+    {
+      "id": "eye",
+      "name": "图标：eye",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "eye",
+        "eye"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\" /><circle cx=\"12\" cy=\"12\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "eye-off",
+      "name": "图标：eye off",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "eye-off",
+        "eye",
+        "off"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\" /><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\" /><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\" /><path d=\"m2 2 20 20\" /></svg>"
+    },
+    {
+      "id": "user-cog",
+      "name": "图标：user cog",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "user-cog",
+        "user",
+        "cog"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 15H6a4 4 0 0 0-4 4v2\" /><path d=\"m14.305 16.53.923-.382\" /><path d=\"m15.228 13.852-.923-.383\" /><path d=\"m16.852 12.228-.383-.923\" /><path d=\"m16.852 17.772-.383.924\" /><path d=\"m19.148 12.228.383-.923\" /><path d=\"m19.53 18.696-.382-.924\" /><path d=\"m20.772 13.852.924-.383\" /><path d=\"m20.772 16.148.924.383\" /><circle cx=\"18\" cy=\"15\" r=\"3\" /><circle cx=\"9\" cy=\"7\" r=\"4\" /></svg>"
+    },
+    {
+      "id": "database",
+      "name": "数据库",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "database",
+        "database"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /><path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /><path d=\"M3 12A9 3 0 0 0 21 12\" /></svg>"
+    },
+    {
+      "id": "server",
+      "name": "服务器",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "server",
+        "server"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\" /><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\" /><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\" /><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\" /></svg>"
+    },
+    {
+      "id": "hard-drive",
+      "name": "硬盘",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "hard-drive",
+        "hard",
+        "drive"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 16h.01\" /><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\" /><path d=\"M21.946 12.013H2.054\" /><path d=\"M6 16h.01\" /></svg>"
+    },
+    {
+      "id": "cloud",
+      "name": "云服务",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "cloud",
+        "cloud"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z\" /></svg>"
+    },
+    {
+      "id": "cloud-upload",
+      "name": "图标：cloud upload",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "cloud-upload",
+        "cloud",
+        "upload"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 13v8\" /><path d=\"M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242\" /><path d=\"m8 17 4-4 4 4\" /></svg>"
+    },
+    {
+      "id": "cloud-download",
+      "name": "图标：cloud download",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "cloud-download",
+        "cloud",
+        "download"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 13v8l-4-4\" /><path d=\"m12 21 4-4\" /><path d=\"M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284\" /></svg>"
+    },
+    {
+      "id": "network",
+      "name": "图标：network",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "network",
+        "network"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect x=\"16\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"2\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"9\" y=\"2\" width=\"6\" height=\"6\" rx=\"1\" /><path d=\"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3\" /><path d=\"M12 12V8\" /></svg>"
+    },
+    {
+      "id": "ethernet-port",
+      "name": "图标：ethernet port",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "ethernet-port",
+        "ethernet",
+        "port"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 8v1\" /><path d=\"M14 8v1\" /><path d=\"M18 8v1\" /><path d=\"M19 17a2 2 0 00-1.765 1.059l-.47.882A2 2 0 0115 20H9a2 2 0 01-1.765-1.059l-.47-.882A2 2 0 005 17H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v9a2 2 0 01-2 2z\" /><path d=\"M6 8v1\" /></svg>"
+    },
+    {
+      "id": "wifi",
+      "name": "图标：wifi",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "wifi",
+        "wifi"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 20h.01\" /><path d=\"M2 8.82a15 15 0 0 1 20 0\" /><path d=\"M5 12.859a10 10 0 0 1 14 0\" /><path d=\"M8.5 16.429a5 5 0 0 1 7 0\" /></svg>"
+    },
+    {
+      "id": "router",
+      "name": "图标：router",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "router",
+        "router"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" /><path d=\"M6.01 18H6\" /><path d=\"M10.01 18H10\" /><path d=\"M15 10v4\" /><path d=\"M17.84 7.17a4 4 0 0 0-5.66 0\" /><path d=\"M20.66 4.34a8 8 0 0 0-11.31 0\" /></svg>"
+    },
+    {
+      "id": "terminal",
+      "name": "终端",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "terminal",
+        "terminal"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 19h8\" /><path d=\"m4 17 6-6-6-6\" /></svg>"
+    },
+    {
+      "id": "code",
+      "name": "代码",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "code",
+        "code"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m16 18 6-6-6-6\" /><path d=\"m8 6-6 6 6 6\" /></svg>"
+    },
+    {
+      "id": "code-xml",
+      "name": "图标：code xml",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "code-xml",
+        "code",
+        "xml"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m18 16 4-4-4-4\" /><path d=\"m6 8-4 4 4 4\" /><path d=\"m14.5 4-5 16\" /></svg>"
+    },
+    {
+      "id": "brackets",
+      "name": "图标：brackets",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "brackets",
+        "brackets"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 3h3a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-3\" /><path d=\"M8 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h3\" /></svg>"
+    },
+    {
+      "id": "git-branch",
+      "name": "图标：git branch",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "git-branch",
+        "git",
+        "branch"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15 6a9 9 0 0 0-9 9V3\" /><circle cx=\"18\" cy=\"6\" r=\"3\" /><circle cx=\"6\" cy=\"18\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "bug",
+      "name": "缺陷",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "bug",
+        "bug"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 20v-9\" /><path d=\"M14 7a4 4 0 0 1 4 4v3a6 6 0 0 1-12 0v-3a4 4 0 0 1 4-4z\" /><path d=\"M14.12 3.88 16 2\" /><path d=\"M21 21a4 4 0 0 0-3.81-4\" /><path d=\"M21 5a4 4 0 0 1-3.55 3.97\" /><path d=\"M22 13h-4\" /><path d=\"M3 21a4 4 0 0 1 3.81-4\" /><path d=\"M3 5a4 4 0 0 0 3.55 3.97\" /><path d=\"M6 13H2\" /><path d=\"m8 2 1.88 1.88\" /><path d=\"M9 7.13V6a3 3 0 1 1 6 0v1.13\" /></svg>"
+    },
+    {
+      "id": "cpu",
+      "name": "处理器",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "cpu",
+        "cpu"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 20v2\" /><path d=\"M12 2v2\" /><path d=\"M17 20v2\" /><path d=\"M17 2v2\" /><path d=\"M2 12h2\" /><path d=\"M2 17h2\" /><path d=\"M2 7h2\" /><path d=\"M20 12h2\" /><path d=\"M20 17h2\" /><path d=\"M20 7h2\" /><path d=\"M7 20v2\" /><path d=\"M7 2v2\" /><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\" /><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "bot",
+      "name": "机器人",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "bot",
+        "bot"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 8V4H8\" /><rect width=\"16\" height=\"12\" x=\"4\" y=\"8\" rx=\"2\" /><path d=\"M2 14h2\" /><path d=\"M20 14h2\" /><path d=\"M15 13v2\" /><path d=\"M9 13v2\" /></svg>"
+    },
+    {
+      "id": "brain",
+      "name": "智能",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "brain",
+        "brain"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 18V5\" /><path d=\"M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4\" /><path d=\"M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5\" /><path d=\"M17.997 5.125a4 4 0 0 1 2.526 5.77\" /><path d=\"M18 18a4 4 0 0 0 2-7.464\" /><path d=\"M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517\" /><path d=\"M6 18a4 4 0 0 1-2-7.464\" /><path d=\"M6.003 5.125a4 4 0 0 0-2.526 5.77\" /></svg>"
+    },
+    {
+      "id": "sparkles",
+      "name": "智能增强",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "sparkles",
+        "sparkles"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /><path d=\"M20 2v4\" /><path d=\"M22 4h-4\" /><circle cx=\"4\" cy=\"20\" r=\"2\" /></svg>"
+    },
+    {
+      "id": "message-square",
+      "name": "图标：message square",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "message-square",
+        "message",
+        "square"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\" /></svg>"
+    },
+    {
+      "id": "messages-square",
+      "name": "图标：messages square",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "messages-square",
+        "messages",
+        "square"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z\" /><path d=\"M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1\" /></svg>"
+    },
+    {
+      "id": "workflow",
+      "name": "工作流",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "workflow",
+        "workflow"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"8\" height=\"8\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M7 11v4a2 2 0 0 0 2 2h4\" /><rect width=\"8\" height=\"8\" x=\"13\" y=\"13\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "plug",
+      "name": "图标：plug",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "plug",
+        "plug"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 22v-5\" /><path d=\"M15 8V2\" /><path d=\"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z\" /><path d=\"M9 8V2\" /></svg>"
+    },
+    {
+      "id": "puzzle",
+      "name": "图标：puzzle",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "puzzle",
+        "puzzle"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\" /></svg>"
+    },
+    {
+      "id": "blocks",
+      "name": "图标：blocks",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "blocks",
+        "blocks"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2\" /><rect x=\"14\" y=\"2\" width=\"8\" height=\"8\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "layers",
+      "name": "图标：layers",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "layers",
+        "layers"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z\" /><path d=\"M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12\" /><path d=\"M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17\" /></svg>"
+    },
+    {
+      "id": "component",
+      "name": "图标：component",
+      "category": "开发运维",
+      "keywords": [
+        "开发",
+        "运维",
+        "技术",
+        "系统",
+        "component",
+        "component"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15.536 11.293a1 1 0 0 0 0 1.414l2.376 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z\" /><path d=\"M2.297 11.293a1 1 0 0 0 0 1.414l2.377 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414L6.088 8.916a1 1 0 0 0-1.414 0z\" /><path d=\"M8.916 17.912a1 1 0 0 0 0 1.415l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.415l-2.377-2.376a1 1 0 0 0-1.414 0z\" /><path d=\"M8.916 4.674a1 1 0 0 0 0 1.414l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z\" /></svg>"
+    },
+    {
+      "id": "monitor",
+      "name": "显示器",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "monitor",
+        "monitor"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\" /><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\" /><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\" /></svg>"
+    },
+    {
+      "id": "laptop",
+      "name": "笔记本",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "laptop",
+        "laptop"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z\" /><path d=\"M20.054 15.987H3.946\" /></svg>"
+    },
+    {
+      "id": "smartphone",
+      "name": "手机",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "smartphone",
+        "smartphone"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\" ry=\"2\" /><path d=\"M12 18h.01\" /></svg>"
+    },
+    {
+      "id": "tablet",
+      "name": "平板",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "tablet",
+        "tablet"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"16\" height=\"20\" x=\"4\" y=\"2\" rx=\"2\" ry=\"2\" /><line x1=\"12\" x2=\"12.01\" y1=\"18\" y2=\"18\" /></svg>"
+    },
+    {
+      "id": "layout-dashboard",
+      "name": "图标：layout dashboard",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "layout-dashboard",
+        "layout",
+        "dashboard"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\" /><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "panel-left",
+      "name": "图标：panel left",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "panel-left",
+        "panel",
+        "left"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /></svg>"
+    },
+    {
+      "id": "menu",
+      "name": "图标：menu",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "menu",
+        "menu"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" /></svg>"
+    },
+    {
+      "id": "table",
+      "name": "图标：table",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "table",
+        "table"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 3v18\" /><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M3 9h18\" /><path d=\"M3 15h18\" /></svg>"
+    },
+    {
+      "id": "columns-3",
+      "name": "图标：columns 3",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "columns-3",
+        "columns",
+        "3"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"M15 3v18\" /></svg>"
+    },
+    {
+      "id": "rows-3",
+      "name": "图标：rows 3",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "rows-3",
+        "rows",
+        "3"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M21 9H3\" /><path d=\"M21 15H3\" /></svg>"
+    },
+    {
+      "id": "mouse-pointer-2",
+      "name": "图标：mouse pointer 2",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "mouse-pointer-2",
+        "mouse",
+        "pointer",
+        "2"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z\" /></svg>"
+    },
+    {
+      "id": "image",
+      "name": "图片",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "image",
+        "image"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\" /><circle cx=\"9\" cy=\"9\" r=\"2\" /><path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\" /></svg>"
+    },
+    {
+      "id": "images",
+      "name": "图标：images",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "images",
+        "images"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16\" /><path d=\"M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2\" /><circle cx=\"13\" cy=\"7\" r=\"1\" fill=\"currentColor\" /><rect x=\"8\" y=\"2\" width=\"14\" height=\"14\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "camera",
+      "name": "相机",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "camera",
+        "camera"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z\" /><circle cx=\"12\" cy=\"13\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "video",
+      "name": "视频",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "video",
+        "video"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5\" /><rect x=\"2\" y=\"6\" width=\"14\" height=\"12\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "mic",
+      "name": "图标：mic",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "mic",
+        "mic"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 19v3\" /><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\" /><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\" /></svg>"
+    },
+    {
+      "id": "volume-2",
+      "name": "图标：volume 2",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "volume-2",
+        "volume",
+        "2"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\" /><path d=\"M16 9a5 5 0 0 1 0 6\" /><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\" /></svg>"
+    },
+    {
+      "id": "music",
+      "name": "图标：music",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "music",
+        "music"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M9 18V5l12-2v13\" /><circle cx=\"6\" cy=\"18\" r=\"3\" /><circle cx=\"18\" cy=\"16\" r=\"3\" /></svg>"
+    },
+    {
+      "id": "paperclip",
+      "name": "图标：paperclip",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "paperclip",
+        "paperclip"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551\" /></svg>"
+    },
+    {
+      "id": "upload",
+      "name": "上传",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "upload",
+        "upload"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /></svg>"
+    },
+    {
+      "id": "download",
+      "name": "下载",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "download",
+        "download"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 15V3\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /><path d=\"m7 10 5 5 5-5\" /></svg>"
+    },
+    {
+      "id": "share-2",
+      "name": "图标：share 2",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "share-2",
+        "share",
+        "2"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"18\" cy=\"5\" r=\"3\" /><circle cx=\"6\" cy=\"12\" r=\"3\" /><circle cx=\"18\" cy=\"19\" r=\"3\" /><line x1=\"8.59\" x2=\"15.42\" y1=\"13.51\" y2=\"17.49\" /><line x1=\"15.41\" x2=\"8.59\" y1=\"6.51\" y2=\"10.49\" /></svg>"
+    },
+    {
+      "id": "link",
+      "name": "图标：link",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "link",
+        "link"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\" /><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\" /></svg>"
+    },
+    {
+      "id": "external-link",
+      "name": "图标：external link",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "external-link",
+        "external",
+        "link"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" /></svg>"
+    },
+    {
+      "id": "copy",
+      "name": "图标：copy",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "copy",
+        "copy"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" /></svg>"
+    },
+    {
+      "id": "clipboard-copy",
+      "name": "图标：clipboard copy",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "clipboard-copy",
+        "clipboard",
+        "copy"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /><path d=\"M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2\" /><path d=\"M16 4h2a2 2 0 0 1 2 2v4\" /><path d=\"M21 14H11\" /><path d=\"m15 10-4 4 4 4\" /></svg>"
+    },
+    {
+      "id": "printer",
+      "name": "图标：printer",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "printer",
+        "printer"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2\" /><path d=\"M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6\" /><rect x=\"6\" y=\"14\" width=\"12\" height=\"8\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "save",
+      "name": "保存",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "save",
+        "save"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\" /><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\" /><path d=\"M7 3v4a1 1 0 0 0 1 1h7\" /></svg>"
+    },
+    {
+      "id": "bookmark",
+      "name": "书签",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "bookmark",
+        "bookmark"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z\" /></svg>"
+    },
+    {
+      "id": "star",
+      "name": "收藏",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "star",
+        "star"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\" /></svg>"
+    },
+    {
+      "id": "heart",
+      "name": "喜欢",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "heart",
+        "heart"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5\" /></svg>"
+    },
+    {
+      "id": "flag",
+      "name": "图标：flag",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "flag",
+        "flag"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528\" /></svg>"
+    },
+    {
+      "id": "tag",
+      "name": "图标：tag",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "tag",
+        "tag"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z\" /><circle cx=\"7.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" /></svg>"
+    },
+    {
+      "id": "tags",
+      "name": "图标：tags",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "tags",
+        "tags"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M13.172 2a2 2 0 0 1 1.414.586l6.71 6.71a2.4 2.4 0 0 1 0 3.408l-4.592 4.592a2.4 2.4 0 0 1-3.408 0l-6.71-6.71A2 2 0 0 1 6 9.172V3a1 1 0 0 1 1-1z\" /><path d=\"M2 7v6.172a2 2 0 0 0 .586 1.414l6.71 6.71a2.4 2.4 0 0 0 3.191.193\" /><circle cx=\"10.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /></svg>"
+    },
+    {
+      "id": "info",
+      "name": "图标：info",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "info",
+        "info"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 16v-4\" /><path d=\"M12 8h.01\" /></svg>"
+    },
+    {
+      "id": "triangle-alert",
+      "name": "图标：triangle alert",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "triangle-alert",
+        "triangle",
+        "alert"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" /></svg>"
+    },
+    {
+      "id": "circle-alert",
+      "name": "图标：circle alert",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "circle-alert",
+        "circle",
+        "alert"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" /><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" /></svg>"
+    },
+    {
+      "id": "circle-x",
+      "name": "图标：circle x",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "circle-x",
+        "circle",
+        "x"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m15 9-6 6\" /><path d=\"m9 9 6 6\" /></svg>"
+    },
+    {
+      "id": "refresh-cw",
+      "name": "图标：refresh cw",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "refresh-cw",
+        "refresh",
+        "cw"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" /><path d=\"M21 3v5h-5\" /><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" /><path d=\"M8 16H3v5\" /></svg>"
+    },
+    {
+      "id": "rotate-ccw",
+      "name": "图标：rotate ccw",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "rotate-ccw",
+        "rotate",
+        "ccw"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" /></svg>"
+    },
+    {
+      "id": "play",
+      "name": "图标：play",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "play",
+        "play"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" /></svg>"
+    },
+    {
+      "id": "pause",
+      "name": "图标：pause",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "pause",
+        "pause"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect x=\"14\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" /><rect x=\"5\" y=\"3\" width=\"5\" height=\"18\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "square",
+      "name": "图标：square",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "square",
+        "square"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "circle-stop",
+      "name": "图标：circle stop",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "circle-stop",
+        "circle",
+        "stop"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"10\" /><rect x=\"9\" y=\"9\" width=\"6\" height=\"6\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "power",
+      "name": "图标：power",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "power",
+        "power"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 2v10\" /><path d=\"M18.4 6.6a9 9 0 1 1-12.77.04\" /></svg>"
+    },
+    {
+      "id": "log-in",
+      "name": "图标：log in",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "log-in",
+        "log",
+        "in"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m10 17 5-5-5-5\" /><path d=\"M15 12H3\" /><path d=\"M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4\" /></svg>"
+    },
+    {
+      "id": "log-out",
+      "name": "图标：log out",
+      "category": "界面交互",
+      "keywords": [
+        "界面",
+        "操作",
+        "媒体",
+        "交互",
+        "log-out",
+        "log",
+        "out"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m16 17 5-5-5-5\" /><path d=\"M21 12H9\" /><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" /></svg>"
+    },
+    {
+      "id": "moon",
+      "name": "图标：moon",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "moon",
+        "moon"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" /></svg>"
+    },
+    {
+      "id": "sun",
+      "name": "图标：sun",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "sun",
+        "sun"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" /></svg>"
+    },
+    {
+      "id": "palette",
+      "name": "图标：palette",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "palette",
+        "palette"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" /></svg>"
+    },
+    {
+      "id": "paintbrush",
+      "name": "图标：paintbrush",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "paintbrush",
+        "paintbrush"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m14.622 17.897-10.68-2.913\" /><path d=\"M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z\" /><path d=\"M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15\" /></svg>"
+    },
+    {
+      "id": "map",
+      "name": "图标：map",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "map",
+        "map"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z\" /><path d=\"M15 5.764v15\" /><path d=\"M9 3.236v15\" /></svg>"
+    },
+    {
+      "id": "navigation",
+      "name": "图标：navigation",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "navigation",
+        "navigation"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><polygon points=\"3 11 22 2 13 21 11 13 3 11\" /></svg>"
+    },
+    {
+      "id": "car",
+      "name": "汽车",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "car",
+        "car"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2\" /><circle cx=\"7\" cy=\"17\" r=\"2\" /><path d=\"M9 17h6\" /><circle cx=\"17\" cy=\"17\" r=\"2\" /></svg>"
+    },
+    {
+      "id": "plane",
+      "name": "飞机",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "plane",
+        "plane"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z\" /></svg>"
+    },
+    {
+      "id": "coffee",
+      "name": "咖啡",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "coffee",
+        "coffee"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 2v2\" /><path d=\"M14 2v2\" /><path d=\"M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1\" /><path d=\"M6 2v2\" /></svg>"
+    },
+    {
+      "id": "gift",
+      "name": "礼物",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "gift",
+        "gift"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 7v14\" /><path d=\"M20 11v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8\" /><path d=\"M7.5 7a1 1 0 0 1 0-5A4.8 8 0 0 1 12 7a4.8 8 0 0 1 4.5-5 1 1 0 0 1 0 5\" /><rect x=\"3\" y=\"7\" width=\"18\" height=\"4\" rx=\"1\" /></svg>"
+    },
+    {
+      "id": "cake",
+      "name": "图标：cake",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "cake",
+        "cake"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8\" /><path d=\"M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1\" /><path d=\"M2 21h20\" /><path d=\"M7 8v3\" /><path d=\"M12 8v3\" /><path d=\"M17 8v3\" /><path d=\"M7 4h.01\" /><path d=\"M12 4h.01\" /><path d=\"M17 4h.01\" /></svg>"
+    },
+    {
+      "id": "party-popper",
+      "name": "图标：party popper",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "party-popper",
+        "party",
+        "popper"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M5.8 11.3 2 22l10.7-3.79\" /><path d=\"M4 3h.01\" /><path d=\"M22 8h.01\" /><path d=\"M15 2h.01\" /><path d=\"M22 20h.01\" /><path d=\"m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10\" /><path d=\"m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17\" /><path d=\"m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7\" /><path d=\"M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z\" /></svg>"
+    },
+    {
+      "id": "leaf",
+      "name": "图标：leaf",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "leaf",
+        "leaf"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20\" /><path d=\"M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13\" /></svg>"
+    },
+    {
+      "id": "tree-pine",
+      "name": "图标：tree pine",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "tree-pine",
+        "tree",
+        "pine"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"m17 14 3 3.3a1 1 0 0 1-.7 1.7H4.7a1 1 0 0 1-.7-1.7L7 14h-.3a1 1 0 0 1-.7-1.7L9 9h-.2A1 1 0 0 1 8 7.3L12 3l4 4.3a1 1 0 0 1-.8 1.7H15l3 3.3a1 1 0 0 1-.7 1.7H17Z\" /><path d=\"M12 22v-3\" /></svg>"
+    },
+    {
+      "id": "accessibility",
+      "name": "图标：accessibility",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "accessibility",
+        "accessibility"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"16\" cy=\"4\" r=\"1\" /><path d=\"m18 19 1-7-6 1\" /><path d=\"m5 8 3-3 5.5 3-2.36 3.5\" /><path d=\"M4.24 14.5a5 5 0 0 0 6.88 6\" /><path d=\"M13.76 17.5a5 5 0 0 0-6.88-6\" /></svg>"
+    },
+    {
+      "id": "shopping-bag",
+      "name": "图标：shopping bag",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "shopping-bag",
+        "shopping",
+        "bag"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M16 10a4 4 0 0 1-8 0\" /><path d=\"M3.103 6.034h17.794\" /><path d=\"M3.4 5.467a2 2 0 0 0-.4 1.2V20a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.667a2 2 0 0 0-.4-1.2l-2-2.667A2 2 0 0 0 17 2H7a2 2 0 0 0-1.6.8z\" /></svg>"
+    },
+    {
+      "id": "utensils",
+      "name": "图标：utensils",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "utensils",
+        "utensils"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2\" /><path d=\"M7 2v20\" /><path d=\"M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7\" /></svg>"
+    },
+    {
+      "id": "book-open",
+      "name": "图标：book open",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "book-open",
+        "book",
+        "open"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 5v16\" /><path d=\"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\" /></svg>"
+    },
+    {
+      "id": "graduation-cap",
+      "name": "图标：graduation cap",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "graduation-cap",
+        "graduation",
+        "cap"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z\" /><path d=\"M22 10v6\" /><path d=\"M6 12.5V16a6 3 0 0 0 12 0v-3.5\" /></svg>"
+    },
+    {
+      "id": "landmark",
+      "name": "图标：landmark",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "landmark",
+        "landmark"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 18v-7\" /><path d=\"M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z\" /><path d=\"M14 18v-7\" /><path d=\"M18 18v-7\" /><path d=\"M3 22h18\" /><path d=\"M6 18v-7\" /></svg>"
+    },
+    {
+      "id": "hospital",
+      "name": "图标：hospital",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "hospital",
+        "hospital"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 7v4\" /><path d=\"M14 21v-3a2 2 0 0 0-4 0v3\" /><path d=\"M14 9h-4\" /><path d=\"M18 11h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h2\" /><path d=\"M18 21V5a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16\" /></svg>"
+    },
+    {
+      "id": "hotel",
+      "name": "图标：hotel",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "hotel",
+        "hotel"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M10 22v-6.57\" /><path d=\"M12 11h.01\" /><path d=\"M12 7h.01\" /><path d=\"M14 15.43V22\" /><path d=\"M15 16a5 5 0 0 0-6 0\" /><path d=\"M16 11h.01\" /><path d=\"M16 7h.01\" /><path d=\"M8 11h.01\" /><path d=\"M8 7h.01\" /><rect x=\"4\" y=\"2\" width=\"16\" height=\"20\" rx=\"2\" /></svg>"
+    },
+    {
+      "id": "store",
+      "name": "图标：store",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "store",
+        "store"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5\" /><path d=\"M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244\" /><path d=\"M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05\" /></svg>"
+    },
+    {
+      "id": "bike",
+      "name": "图标：bike",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "bike",
+        "bike"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><circle cx=\"18.5\" cy=\"17.5\" r=\"3.5\" /><circle cx=\"5.5\" cy=\"17.5\" r=\"3.5\" /><circle cx=\"15\" cy=\"5\" r=\"1\" /><path d=\"M12 17.5V14l-3-3 4-3 2 3h2\" /></svg>"
+    },
+    {
+      "id": "train-front",
+      "name": "图标：train front",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "train-front",
+        "train",
+        "front"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M8 3.1V7a4 4 0 0 0 8 0V3.1\" /><path d=\"m9 15-1-1\" /><path d=\"m15 15 1-1\" /><path d=\"M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z\" /><path d=\"m8 19-2 3\" /><path d=\"m16 19 2 3\" /></svg>"
+    },
+    {
+      "id": "ship",
+      "name": "图标：ship",
+      "category": "生活出行",
+      "keywords": [
+        "生活",
+        "出行",
+        "服务",
+        "日常",
+        "ship",
+        "ship"
+      ],
+      "svg": "<svg\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n><path d=\"M12 2v2\" /><path d=\"M12 9.189V13\" /><path d=\"M19 12V6a2 2 0 00-2-2H7a2 2 0 00-2 2v6\" /><path d=\"M19.38 19A11.6 11.6 0 0021 13l-8.188-3.639a2 2 0 00-1.624 0L3 13.001a11.6 11.6 0 002.81 7.76\" /><path d=\"M2 20c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1\" /></svg>"
+    }
+  ],
+  "emoji": [
+    {
+      "value": "😀",
+      "name": "表情：grinning face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "grinning",
+        "face"
+      ]
+    },
+    {
+      "value": "😃",
+      "name": "表情：grinning face with big eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "grinning",
+        "face",
+        "with",
+        "big",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😄",
+      "name": "表情：grinning face with smiling eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "grinning",
+        "face",
+        "with",
+        "smiling",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😁",
+      "name": "表情：beaming face with smiling eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "beaming",
+        "face",
+        "with",
+        "smiling",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😆",
+      "name": "表情：grinning squinting face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "grinning",
+        "squinting",
+        "face"
+      ]
+    },
+    {
+      "value": "😅",
+      "name": "表情：grinning face with sweat",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "grinning",
+        "face",
+        "with",
+        "sweat"
+      ]
+    },
+    {
+      "value": "🤣",
+      "name": "表情：rolling on the floor laughing",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "rolling",
+        "on",
+        "the",
+        "floor",
+        "laughing"
+      ]
+    },
+    {
+      "value": "😂",
+      "name": "表情：face with tears of joy",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "face",
+        "with",
+        "tears",
+        "of",
+        "joy"
+      ]
+    },
+    {
+      "value": "🙂",
+      "name": "表情：slightly smiling face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "slightly",
+        "smiling",
+        "face"
+      ]
+    },
+    {
+      "value": "🙃",
+      "name": "表情：upside-down face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "upside",
+        "down",
+        "face"
+      ]
+    },
+    {
+      "value": "🫠",
+      "name": "表情：melting face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "melting",
+        "face"
+      ]
+    },
+    {
+      "value": "😉",
+      "name": "表情：winking face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "winking",
+        "face"
+      ]
+    },
+    {
+      "value": "😊",
+      "name": "表情：smiling face with smiling eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "smiling",
+        "face",
+        "with",
+        "smiling",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😇",
+      "name": "表情：smiling face with halo",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-smiling",
+        "smiling",
+        "face",
+        "with",
+        "halo"
+      ]
+    },
+    {
+      "value": "🥰",
+      "name": "表情：smiling face with hearts",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "smiling",
+        "face",
+        "with",
+        "hearts"
+      ]
+    },
+    {
+      "value": "😍",
+      "name": "表情：smiling face with heart-eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "smiling",
+        "face",
+        "with",
+        "heart",
+        "eyes"
+      ]
+    },
+    {
+      "value": "🤩",
+      "name": "表情：star-struck",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "star",
+        "struck"
+      ]
+    },
+    {
+      "value": "😘",
+      "name": "表情：face blowing a kiss",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "face",
+        "blowing",
+        "a",
+        "kiss"
+      ]
+    },
+    {
+      "value": "😗",
+      "name": "表情：kissing face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "kissing",
+        "face"
+      ]
+    },
+    {
+      "value": "☺️",
+      "name": "表情：smiling face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "smiling",
+        "face"
+      ]
+    },
+    {
+      "value": "😚",
+      "name": "表情：kissing face with closed eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "kissing",
+        "face",
+        "with",
+        "closed",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😙",
+      "name": "表情：kissing face with smiling eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "kissing",
+        "face",
+        "with",
+        "smiling",
+        "eyes"
+      ]
+    },
+    {
+      "value": "🥲",
+      "name": "表情：smiling face with tear",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-affection",
+        "smiling",
+        "face",
+        "with",
+        "tear"
+      ]
+    },
+    {
+      "value": "😋",
+      "name": "表情：face savoring food",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "face",
+        "savoring",
+        "food"
+      ]
+    },
+    {
+      "value": "😛",
+      "name": "表情：face with tongue",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "face",
+        "with",
+        "tongue"
+      ]
+    },
+    {
+      "value": "😜",
+      "name": "表情：winking face with tongue",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "winking",
+        "face",
+        "with",
+        "tongue"
+      ]
+    },
+    {
+      "value": "🤪",
+      "name": "表情：zany face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "zany",
+        "face"
+      ]
+    },
+    {
+      "value": "😝",
+      "name": "表情：squinting face with tongue",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "squinting",
+        "face",
+        "with",
+        "tongue"
+      ]
+    },
+    {
+      "value": "🤑",
+      "name": "表情：money-mouth face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-tongue",
+        "money",
+        "mouth",
+        "face"
+      ]
+    },
+    {
+      "value": "🤗",
+      "name": "表情：smiling face with open hands",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "smiling",
+        "face",
+        "with",
+        "open",
+        "hands"
+      ]
+    },
+    {
+      "value": "🤭",
+      "name": "表情：face with hand over mouth",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "face",
+        "with",
+        "hand",
+        "over",
+        "mouth"
+      ]
+    },
+    {
+      "value": "🫢",
+      "name": "表情：face with open eyes and hand over mouth",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "face",
+        "with",
+        "open",
+        "eyes",
+        "and",
+        "hand",
+        "over",
+        "mouth"
+      ]
+    },
+    {
+      "value": "🫣",
+      "name": "表情：face with peeking eye",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "face",
+        "with",
+        "peeking",
+        "eye"
+      ]
+    },
+    {
+      "value": "🤫",
+      "name": "表情：shushing face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "shushing",
+        "face"
+      ]
+    },
+    {
+      "value": "🤔",
+      "name": "表情：thinking face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "thinking",
+        "face"
+      ]
+    },
+    {
+      "value": "🫡",
+      "name": "表情：saluting face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hand",
+        "saluting",
+        "face"
+      ]
+    },
+    {
+      "value": "🤐",
+      "name": "表情：zipper-mouth face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "zipper",
+        "mouth",
+        "face"
+      ]
+    },
+    {
+      "value": "🤨",
+      "name": "表情：face with raised eyebrow",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "face",
+        "with",
+        "raised",
+        "eyebrow"
+      ]
+    },
+    {
+      "value": "😐",
+      "name": "表情：neutral face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "neutral",
+        "face"
+      ]
+    },
+    {
+      "value": "😑",
+      "name": "表情：expressionless face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "expressionless",
+        "face"
+      ]
+    },
+    {
+      "value": "😶",
+      "name": "表情：face without mouth",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "face",
+        "without",
+        "mouth"
+      ]
+    },
+    {
+      "value": "🫥",
+      "name": "表情：dotted line face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "dotted",
+        "line",
+        "face"
+      ]
+    },
+    {
+      "value": "😶‍🌫️",
+      "name": "表情：face in clouds",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "face",
+        "in",
+        "clouds"
+      ]
+    },
+    {
+      "value": "😏",
+      "name": "表情：smirking face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "smirking",
+        "face"
+      ]
+    },
+    {
+      "value": "😒",
+      "name": "表情：unamused face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "unamused",
+        "face"
+      ]
+    },
+    {
+      "value": "🙄",
+      "name": "表情：face with rolling eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "face",
+        "with",
+        "rolling",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😬",
+      "name": "表情：grimacing face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "grimacing",
+        "face"
+      ]
+    },
+    {
+      "value": "😮‍💨",
+      "name": "表情：face exhaling",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "face",
+        "exhaling"
+      ]
+    },
+    {
+      "value": "🤥",
+      "name": "表情：lying face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "lying",
+        "face"
+      ]
+    },
+    {
+      "value": "🫨",
+      "name": "表情：shaking face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "shaking",
+        "face"
+      ]
+    },
+    {
+      "value": "🙂‍↔️",
+      "name": "表情：head shaking horizontally",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "head",
+        "shaking",
+        "horizontally"
+      ]
+    },
+    {
+      "value": "🙂‍↕️",
+      "name": "表情：head shaking vertically",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-neutral-skeptical",
+        "head",
+        "shaking",
+        "vertically"
+      ]
+    },
+    {
+      "value": "😌",
+      "name": "表情：relieved face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-sleepy",
+        "relieved",
+        "face"
+      ]
+    },
+    {
+      "value": "😔",
+      "name": "表情：pensive face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-sleepy",
+        "pensive",
+        "face"
+      ]
+    },
+    {
+      "value": "😪",
+      "name": "表情：sleepy face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-sleepy",
+        "sleepy",
+        "face"
+      ]
+    },
+    {
+      "value": "🤤",
+      "name": "表情：drooling face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-sleepy",
+        "drooling",
+        "face"
+      ]
+    },
+    {
+      "value": "😴",
+      "name": "表情：sleeping face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-sleepy",
+        "sleeping",
+        "face"
+      ]
+    },
+    {
+      "value": "😷",
+      "name": "表情：face with medical mask",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "with",
+        "medical",
+        "mask"
+      ]
+    },
+    {
+      "value": "🤒",
+      "name": "表情：face with thermometer",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "with",
+        "thermometer"
+      ]
+    },
+    {
+      "value": "🤕",
+      "name": "表情：face with head-bandage",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "with",
+        "head",
+        "bandage"
+      ]
+    },
+    {
+      "value": "🤢",
+      "name": "表情：nauseated face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "nauseated",
+        "face"
+      ]
+    },
+    {
+      "value": "🤮",
+      "name": "表情：face vomiting",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "vomiting"
+      ]
+    },
+    {
+      "value": "🤧",
+      "name": "表情：sneezing face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "sneezing",
+        "face"
+      ]
+    },
+    {
+      "value": "🥵",
+      "name": "表情：hot face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "hot",
+        "face"
+      ]
+    },
+    {
+      "value": "🥶",
+      "name": "表情：cold face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "cold",
+        "face"
+      ]
+    },
+    {
+      "value": "🥴",
+      "name": "表情：woozy face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "woozy",
+        "face"
+      ]
+    },
+    {
+      "value": "😵",
+      "name": "表情：face with crossed-out eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "with",
+        "crossed",
+        "out",
+        "eyes"
+      ]
+    },
+    {
+      "value": "😵‍💫",
+      "name": "表情：face with spiral eyes",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "face",
+        "with",
+        "spiral",
+        "eyes"
+      ]
+    },
+    {
+      "value": "🤯",
+      "name": "表情：exploding head",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-unwell",
+        "exploding",
+        "head"
+      ]
+    },
+    {
+      "value": "🤠",
+      "name": "表情：cowboy hat face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hat",
+        "cowboy",
+        "hat",
+        "face"
+      ]
+    },
+    {
+      "value": "🥳",
+      "name": "表情：partying face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hat",
+        "partying",
+        "face"
+      ]
+    },
+    {
+      "value": "🥸",
+      "name": "表情：disguised face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-hat",
+        "disguised",
+        "face"
+      ]
+    },
+    {
+      "value": "😎",
+      "name": "表情：smiling face with sunglasses",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-glasses",
+        "smiling",
+        "face",
+        "with",
+        "sunglasses"
+      ]
+    },
+    {
+      "value": "🤓",
+      "name": "表情：nerd face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-glasses",
+        "nerd",
+        "face"
+      ]
+    },
+    {
+      "value": "🧐",
+      "name": "表情：face with monocle",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-glasses",
+        "face",
+        "with",
+        "monocle"
+      ]
+    },
+    {
+      "value": "😕",
+      "name": "表情：confused face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-concerned",
+        "confused",
+        "face"
+      ]
+    },
+    {
+      "value": "🫤",
+      "name": "表情：face with diagonal mouth",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-concerned",
+        "face",
+        "with",
+        "diagonal",
+        "mouth"
+      ]
+    },
+    {
+      "value": "😟",
+      "name": "表情：worried face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-concerned",
+        "worried",
+        "face"
+      ]
+    },
+    {
+      "value": "🙁",
+      "name": "表情：slightly frowning face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-concerned",
+        "slightly",
+        "frowning",
+        "face"
+      ]
+    },
+    {
+      "value": "☹️",
+      "name": "表情：frowning face",
+      "category": "表情",
+      "keywords": [
+        "笑脸",
+        "心情",
+        "face-concerned",
+        "frowning",
+        "face"
+      ]
+    },
+    {
+      "value": "👋",
+      "name": "表情：waving hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "waving",
+        "hand"
+      ]
+    },
+    {
+      "value": "🤚",
+      "name": "表情：raised back of hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "raised",
+        "back",
+        "of",
+        "hand"
+      ]
+    },
+    {
+      "value": "🖐️",
+      "name": "表情：hand with fingers splayed",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "hand",
+        "with",
+        "fingers",
+        "splayed"
+      ]
+    },
+    {
+      "value": "✋",
+      "name": "表情：raised hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "raised",
+        "hand"
+      ]
+    },
+    {
+      "value": "🖖",
+      "name": "表情：vulcan salute",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "vulcan",
+        "salute"
+      ]
+    },
+    {
+      "value": "🫱",
+      "name": "表情：rightwards hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "rightwards",
+        "hand"
+      ]
+    },
+    {
+      "value": "🫲",
+      "name": "表情：leftwards hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "leftwards",
+        "hand"
+      ]
+    },
+    {
+      "value": "🫳",
+      "name": "表情：palm down hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "palm",
+        "down",
+        "hand"
+      ]
+    },
+    {
+      "value": "🫴",
+      "name": "表情：palm up hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "palm",
+        "up",
+        "hand"
+      ]
+    },
+    {
+      "value": "🫷",
+      "name": "表情：leftwards pushing hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "leftwards",
+        "pushing",
+        "hand"
+      ]
+    },
+    {
+      "value": "🫸",
+      "name": "表情：rightwards pushing hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-open",
+        "rightwards",
+        "pushing",
+        "hand"
+      ]
+    },
+    {
+      "value": "👌",
+      "name": "表情：OK hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "ok",
+        "hand"
+      ]
+    },
+    {
+      "value": "🤌",
+      "name": "表情：pinched fingers",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "pinched",
+        "fingers"
+      ]
+    },
+    {
+      "value": "🤏",
+      "name": "表情：pinching hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "pinching",
+        "hand"
+      ]
+    },
+    {
+      "value": "✌️",
+      "name": "表情：victory hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "victory",
+        "hand"
+      ]
+    },
+    {
+      "value": "🤞",
+      "name": "表情：crossed fingers",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "crossed",
+        "fingers"
+      ]
+    },
+    {
+      "value": "🫰",
+      "name": "表情：hand with index finger and thumb crossed",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "hand",
+        "with",
+        "index",
+        "finger",
+        "and",
+        "thumb",
+        "crossed"
+      ]
+    },
+    {
+      "value": "🤟",
+      "name": "表情：love-you gesture",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "love",
+        "you",
+        "gesture"
+      ]
+    },
+    {
+      "value": "🤘",
+      "name": "表情：sign of the horns",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "sign",
+        "of",
+        "the",
+        "horns"
+      ]
+    },
+    {
+      "value": "🤙",
+      "name": "表情：call me hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-partial",
+        "call",
+        "me",
+        "hand"
+      ]
+    },
+    {
+      "value": "👈",
+      "name": "表情：backhand index pointing left",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "backhand",
+        "index",
+        "pointing",
+        "left"
+      ]
+    },
+    {
+      "value": "👉",
+      "name": "表情：backhand index pointing right",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "backhand",
+        "index",
+        "pointing",
+        "right"
+      ]
+    },
+    {
+      "value": "👆",
+      "name": "表情：backhand index pointing up",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "backhand",
+        "index",
+        "pointing",
+        "up"
+      ]
+    },
+    {
+      "value": "🖕",
+      "name": "表情：middle finger",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "middle",
+        "finger"
+      ]
+    },
+    {
+      "value": "👇",
+      "name": "表情：backhand index pointing down",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "backhand",
+        "index",
+        "pointing",
+        "down"
+      ]
+    },
+    {
+      "value": "☝️",
+      "name": "表情：index pointing up",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "index",
+        "pointing",
+        "up"
+      ]
+    },
+    {
+      "value": "🫵",
+      "name": "表情：index pointing at the viewer",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-single-finger",
+        "index",
+        "pointing",
+        "at",
+        "the",
+        "viewer"
+      ]
+    },
+    {
+      "value": "👍",
+      "name": "表情：thumbs up",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "thumbs",
+        "up"
+      ]
+    },
+    {
+      "value": "👎",
+      "name": "表情：thumbs down",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "thumbs",
+        "down"
+      ]
+    },
+    {
+      "value": "✊",
+      "name": "表情：raised fist",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "raised",
+        "fist"
+      ]
+    },
+    {
+      "value": "👊",
+      "name": "表情：oncoming fist",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "oncoming",
+        "fist"
+      ]
+    },
+    {
+      "value": "🤛",
+      "name": "表情：left-facing fist",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "left",
+        "facing",
+        "fist"
+      ]
+    },
+    {
+      "value": "🤜",
+      "name": "表情：right-facing fist",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-fingers-closed",
+        "right",
+        "facing",
+        "fist"
+      ]
+    },
+    {
+      "value": "👏",
+      "name": "表情：clapping hands",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "clapping",
+        "hands"
+      ]
+    },
+    {
+      "value": "🙌",
+      "name": "表情：raising hands",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "raising",
+        "hands"
+      ]
+    },
+    {
+      "value": "🫶",
+      "name": "表情：heart hands",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "heart",
+        "hands"
+      ]
+    },
+    {
+      "value": "👐",
+      "name": "表情：open hands",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "open",
+        "hands"
+      ]
+    },
+    {
+      "value": "🤲",
+      "name": "表情：palms up together",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "palms",
+        "up",
+        "together"
+      ]
+    },
+    {
+      "value": "🤝",
+      "name": "表情：handshake",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "handshake"
+      ]
+    },
+    {
+      "value": "🙏",
+      "name": "表情：folded hands",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hands",
+        "folded",
+        "hands"
+      ]
+    },
+    {
+      "value": "✍️",
+      "name": "表情：writing hand",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-prop",
+        "writing",
+        "hand"
+      ]
+    },
+    {
+      "value": "💅",
+      "name": "表情：nail polish",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-prop",
+        "nail",
+        "polish"
+      ]
+    },
+    {
+      "value": "🤳",
+      "name": "表情：selfie",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "hand-prop",
+        "selfie"
+      ]
+    },
+    {
+      "value": "💪",
+      "name": "表情：flexed biceps",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "flexed",
+        "biceps"
+      ]
+    },
+    {
+      "value": "🦾",
+      "name": "表情：mechanical arm",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "mechanical",
+        "arm"
+      ]
+    },
+    {
+      "value": "🦿",
+      "name": "表情：mechanical leg",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "mechanical",
+        "leg"
+      ]
+    },
+    {
+      "value": "🦵",
+      "name": "表情：leg",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "leg"
+      ]
+    },
+    {
+      "value": "🦶",
+      "name": "表情：foot",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "foot"
+      ]
+    },
+    {
+      "value": "👂",
+      "name": "表情：ear",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "ear"
+      ]
+    },
+    {
+      "value": "🦻",
+      "name": "表情：ear with hearing aid",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "ear",
+        "with",
+        "hearing",
+        "aid"
+      ]
+    },
+    {
+      "value": "👃",
+      "name": "表情：nose",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "nose"
+      ]
+    },
+    {
+      "value": "🧠",
+      "name": "表情：brain",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "brain"
+      ]
+    },
+    {
+      "value": "🫀",
+      "name": "表情：anatomical heart",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "anatomical",
+        "heart"
+      ]
+    },
+    {
+      "value": "🫁",
+      "name": "表情：lungs",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "lungs"
+      ]
+    },
+    {
+      "value": "🦷",
+      "name": "表情：tooth",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "tooth"
+      ]
+    },
+    {
+      "value": "🦴",
+      "name": "表情：bone",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "bone"
+      ]
+    },
+    {
+      "value": "👀",
+      "name": "表情：eyes",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "eyes"
+      ]
+    },
+    {
+      "value": "👁️",
+      "name": "表情：eye",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "eye"
+      ]
+    },
+    {
+      "value": "👅",
+      "name": "表情：tongue",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "tongue"
+      ]
+    },
+    {
+      "value": "👄",
+      "name": "表情：mouth",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "mouth"
+      ]
+    },
+    {
+      "value": "🫦",
+      "name": "表情：biting lip",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "body-parts",
+        "biting",
+        "lip"
+      ]
+    },
+    {
+      "value": "👶",
+      "name": "表情：baby",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "baby"
+      ]
+    },
+    {
+      "value": "🧒",
+      "name": "表情：child",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "child"
+      ]
+    },
+    {
+      "value": "👦",
+      "name": "表情：boy",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "boy"
+      ]
+    },
+    {
+      "value": "👧",
+      "name": "表情：girl",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "girl"
+      ]
+    },
+    {
+      "value": "🧑",
+      "name": "表情：person",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "person"
+      ]
+    },
+    {
+      "value": "👱",
+      "name": "表情：person: blond hair",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "person:",
+        "blond",
+        "hair"
+      ]
+    },
+    {
+      "value": "👨",
+      "name": "表情：man",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "man"
+      ]
+    },
+    {
+      "value": "🧔",
+      "name": "表情：person: beard",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "person:",
+        "beard"
+      ]
+    },
+    {
+      "value": "🧔‍♂️",
+      "name": "表情：man: beard",
+      "category": "人物",
+      "keywords": [
+        "手势",
+        "身体",
+        "person",
+        "man:",
+        "beard"
+      ]
+    },
+    {
+      "value": "🐵",
+      "name": "表情：monkey face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "monkey",
+        "face"
+      ]
+    },
+    {
+      "value": "🐒",
+      "name": "表情：monkey",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "monkey"
+      ]
+    },
+    {
+      "value": "🦍",
+      "name": "表情：gorilla",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "gorilla"
+      ]
+    },
+    {
+      "value": "🦧",
+      "name": "表情：orangutan",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "orangutan"
+      ]
+    },
+    {
+      "value": "🐶",
+      "name": "表情：dog face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "dog",
+        "face"
+      ]
+    },
+    {
+      "value": "🐕",
+      "name": "表情：dog",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "dog"
+      ]
+    },
+    {
+      "value": "🦮",
+      "name": "表情：guide dog",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "guide",
+        "dog"
+      ]
+    },
+    {
+      "value": "🐕‍🦺",
+      "name": "表情：service dog",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "service",
+        "dog"
+      ]
+    },
+    {
+      "value": "🐩",
+      "name": "表情：poodle",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "poodle"
+      ]
+    },
+    {
+      "value": "🐺",
+      "name": "表情：wolf",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "wolf"
+      ]
+    },
+    {
+      "value": "🦊",
+      "name": "表情：fox",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "fox"
+      ]
+    },
+    {
+      "value": "🦝",
+      "name": "表情：raccoon",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "raccoon"
+      ]
+    },
+    {
+      "value": "🐱",
+      "name": "表情：cat face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "cat",
+        "face"
+      ]
+    },
+    {
+      "value": "🐈",
+      "name": "表情：cat",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "cat"
+      ]
+    },
+    {
+      "value": "🐈‍⬛",
+      "name": "表情：black cat",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "black",
+        "cat"
+      ]
+    },
+    {
+      "value": "🦁",
+      "name": "表情：lion",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "lion"
+      ]
+    },
+    {
+      "value": "🐯",
+      "name": "表情：tiger face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "tiger",
+        "face"
+      ]
+    },
+    {
+      "value": "🐅",
+      "name": "表情：tiger",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "tiger"
+      ]
+    },
+    {
+      "value": "🐆",
+      "name": "表情：leopard",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "leopard"
+      ]
+    },
+    {
+      "value": "🐴",
+      "name": "表情：horse face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "horse",
+        "face"
+      ]
+    },
+    {
+      "value": "🫎",
+      "name": "表情：moose",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "moose"
+      ]
+    },
+    {
+      "value": "🫏",
+      "name": "表情：donkey",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "donkey"
+      ]
+    },
+    {
+      "value": "🐎",
+      "name": "表情：horse",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "horse"
+      ]
+    },
+    {
+      "value": "🦄",
+      "name": "表情：unicorn",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "unicorn"
+      ]
+    },
+    {
+      "value": "🦓",
+      "name": "表情：zebra",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "zebra"
+      ]
+    },
+    {
+      "value": "🦌",
+      "name": "表情：deer",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "deer"
+      ]
+    },
+    {
+      "value": "🦬",
+      "name": "表情：bison",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "bison"
+      ]
+    },
+    {
+      "value": "🐮",
+      "name": "表情：cow face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "cow",
+        "face"
+      ]
+    },
+    {
+      "value": "🐂",
+      "name": "表情：ox",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "ox"
+      ]
+    },
+    {
+      "value": "🐃",
+      "name": "表情：water buffalo",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "water",
+        "buffalo"
+      ]
+    },
+    {
+      "value": "🐄",
+      "name": "表情：cow",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "cow"
+      ]
+    },
+    {
+      "value": "🐷",
+      "name": "表情：pig face",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "pig",
+        "face"
+      ]
+    },
+    {
+      "value": "🐖",
+      "name": "表情：pig",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "pig"
+      ]
+    },
+    {
+      "value": "🐗",
+      "name": "表情：boar",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "boar"
+      ]
+    },
+    {
+      "value": "🐽",
+      "name": "表情：pig nose",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "pig",
+        "nose"
+      ]
+    },
+    {
+      "value": "🐏",
+      "name": "表情：ram",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "ram"
+      ]
+    },
+    {
+      "value": "🐑",
+      "name": "表情：ewe",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "ewe"
+      ]
+    },
+    {
+      "value": "🐐",
+      "name": "表情：goat",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "goat"
+      ]
+    },
+    {
+      "value": "🐪",
+      "name": "表情：camel",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "camel"
+      ]
+    },
+    {
+      "value": "🐫",
+      "name": "表情：two-hump camel",
+      "category": "自然",
+      "keywords": [
+        "动物",
+        "植物",
+        "animal-mammal",
+        "two",
+        "hump",
+        "camel"
+      ]
+    },
+    {
+      "value": "🍇",
+      "name": "表情：grapes",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "grapes"
+      ]
+    },
+    {
+      "value": "🍈",
+      "name": "表情：melon",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "melon"
+      ]
+    },
+    {
+      "value": "🍉",
+      "name": "表情：watermelon",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "watermelon"
+      ]
+    },
+    {
+      "value": "🍊",
+      "name": "表情：tangerine",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "tangerine"
+      ]
+    },
+    {
+      "value": "🍋",
+      "name": "表情：lemon",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "lemon"
+      ]
+    },
+    {
+      "value": "🍋‍🟩",
+      "name": "表情：lime",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "lime"
+      ]
+    },
+    {
+      "value": "🍌",
+      "name": "表情：banana",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "banana"
+      ]
+    },
+    {
+      "value": "🍍",
+      "name": "表情：pineapple",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "pineapple"
+      ]
+    },
+    {
+      "value": "🥭",
+      "name": "表情：mango",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "mango"
+      ]
+    },
+    {
+      "value": "🍎",
+      "name": "表情：red apple",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "red",
+        "apple"
+      ]
+    },
+    {
+      "value": "🍏",
+      "name": "表情：green apple",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "green",
+        "apple"
+      ]
+    },
+    {
+      "value": "🍐",
+      "name": "表情：pear",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "pear"
+      ]
+    },
+    {
+      "value": "🍑",
+      "name": "表情：peach",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "peach"
+      ]
+    },
+    {
+      "value": "🍒",
+      "name": "表情：cherries",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "cherries"
+      ]
+    },
+    {
+      "value": "🍓",
+      "name": "表情：strawberry",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "strawberry"
+      ]
+    },
+    {
+      "value": "🫐",
+      "name": "表情：blueberries",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "blueberries"
+      ]
+    },
+    {
+      "value": "🥝",
+      "name": "表情：kiwi fruit",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "kiwi",
+        "fruit"
+      ]
+    },
+    {
+      "value": "🍅",
+      "name": "表情：tomato",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "tomato"
+      ]
+    },
+    {
+      "value": "🫒",
+      "name": "表情：olive",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "olive"
+      ]
+    },
+    {
+      "value": "🥥",
+      "name": "表情：coconut",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-fruit",
+        "coconut"
+      ]
+    },
+    {
+      "value": "🥑",
+      "name": "表情：avocado",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "avocado"
+      ]
+    },
+    {
+      "value": "🍆",
+      "name": "表情：eggplant",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "eggplant"
+      ]
+    },
+    {
+      "value": "🥔",
+      "name": "表情：potato",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "potato"
+      ]
+    },
+    {
+      "value": "🥕",
+      "name": "表情：carrot",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "carrot"
+      ]
+    },
+    {
+      "value": "🌽",
+      "name": "表情：ear of corn",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "ear",
+        "of",
+        "corn"
+      ]
+    },
+    {
+      "value": "🌶️",
+      "name": "表情：hot pepper",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "hot",
+        "pepper"
+      ]
+    },
+    {
+      "value": "🫑",
+      "name": "表情：bell pepper",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "bell",
+        "pepper"
+      ]
+    },
+    {
+      "value": "🥒",
+      "name": "表情：cucumber",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "cucumber"
+      ]
+    },
+    {
+      "value": "🥬",
+      "name": "表情：leafy green",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "leafy",
+        "green"
+      ]
+    },
+    {
+      "value": "🥦",
+      "name": "表情：broccoli",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "broccoli"
+      ]
+    },
+    {
+      "value": "🧄",
+      "name": "表情：garlic",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "garlic"
+      ]
+    },
+    {
+      "value": "🧅",
+      "name": "表情：onion",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "onion"
+      ]
+    },
+    {
+      "value": "🥜",
+      "name": "表情：peanuts",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "peanuts"
+      ]
+    },
+    {
+      "value": "🫘",
+      "name": "表情：beans",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "beans"
+      ]
+    },
+    {
+      "value": "🌰",
+      "name": "表情：chestnut",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "chestnut"
+      ]
+    },
+    {
+      "value": "🫚",
+      "name": "表情：ginger root",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "ginger",
+        "root"
+      ]
+    },
+    {
+      "value": "🫛",
+      "name": "表情：pea pod",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "pea",
+        "pod"
+      ]
+    },
+    {
+      "value": "🍄‍🟫",
+      "name": "表情：brown mushroom",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-vegetable",
+        "brown",
+        "mushroom"
+      ]
+    },
+    {
+      "value": "🍞",
+      "name": "表情：bread",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "bread"
+      ]
+    },
+    {
+      "value": "🥐",
+      "name": "表情：croissant",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "croissant"
+      ]
+    },
+    {
+      "value": "🥖",
+      "name": "表情：baguette bread",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "baguette",
+        "bread"
+      ]
+    },
+    {
+      "value": "🫓",
+      "name": "表情：flatbread",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "flatbread"
+      ]
+    },
+    {
+      "value": "🥨",
+      "name": "表情：pretzel",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "pretzel"
+      ]
+    },
+    {
+      "value": "🥯",
+      "name": "表情：bagel",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "bagel"
+      ]
+    },
+    {
+      "value": "🥞",
+      "name": "表情：pancakes",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "pancakes"
+      ]
+    },
+    {
+      "value": "🧇",
+      "name": "表情：waffle",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "waffle"
+      ]
+    },
+    {
+      "value": "🧀",
+      "name": "表情：cheese wedge",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "cheese",
+        "wedge"
+      ]
+    },
+    {
+      "value": "🍖",
+      "name": "表情：meat on bone",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "meat",
+        "on",
+        "bone"
+      ]
+    },
+    {
+      "value": "🍗",
+      "name": "表情：poultry leg",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "poultry",
+        "leg"
+      ]
+    },
+    {
+      "value": "🥩",
+      "name": "表情：cut of meat",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "cut",
+        "of",
+        "meat"
+      ]
+    },
+    {
+      "value": "🥓",
+      "name": "表情：bacon",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "bacon"
+      ]
+    },
+    {
+      "value": "🍔",
+      "name": "表情：hamburger",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "hamburger"
+      ]
+    },
+    {
+      "value": "🍟",
+      "name": "表情：french fries",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "french",
+        "fries"
+      ]
+    },
+    {
+      "value": "🍕",
+      "name": "表情：pizza",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "pizza"
+      ]
+    },
+    {
+      "value": "🌭",
+      "name": "表情：hot dog",
+      "category": "美食",
+      "keywords": [
+        "饮料",
+        "食物",
+        "food-prepared",
+        "hot",
+        "dog"
+      ]
+    },
+    {
+      "value": "🌍",
+      "name": "表情：globe showing Europe-Africa",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "globe",
+        "showing",
+        "europe",
+        "africa"
+      ]
+    },
+    {
+      "value": "🌎",
+      "name": "表情：globe showing Americas",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "globe",
+        "showing",
+        "americas"
+      ]
+    },
+    {
+      "value": "🌏",
+      "name": "表情：globe showing Asia-Australia",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "globe",
+        "showing",
+        "asia",
+        "australia"
+      ]
+    },
+    {
+      "value": "🌐",
+      "name": "表情：globe with meridians",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "globe",
+        "with",
+        "meridians"
+      ]
+    },
+    {
+      "value": "🗺️",
+      "name": "表情：world map",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "world",
+        "map"
+      ]
+    },
+    {
+      "value": "🗾",
+      "name": "表情：map of Japan",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "map",
+        "of",
+        "japan"
+      ]
+    },
+    {
+      "value": "🧭",
+      "name": "表情：compass",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-map",
+        "compass"
+      ]
+    },
+    {
+      "value": "🏔️",
+      "name": "表情：snow-capped mountain",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "snow",
+        "capped",
+        "mountain"
+      ]
+    },
+    {
+      "value": "⛰️",
+      "name": "表情：mountain",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "mountain"
+      ]
+    },
+    {
+      "value": "🌋",
+      "name": "表情：volcano",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "volcano"
+      ]
+    },
+    {
+      "value": "🗻",
+      "name": "表情：mount fuji",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "mount",
+        "fuji"
+      ]
+    },
+    {
+      "value": "🏕️",
+      "name": "表情：camping",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "camping"
+      ]
+    },
+    {
+      "value": "🏖️",
+      "name": "表情：beach with umbrella",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "beach",
+        "with",
+        "umbrella"
+      ]
+    },
+    {
+      "value": "🏜️",
+      "name": "表情：desert",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "desert"
+      ]
+    },
+    {
+      "value": "🏝️",
+      "name": "表情：desert island",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "desert",
+        "island"
+      ]
+    },
+    {
+      "value": "🏞️",
+      "name": "表情：national park",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-geographic",
+        "national",
+        "park"
+      ]
+    },
+    {
+      "value": "🏟️",
+      "name": "表情：stadium",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "stadium"
+      ]
+    },
+    {
+      "value": "🏛️",
+      "name": "表情：classical building",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "classical",
+        "building"
+      ]
+    },
+    {
+      "value": "🏗️",
+      "name": "表情：building construction",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "building",
+        "construction"
+      ]
+    },
+    {
+      "value": "🧱",
+      "name": "表情：brick",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "brick"
+      ]
+    },
+    {
+      "value": "🪨",
+      "name": "表情：rock",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "rock"
+      ]
+    },
+    {
+      "value": "🪵",
+      "name": "表情：wood",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "wood"
+      ]
+    },
+    {
+      "value": "🛖",
+      "name": "表情：hut",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "hut"
+      ]
+    },
+    {
+      "value": "🏘️",
+      "name": "表情：houses",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "houses"
+      ]
+    },
+    {
+      "value": "🏚️",
+      "name": "表情：derelict house",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "derelict",
+        "house"
+      ]
+    },
+    {
+      "value": "🏠",
+      "name": "表情：house",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "house"
+      ]
+    },
+    {
+      "value": "🏡",
+      "name": "表情：house with garden",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "house",
+        "with",
+        "garden"
+      ]
+    },
+    {
+      "value": "🏢",
+      "name": "表情：office building",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "office",
+        "building"
+      ]
+    },
+    {
+      "value": "🏣",
+      "name": "表情：Japanese post office",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "japanese",
+        "post",
+        "office"
+      ]
+    },
+    {
+      "value": "🏤",
+      "name": "表情：post office",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "post",
+        "office"
+      ]
+    },
+    {
+      "value": "🏥",
+      "name": "表情：hospital",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "hospital"
+      ]
+    },
+    {
+      "value": "🏦",
+      "name": "表情：bank",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "bank"
+      ]
+    },
+    {
+      "value": "🏨",
+      "name": "表情：hotel",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "hotel"
+      ]
+    },
+    {
+      "value": "🏩",
+      "name": "表情：love hotel",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "love",
+        "hotel"
+      ]
+    },
+    {
+      "value": "🏪",
+      "name": "表情：convenience store",
+      "category": "出行",
+      "keywords": [
+        "地点",
+        "交通",
+        "place-building",
+        "convenience",
+        "store"
+      ]
+    },
+    {
+      "value": "🎃",
+      "name": "表情：jack-o-lantern",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "jack",
+        "o",
+        "lantern"
+      ]
+    },
+    {
+      "value": "🎄",
+      "name": "表情：Christmas tree",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "christmas",
+        "tree"
+      ]
+    },
+    {
+      "value": "🎆",
+      "name": "表情：fireworks",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "fireworks"
+      ]
+    },
+    {
+      "value": "🎇",
+      "name": "表情：sparkler",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "sparkler"
+      ]
+    },
+    {
+      "value": "🧨",
+      "name": "表情：firecracker",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "firecracker"
+      ]
+    },
+    {
+      "value": "✨",
+      "name": "表情：sparkles",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "sparkles"
+      ]
+    },
+    {
+      "value": "🎈",
+      "name": "表情：balloon",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "balloon"
+      ]
+    },
+    {
+      "value": "🎉",
+      "name": "表情：party popper",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "party",
+        "popper"
+      ]
+    },
+    {
+      "value": "🎊",
+      "name": "表情：confetti ball",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "confetti",
+        "ball"
+      ]
+    },
+    {
+      "value": "🎋",
+      "name": "表情：tanabata tree",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "tanabata",
+        "tree"
+      ]
+    },
+    {
+      "value": "🎍",
+      "name": "表情：pine decoration",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "pine",
+        "decoration"
+      ]
+    },
+    {
+      "value": "🎎",
+      "name": "表情：Japanese dolls",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "japanese",
+        "dolls"
+      ]
+    },
+    {
+      "value": "🎏",
+      "name": "表情：carp streamer",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "carp",
+        "streamer"
+      ]
+    },
+    {
+      "value": "🎐",
+      "name": "表情：wind chime",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "wind",
+        "chime"
+      ]
+    },
+    {
+      "value": "🎑",
+      "name": "表情：moon viewing ceremony",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "moon",
+        "viewing",
+        "ceremony"
+      ]
+    },
+    {
+      "value": "🧧",
+      "name": "表情：red envelope",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "red",
+        "envelope"
+      ]
+    },
+    {
+      "value": "🎀",
+      "name": "表情：ribbon",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "ribbon"
+      ]
+    },
+    {
+      "value": "🎁",
+      "name": "表情：wrapped gift",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "wrapped",
+        "gift"
+      ]
+    },
+    {
+      "value": "🎗️",
+      "name": "表情：reminder ribbon",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "reminder",
+        "ribbon"
+      ]
+    },
+    {
+      "value": "🎟️",
+      "name": "表情：admission tickets",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "admission",
+        "tickets"
+      ]
+    },
+    {
+      "value": "🎫",
+      "name": "表情：ticket",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "event",
+        "ticket"
+      ]
+    },
+    {
+      "value": "🎖️",
+      "name": "表情：military medal",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "award-medal",
+        "military",
+        "medal"
+      ]
+    },
+    {
+      "value": "🏆",
+      "name": "表情：trophy",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "award-medal",
+        "trophy"
+      ]
+    },
+    {
+      "value": "🏅",
+      "name": "表情：sports medal",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "award-medal",
+        "sports",
+        "medal"
+      ]
+    },
+    {
+      "value": "🥇",
+      "name": "表情：1st place medal",
+      "category": "活动",
+      "keywords": [
+        "运动",
+        "娱乐",
+        "award-medal",
+        "1st",
+        "place",
+        "medal"
+      ]
+    },
+    {
+      "value": "👓",
+      "name": "表情：glasses",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "glasses"
+      ]
+    },
+    {
+      "value": "🕶️",
+      "name": "表情：sunglasses",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "sunglasses"
+      ]
+    },
+    {
+      "value": "🥽",
+      "name": "表情：goggles",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "goggles"
+      ]
+    },
+    {
+      "value": "🥼",
+      "name": "表情：lab coat",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "lab",
+        "coat"
+      ]
+    },
+    {
+      "value": "🦺",
+      "name": "表情：safety vest",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "safety",
+        "vest"
+      ]
+    },
+    {
+      "value": "👔",
+      "name": "表情：necktie",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "necktie"
+      ]
+    },
+    {
+      "value": "👕",
+      "name": "表情：t-shirt",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "t",
+        "shirt"
+      ]
+    },
+    {
+      "value": "👖",
+      "name": "表情：jeans",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "jeans"
+      ]
+    },
+    {
+      "value": "🧣",
+      "name": "表情：scarf",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "scarf"
+      ]
+    },
+    {
+      "value": "🧤",
+      "name": "表情：gloves",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "gloves"
+      ]
+    },
+    {
+      "value": "🧥",
+      "name": "表情：coat",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "coat"
+      ]
+    },
+    {
+      "value": "🧦",
+      "name": "表情：socks",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "socks"
+      ]
+    },
+    {
+      "value": "👗",
+      "name": "表情：dress",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "dress"
+      ]
+    },
+    {
+      "value": "👘",
+      "name": "表情：kimono",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "kimono"
+      ]
+    },
+    {
+      "value": "🥻",
+      "name": "表情：sari",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "sari"
+      ]
+    },
+    {
+      "value": "🩱",
+      "name": "表情：one-piece swimsuit",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "one",
+        "piece",
+        "swimsuit"
+      ]
+    },
+    {
+      "value": "🩲",
+      "name": "表情：briefs",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "briefs"
+      ]
+    },
+    {
+      "value": "🩳",
+      "name": "表情：shorts",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "shorts"
+      ]
+    },
+    {
+      "value": "👙",
+      "name": "表情：bikini",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "bikini"
+      ]
+    },
+    {
+      "value": "👚",
+      "name": "表情：woman’s clothes",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "woman’s",
+        "clothes"
+      ]
+    },
+    {
+      "value": "🪭",
+      "name": "表情：folding hand fan",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "folding",
+        "hand",
+        "fan"
+      ]
+    },
+    {
+      "value": "👛",
+      "name": "表情：purse",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "purse"
+      ]
+    },
+    {
+      "value": "👜",
+      "name": "表情：handbag",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "handbag"
+      ]
+    },
+    {
+      "value": "👝",
+      "name": "表情：clutch bag",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "clutch",
+        "bag"
+      ]
+    },
+    {
+      "value": "🛍️",
+      "name": "表情：shopping bags",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "shopping",
+        "bags"
+      ]
+    },
+    {
+      "value": "🎒",
+      "name": "表情：backpack",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "backpack"
+      ]
+    },
+    {
+      "value": "🩴",
+      "name": "表情：thong sandal",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "thong",
+        "sandal"
+      ]
+    },
+    {
+      "value": "👞",
+      "name": "表情：man’s shoe",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "man’s",
+        "shoe"
+      ]
+    },
+    {
+      "value": "👟",
+      "name": "表情：running shoe",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "running",
+        "shoe"
+      ]
+    },
+    {
+      "value": "🥾",
+      "name": "表情：hiking boot",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "hiking",
+        "boot"
+      ]
+    },
+    {
+      "value": "🥿",
+      "name": "表情：flat shoe",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "flat",
+        "shoe"
+      ]
+    },
+    {
+      "value": "👠",
+      "name": "表情：high-heeled shoe",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "high",
+        "heeled",
+        "shoe"
+      ]
+    },
+    {
+      "value": "👡",
+      "name": "表情：woman’s sandal",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "woman’s",
+        "sandal"
+      ]
+    },
+    {
+      "value": "🩰",
+      "name": "表情：ballet shoes",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "ballet",
+        "shoes"
+      ]
+    },
+    {
+      "value": "👢",
+      "name": "表情：woman’s boot",
+      "category": "物品",
+      "keywords": [
+        "工具",
+        "日常",
+        "clothing",
+        "woman’s",
+        "boot"
+      ]
+    },
+    {
+      "value": "📁",
+      "name": "文件夹",
+      "category": "项目办公",
+      "keywords": [
+        "文件夹",
+        "文件",
+        "项目",
+        "资料",
+        "目录",
+        "file folder"
+      ]
+    },
+    {
+      "value": "📂",
+      "name": "打开文件夹",
+      "category": "项目办公",
+      "keywords": [
+        "文件夹",
+        "打开",
+        "文件",
+        "项目",
+        "open file folder"
+      ]
+    },
+    {
+      "value": "🗂️",
+      "name": "文件分组",
+      "category": "项目办公",
+      "keywords": [
+        "文件",
+        "分类",
+        "归档",
+        "文件夹",
+        "card index dividers"
+      ]
+    },
+    {
+      "value": "🗃️",
+      "name": "文件卡盒",
+      "category": "项目办公",
+      "keywords": [
+        "文件",
+        "归档",
+        "档案",
+        "资料",
+        "card file box"
+      ]
+    },
+    {
+      "value": "🗄️",
+      "name": "文件柜",
+      "category": "项目办公",
+      "keywords": [
+        "文件柜",
+        "档案",
+        "归档",
+        "file cabinet"
+      ]
+    },
+    {
+      "value": "📄",
+      "name": "文档页面",
+      "category": "项目办公",
+      "keywords": [
+        "文档",
+        "文件",
+        "报告",
+        "页面",
+        "page facing up"
+      ]
+    },
+    {
+      "value": "📃",
+      "name": "卷边文件",
+      "category": "项目办公",
+      "keywords": [
+        "文件",
+        "文档",
+        "清单",
+        "page with curl"
+      ]
+    },
+    {
+      "value": "📑",
+      "name": "书签标签",
+      "category": "项目办公",
+      "keywords": [
+        "书签",
+        "文件",
+        "标签",
+        "资料",
+        "bookmark tabs"
+      ]
+    },
+    {
+      "value": "📚",
+      "name": "书籍资料",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "资料",
+        "文档",
+        "学习",
+        "books"
+      ]
+    },
+    {
+      "value": "📖",
+      "name": "打开的书",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "阅读",
+        "文档",
+        "知识",
+        "open book"
+      ]
+    },
+    {
+      "value": "📕",
+      "name": "红色书",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "文档",
+        "资料",
+        "closed book"
+      ]
+    },
+    {
+      "value": "📗",
+      "name": "绿色书",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "文档",
+        "资料",
+        "green book"
+      ]
+    },
+    {
+      "value": "📘",
+      "name": "蓝色书",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "文档",
+        "资料",
+        "blue book"
+      ]
+    },
+    {
+      "value": "📙",
+      "name": "橙色书",
+      "category": "项目办公",
+      "keywords": [
+        "书",
+        "文档",
+        "资料",
+        "orange book"
+      ]
+    },
+    {
+      "value": "📝",
+      "name": "备忘录",
+      "category": "项目办公",
+      "keywords": [
+        "笔记",
+        "记录",
+        "文档",
+        "待办",
+        "memo"
+      ]
+    },
+    {
+      "value": "🗒️",
+      "name": "螺旋记事本",
+      "category": "项目办公",
+      "keywords": [
+        "笔记",
+        "记录",
+        "会议",
+        "文档",
+        "spiral notepad"
+      ]
+    },
+    {
+      "value": "📓",
+      "name": "笔记本",
+      "category": "项目办公",
+      "keywords": [
+        "笔记",
+        "会议",
+        "记录",
+        "notebook"
+      ]
+    },
+    {
+      "value": "📔",
+      "name": "装饰封面笔记本",
+      "category": "项目办公",
+      "keywords": [
+        "笔记",
+        "记录",
+        "文档",
+        "notebook with decorative cover"
+      ]
+    },
+    {
+      "value": "📒",
+      "name": "账本",
+      "category": "财务报表",
+      "keywords": [
+        "账本",
+        "财务",
+        "报表",
+        "记录",
+        "ledger"
+      ]
+    },
+    {
+      "value": "📋",
+      "name": "剪贴板",
+      "category": "项目办公",
+      "keywords": [
+        "剪贴板",
+        "清单",
+        "会议",
+        "待办",
+        "clipboard"
+      ]
+    },
+    {
+      "value": "📌",
+      "name": "图钉",
+      "category": "项目办公",
+      "keywords": [
+        "固定",
+        "重点",
+        "文件",
+        "标记",
+        "pushpin"
+      ]
+    },
+    {
+      "value": "📍",
+      "name": "圆图钉",
+      "category": "项目办公",
+      "keywords": [
+        "位置",
+        "标记",
+        "地点",
+        "round pushpin"
+      ]
+    },
+    {
+      "value": "📎",
+      "name": "回形针",
+      "category": "项目办公",
+      "keywords": [
+        "附件",
+        "文件",
+        "连接",
+        "paperclip"
+      ]
+    },
+    {
+      "value": "🖇️",
+      "name": "连接回形针",
+      "category": "项目办公",
+      "keywords": [
+        "附件",
+        "文件",
+        "连接",
+        "linked paperclips"
+      ]
+    },
+    {
+      "value": "🗓️",
+      "name": "会议日历",
+      "category": "项目办公",
+      "keywords": [
+        "会议",
+        "日历",
+        "日程",
+        "预约",
+        "spiral calendar"
+      ]
+    },
+    {
+      "value": "📅",
+      "name": "日期日历",
+      "category": "项目办公",
+      "keywords": [
+        "日历",
+        "日期",
+        "会议",
+        "日程",
+        "calendar"
+      ]
+    },
+    {
+      "value": "📆",
+      "name": "撕页日历",
+      "category": "项目办公",
+      "keywords": [
+        "日历",
+        "计划",
+        "日程",
+        "tear-off calendar"
+      ]
+    },
+    {
+      "value": "⏰",
+      "name": "闹钟",
+      "category": "项目办公",
+      "keywords": [
+        "时间",
+        "提醒",
+        "会议",
+        "闹钟",
+        "alarm clock"
+      ]
+    },
+    {
+      "value": "⌛",
+      "name": "沙漏",
+      "category": "状态提示",
+      "keywords": [
+        "等待",
+        "超时",
+        "时间",
+        "状态",
+        "hourglass done"
+      ]
+    },
+    {
+      "value": "⏳",
+      "name": "流动沙漏",
+      "category": "状态提示",
+      "keywords": [
+        "等待",
+        "处理中",
+        "时间",
+        "状态",
+        "hourglass not done"
+      ]
+    },
+    {
+      "value": "📊",
+      "name": "柱状报表",
+      "category": "财务报表",
+      "keywords": [
+        "报表",
+        "财务",
+        "数据",
+        "图表",
+        "分析",
+        "bar chart"
+      ]
+    },
+    {
+      "value": "📈",
+      "name": "增长报表",
+      "category": "财务报表",
+      "keywords": [
+        "报表",
+        "财务",
+        "增长",
+        "趋势",
+        "chart increasing"
+      ]
+    },
+    {
+      "value": "📉",
+      "name": "下降报表",
+      "category": "财务报表",
+      "keywords": [
+        "报表",
+        "财务",
+        "下降",
+        "趋势",
+        "chart decreasing"
+      ]
+    },
+    {
+      "value": "🧾",
+      "name": "收据",
+      "category": "财务报表",
+      "keywords": [
+        "收据",
+        "财务",
+        "账单",
+        "报销",
+        "receipt"
+      ]
+    },
+    {
+      "value": "💰",
+      "name": "钱袋",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "金钱",
+        "预算",
+        "收入",
+        "money bag"
+      ]
+    },
+    {
+      "value": "💳",
+      "name": "银行卡",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "支付",
+        "银行",
+        "卡",
+        "credit card"
+      ]
+    },
+    {
+      "value": "💵",
+      "name": "美元钞票",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "货币",
+        "现金",
+        "dollar banknote"
+      ]
+    },
+    {
+      "value": "💴",
+      "name": "日元钞票",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "货币",
+        "现金",
+        "yen banknote"
+      ]
+    },
+    {
+      "value": "💶",
+      "name": "欧元钞票",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "货币",
+        "现金",
+        "euro banknote"
+      ]
+    },
+    {
+      "value": "💷",
+      "name": "英镑钞票",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "货币",
+        "现金",
+        "pound banknote"
+      ]
+    },
+    {
+      "value": "🪙",
+      "name": "硬币",
+      "category": "财务报表",
+      "keywords": [
+        "财务",
+        "硬币",
+        "预算",
+        "货币",
+        "coin"
+      ]
+    },
+    {
+      "value": "🧮",
+      "name": "算盘",
+      "category": "财务报表",
+      "keywords": [
+        "计算",
+        "财务",
+        "会计",
+        "报表",
+        "abacus"
+      ]
+    },
+    {
+      "value": "💻",
+      "name": "笔记本电脑",
+      "category": "科技设备",
+      "keywords": [
+        "电脑",
+        "开发",
+        "编程",
+        "办公",
+        "laptop"
+      ]
+    },
+    {
+      "value": "🖥️",
+      "name": "台式显示器",
+      "category": "科技设备",
+      "keywords": [
+        "电脑",
+        "显示器",
+        "开发",
+        "办公",
+        "desktop computer"
+      ]
+    },
+    {
+      "value": "⌨️",
+      "name": "键盘",
+      "category": "科技设备",
+      "keywords": [
+        "键盘",
+        "输入",
+        "开发",
+        "编程",
+        "keyboard"
+      ]
+    },
+    {
+      "value": "🖱️",
+      "name": "鼠标",
+      "category": "科技设备",
+      "keywords": [
+        "鼠标",
+        "操作",
+        "电脑",
+        "computer mouse"
+      ]
+    },
+    {
+      "value": "🖨️",
+      "name": "打印机",
+      "category": "科技设备",
+      "keywords": [
+        "打印",
+        "文件",
+        "办公",
+        "文档",
+        "printer"
+      ]
+    },
+    {
+      "value": "💾",
+      "name": "软盘保存",
+      "category": "科技设备",
+      "keywords": [
+        "保存",
+        "文件",
+        "数据",
+        "floppy disk"
+      ]
+    },
+    {
+      "value": "💿",
+      "name": "光盘",
+      "category": "科技设备",
+      "keywords": [
+        "数据",
+        "存储",
+        "媒体",
+        "optical disk"
+      ]
+    },
+    {
+      "value": "📡",
+      "name": "卫星天线",
+      "category": "科技设备",
+      "keywords": [
+        "网络",
+        "信号",
+        "通信",
+        "satellite antenna"
+      ]
+    },
+    {
+      "value": "🔌",
+      "name": "插头",
+      "category": "科技设备",
+      "keywords": [
+        "插头",
+        "电源",
+        "连接",
+        "electric plug"
+      ]
+    },
+    {
+      "value": "🔋",
+      "name": "电池",
+      "category": "科技设备",
+      "keywords": [
+        "电池",
+        "电量",
+        "状态",
+        "battery"
+      ]
+    },
+    {
+      "value": "🧰",
+      "name": "工具箱",
+      "category": "工具维护",
+      "keywords": [
+        "工具",
+        "工具箱",
+        "维修",
+        "运维",
+        "toolbox"
+      ]
+    },
+    {
+      "value": "🔧",
+      "name": "扳手",
+      "category": "工具维护",
+      "keywords": [
+        "工具",
+        "维修",
+        "设置",
+        "wrench"
+      ]
+    },
+    {
+      "value": "🔨",
+      "name": "锤子",
+      "category": "工具维护",
+      "keywords": [
+        "工具",
+        "建设",
+        "维修",
+        "hammer"
+      ]
+    },
+    {
+      "value": "⚙️",
+      "name": "齿轮",
+      "category": "工具维护",
+      "keywords": [
+        "设置",
+        "配置",
+        "工具",
+        "gear"
+      ]
+    },
+    {
+      "value": "🪛",
+      "name": "螺丝刀",
+      "category": "工具维护",
+      "keywords": [
+        "工具",
+        "维修",
+        "运维",
+        "screwdriver"
+      ]
+    },
+    {
+      "value": "🧲",
+      "name": "磁铁",
+      "category": "工具维护",
+      "keywords": [
+        "工具",
+        "吸附",
+        "技术",
+        "magnet"
+      ]
+    },
+    {
+      "value": "🧪",
+      "name": "试管",
+      "category": "工具维护",
+      "keywords": [
+        "实验",
+        "测试",
+        "科研",
+        "test tube"
+      ]
+    },
+    {
+      "value": "🔬",
+      "name": "显微镜",
+      "category": "工具维护",
+      "keywords": [
+        "科研",
+        "分析",
+        "测试",
+        "microscope"
+      ]
+    },
+    {
+      "value": "🔭",
+      "name": "望远镜",
+      "category": "工具维护",
+      "keywords": [
+        "探索",
+        "研究",
+        "科研",
+        "telescope"
+      ]
+    },
+    {
+      "value": "🧬",
+      "name": "DNA",
+      "category": "工具维护",
+      "keywords": [
+        "数据",
+        "科研",
+        "基因",
+        "dna"
+      ]
+    },
+    {
+      "value": "🤖",
+      "name": "机器人",
+      "category": "科技设备",
+      "keywords": [
+        "机器人",
+        "自动化",
+        "AI",
+        "智能",
+        "robot"
+      ]
+    },
+    {
+      "value": "💡",
+      "name": "灯泡",
+      "category": "状态提示",
+      "keywords": [
+        "创意",
+        "提示",
+        "想法",
+        "light bulb"
+      ]
+    },
+    {
+      "value": "🔍",
+      "name": "放大镜",
+      "category": "状态提示",
+      "keywords": [
+        "搜索",
+        "查找",
+        "分析",
+        "magnifying glass tilted left"
+      ]
+    },
+    {
+      "value": "🔒",
+      "name": "锁定",
+      "category": "状态提示",
+      "keywords": [
+        "锁定",
+        "安全",
+        "权限",
+        "locked"
+      ]
+    },
+    {
+      "value": "🔑",
+      "name": "钥匙",
+      "category": "状态提示",
+      "keywords": [
+        "密钥",
+        "访问",
+        "权限",
+        "key"
+      ]
+    },
+    {
+      "value": "🛡️",
+      "name": "盾牌",
+      "category": "状态提示",
+      "keywords": [
+        "安全",
+        "防护",
+        "权限",
+        "shield"
+      ]
+    },
+    {
+      "value": "✅",
+      "name": "完成勾选",
+      "category": "状态提示",
+      "keywords": [
+        "完成",
+        "成功",
+        "通过",
+        "状态",
+        "check mark button"
+      ]
+    },
+    {
+      "value": "❌",
+      "name": "失败叉号",
+      "category": "状态提示",
+      "keywords": [
+        "失败",
+        "错误",
+        "取消",
+        "状态",
+        "cross mark"
+      ]
+    },
+    {
+      "value": "⚠️",
+      "name": "警告",
+      "category": "状态提示",
+      "keywords": [
+        "警告",
+        "风险",
+        "提醒",
+        "状态",
+        "warning"
+      ]
+    },
+    {
+      "value": "ℹ️",
+      "name": "信息",
+      "category": "状态提示",
+      "keywords": [
+        "信息",
+        "提示",
+        "帮助",
+        "information"
+      ]
+    },
+    {
+      "value": "❓",
+      "name": "问题",
+      "category": "状态提示",
+      "keywords": [
+        "问题",
+        "帮助",
+        "疑问",
+        "red question mark"
+      ]
+    },
+    {
+      "value": "🔔",
+      "name": "提醒铃铛",
+      "category": "状态提示",
+      "keywords": [
+        "通知",
+        "提醒",
+        "消息",
+        "bell"
+      ]
+    },
+    {
+      "value": "🔕",
+      "name": "静音铃铛",
+      "category": "状态提示",
+      "keywords": [
+        "通知",
+        "静音",
+        "消息",
+        "bell with slash"
+      ]
+    },
+    {
+      "value": "🟢",
+      "name": "绿色状态",
+      "category": "状态提示",
+      "keywords": [
+        "状态",
+        "正常",
+        "在线",
+        "成功",
+        "green circle"
+      ]
+    },
+    {
+      "value": "🟡",
+      "name": "黄色状态",
+      "category": "状态提示",
+      "keywords": [
+        "状态",
+        "警告",
+        "等待",
+        "yellow circle"
+      ]
+    },
+    {
+      "value": "🔴",
+      "name": "红色状态",
+      "category": "状态提示",
+      "keywords": [
+        "状态",
+        "错误",
+        "离线",
+        "red circle"
+      ]
+    },
+    {
+      "value": "🔄",
+      "name": "刷新",
+      "category": "状态提示",
+      "keywords": [
+        "刷新",
+        "重试",
+        "同步",
+        "counterclockwise arrows button"
+      ]
+    },
+    {
+      "value": "🚀",
+      "name": "启动火箭",
+      "category": "项目办公",
+      "keywords": [
+        "启动",
+        "发布",
+        "上线",
+        "项目",
+        "rocket"
+      ]
+    },
+    {
+      "value": "🎯",
+      "name": "目标",
+      "category": "项目办公",
+      "keywords": [
+        "目标",
+        "计划",
+        "项目",
+        "OKR",
+        "bullseye"
+      ]
+    },
+    {
+      "value": "👥",
+      "name": "团队",
+      "category": "项目办公",
+      "keywords": [
+        "团队",
+        "会议",
+        "协作",
+        "人员",
+        "busts in silhouette"
+      ]
+    },
+    {
+      "value": "🗣️",
+      "name": "发言",
+      "category": "项目办公",
+      "keywords": [
+        "会议",
+        "发言",
+        "沟通",
+        "speaking head"
+      ]
+    },
+    {
+      "value": "📣",
+      "name": "公告喇叭",
+      "category": "项目办公",
+      "keywords": [
+        "公告",
+        "通知",
+        "会议",
+        "megaphone"
+      ]
+    },
+    {
+      "value": "🧑‍💼",
+      "name": "办公人员",
+      "category": "项目办公",
+      "keywords": [
+        "人员",
+        "办公",
+        "会议",
+        "管理",
+        "office worker"
+      ]
+    },
+    {
+      "value": "🏁",
+      "name": "里程碑旗帜",
+      "category": "项目办公",
+      "keywords": [
+        "里程碑",
+        "完成",
+        "项目",
+        "目标",
+        "chequered flag"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "name": "Lucide Icons",
+      "url": "https://github.com/lucide-icons/lucide/tree/a79b2d131dab2bf20cb224bd0937b439a9c4fa99/icons",
+      "commit": "a79b2d131dab2bf20cb224bd0937b439a9c4fa99",
+      "license": "ISC; selected Feather-derived icons retain MIT notice in licenses/lucide.txt",
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "name": "Unicode Emoji Test 15.1",
+      "url": "https://unicode.org/Public/emoji/15.1/emoji-test.txt",
+      "version": "15.1",
+      "license": "Unicode License V3",
+      "sha256": "d876ee249aa28eaa76cfa6dfaa702847a8d13b062aa488d465d0395ee8137ed9"
+    },
+    {
+      "name": "Unicode License",
+      "url": "https://www.unicode.org/license.html",
+      "license": "Unicode License V3",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    }
+  ]
+}

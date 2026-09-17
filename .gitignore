@@ -1,0 +1,32 @@
+# 本机状态和凭据不属于源码
+.env
+.env.*
+!.env.example
+.mcp.json
+auth.json
+config.toml
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite*
+*.db
+*.sock
+*.pid
+*.log
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.pytest_cache/
+.coverage
+coverage/
+runtime/
+resources/
+outputs/
+verification*.json
+* 2.*
+*backup*
+*before-*
+src/codex_workbench/execution_titles.json

@@ -99,6 +99,6 @@ class SyncServiceTests(unittest.TestCase):
             def signature(self,view):return view
         self.service.source_versions=Versions()
         first=self.service.call('open_workbench',{})
-        self.assertEqual('board',first['view']);self.assertIn('revision',first['_sync']);self.assertIn('tasks',first)
+        self.assertEqual('accounts',first['view']);self.assertIn('revision',first['_sync']);self.assertIn('accounts',first)
         self.service.call('open_workbench',{})
-        self.assertEqual(1,self.native.calls.count('snapshot'))
+        self.assertEqual(1,self.native.calls.count('accounts'))

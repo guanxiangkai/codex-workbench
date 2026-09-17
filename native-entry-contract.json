@@ -63,7 +63,7 @@
     "global_search"
   ],
   "resource_uri": "ui://codex-workbench/v7/workbench.html",
-  "revision": "3a93d3c1f24fade62fc8ac78a722ba8c66206dd1cbeea6d156b099b90a555db2",
+  "revision": "4868566a431a4d6144ad49e4462a879497a2b2126a04adda420901391eba855c",
   "background_polling": false,
   "credentials_in_release": false,
   "account_usage": "Explicitly bound MiniMax Token Plan accounts refresh via the official read-only endpoint on page entry; failed refreshes keep the previous observation."

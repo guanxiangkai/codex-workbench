@@ -15,12 +15,12 @@ try{
  const page=await browser.newPage({viewport:{width:1000,height:950}});
  const card=h.otherAccountCard(account);
  const current=fs.readFileSync(root+'/ui/readonly.css','utf8');
- const measure=()=>page.locator('.progress').evaluateAll(bars=>bars.map(bar=>{const fill=bar.firstElementChild;return {used:Number(bar.getAttribute('aria-valuenow')),ratio:Math.round(fill.getBoundingClientRect().width/bar.getBoundingClientRect().width*100),height:fill.getBoundingClientRect().height,color:getComputedStyle(fill).backgroundColor,track:getComputedStyle(bar).backgroundColor};}));
+ const measure=()=>page.locator('.progress').evaluateAll(bars=>bars.map(bar=>{const fill=bar.firstElementChild;return {remaining:Number(bar.getAttribute('aria-valuenow')),ratio:Math.round(fill.getBoundingClientRect().width/bar.getBoundingClientRect().width*100),height:fill.getBoundingClientRect().height,color:getComputedStyle(fill).backgroundColor,track:getComputedStyle(bar).backgroundColor};}));
  const set=css=>page.setContent('<!doctype html><html><meta charset="utf-8"><style>'+css+'</style><body><main data-module="other_accounts">'+card+'</main></body></html>');
 
  await set(current);
  for(const width of [1000,375]){
-  await page.setViewportSize({width,height:950});const bars=await measure();assert.deepEqual(bars.map(x=>x.ratio),[77,19,0,100]);
+  await page.setViewportSize({width,height:950});const bars=await measure();assert.deepEqual(bars.map(x=>x.ratio),[23,81,100,0]);assert.deepEqual(bars.map(x=>x.remaining),[23,81,100,0]);
   for(const bar of bars){assert(bar.height>0);assert.notEqual(bar.color,'rgba(0, 0, 0, 0)');assert.notEqual(bar.color,bar.track);}
   console.log(JSON.stringify({viewport:width,bars}));
  }

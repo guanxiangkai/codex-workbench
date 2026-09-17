@@ -418,7 +418,7 @@ function accountUsage(usage){
 }
 function accountSource(value){return ({catalog_registration:'配置登记',registered:'配置登记',manual_audit:'人工核验',manual:'人工登记',provider_console:'平台控制台',provider_api:'平台接口'})[value]||value||'未提供';}
 function accountTime(value,note){return value?fmtDate(value):note||'未提供';}
-function usageProgress(usage){if(usage.percent===null)return '';const used=Math.max(0,Math.min(100,100-usage.percent));return `<span class="muted">已用 ${Math.round(used)}%</span><div class="progress" role="progressbar" aria-label="已用额度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${used}"><span style="width:${used}%"></span></div>`;}
+function usageProgress(usage){if(usage.percent===null)return '';const remaining=Math.max(0,Math.min(100,usage.percent));return `<div class="progress" role="progressbar" aria-label="剩余额度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${remaining}"><span style="width:${remaining}%"></span></div>`;}
 function usageWindow(window,notes){const usage=accountUsage(window.usage);return `<section class="other-usage usage-window"><strong>${E(window.label)}</strong><span class="muted">${usage.title}</span><b>${E(usage.value)}</b>${usageProgress(usage)}<p class="usage-summary">${E(usage.summary||notes.usage||'尚未记录用量')}</p><small>重置时间：${E(accountTime(window.resets_at,notes.resets_at))}</small></section>`;}
 function otherAccountCard(a){
  const notes=a.provider_id==='minimax'?{...a.field_notes,usage:''}:a.field_notes||{};

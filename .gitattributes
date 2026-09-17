@@ -1,0 +1,2 @@
+# Preserve whitespace in vendored upstream data.
+ui/assets/.upstream/unicode/emoji-test-15.1.txt -whitespace

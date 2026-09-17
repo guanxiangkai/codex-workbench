@@ -40,6 +40,7 @@ html,body,dialog,.search-results,.resource-preview pre{scrollbar-width:none}html
 [data-module="services"],[data-page="services"]{--module-color:#0b7087;--module-tint:#e5f4f8}
 [data-module="config"],[data-page="config"]{--module-color:#935711;--module-tint:#fbf0de}
 [data-tone="violet"]{--type-color:#7142ad;--type-tint:#f2eafa}
+[data-tone="purple"]{--type-color:var(--purple);--type-tint:#f3eefb}
 [data-tone="rose"]{--type-color:#a63768;--type-tint:#fbeaf2}
 [data-tone="teal"]{--type-color:#08746b;--type-tint:#e3f4ef}
 [data-tone="indigo"]{--type-color:#4d55ae;--type-tint:#eceefe}
@@ -111,7 +112,7 @@ main[data-module="config"] .folder.active{background:var(--type-tint,#eaf6f1);bo
 .config-grid>.empty{grid-column:1/-1}
 [data-tone="green"]{--type-color:#087565;--type-tint:#eaf6f1}[data-tone="yellow"]{--type-color:#856100;--type-tint:#fff4c2}
 .account[data-tone]{border-color:color-mix(in srgb,var(--type-color) 22%,white);background:linear-gradient(145deg,var(--type-tint),var(--surface) 65%)}
-.account[data-tone] .avatar{color:var(--type-color);background:var(--type-tint)}.account[data-tone] .progress span{background:var(--type-color)}.account[data-tone] .quota{color:var(--type-color)}
+.account[data-tone] .avatar{color:var(--type-color);background:var(--type-tint)}.account[data-tone] .progress span{background:var(--type-color,var(--green))}.account[data-tone] .quota{color:var(--type-color)}
 @media(max-width:1100px){main[data-module="config"] .config-layout{grid-template-columns:210px minmax(0,1fr)}.config-toolbar .select{flex:1 1 140px}}
 @media(max-width:850px){.config-grid{grid-template-columns:1fr}}
 @media(max-width:700px){main[data-module="config"] .config-layout{grid-template-columns:1fr;gap:16px}main[data-module="config"] .directories{display:block;position:static;height:auto;max-height:240px;padding:16px 12px}main[data-module="config"] .directories h2{display:block}main[data-module="config"] .folder{min-width:0;white-space:normal;padding:8px 6px!important}.config-card{min-height:180px}.config-list-heading h2{font-size:18px}.config-toolbar .select{max-width:none}}

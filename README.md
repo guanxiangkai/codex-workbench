@@ -66,6 +66,8 @@ PYTHONPATH=src:tests .venv/bin/python -m unittest \
 
 `publish_ui.py` 检查 JavaScript、页面状态及加密互操作，再生成 `ui/release.json`。Python 测试使用临时目录和合成数据，不需要真实账户或远端模型。
 
+可选的真实浏览器回归：安装并配置 Playwright/Chromium 后，从仓库根目录运行 `node tests/ui-progress-browser.mjs`。可用 `WORKBENCH_PLAYWRIGHT_MODULE` 指定已有 Playwright 模块、`WORKBENCH_BROWSER_EXECUTABLE` 指定已有浏览器。此检查验证额度条的实际宽度、可见填充色、窄屏和零值／满值状态，使用合成数据。
+
 ## 当前版设计
 
 [design/current](design/current/README.md) 仅包含 Figma 当前分组导航版的 4 张脱敏设计导出：其他账户、配置中心、未配置与读取失败。当前版目录不包含旧版横向导航、创建任务、账户管理等历史方案。应执行记录讨论需要，另在 [讨论参考](design/discussions/README.md) 保存一张明确标记为非当前功能的脱敏概念图。

@@ -28,13 +28,13 @@ const verified={...account,provider_id:'minimax',provider_name:'MiniMax',is_used
 html=h.otherAccountCard({...verified,usage_refresh:{state:'failed',message:'<更新失败>'}});assert(html.includes('API 已验证'));assert(html.includes('检查于'));assert(!html.includes('状态未核验'));assert(html.includes('5 小时'));assert(html.includes('每周'));assert(!html.includes('视频套餐额度尚未核验'));assert(!html.includes('接口未返回到期时间'));assert(!html.includes('接口未返回最近使用时间'));assert(html.includes('&lt;更新失败&gt;'));assert(!html.includes('<更新失败>'));assert.equal((html.match(/<dt>重置时间<\/dt>/g)||[]).length,0);
 console.log('其他账户 UI：分类隐藏、筛选、未知与零值、用量单位、状态来源、配置关联、转义通过');
 
-// Quota bars show consumed quota while the headline retains remaining quota.
+// Quota bars and the headline both show remaining quota.
 for(const [used,remaining] of [[0,100],[7,93],[100,0]]){
  const usage={used,limit:100,remaining,unit:'%'};
  for(const card of [{...account,usage},{...account,usage_windows:[{id:'quota',label:'5 小时',usage}]}]){
   const markup=h.otherAccountCard(card);
-  assert(markup.includes(`width:${used}%`));
-  assert(markup.includes(`aria-valuenow="${used}"`));
+  assert(markup.includes(`width:${remaining}%`));
+  assert(markup.includes(`aria-valuenow="${remaining}"`));
   assert(markup.includes(`已用 ${used}%`));
   assert(markup.includes(`>${remaining}%<`));
  }

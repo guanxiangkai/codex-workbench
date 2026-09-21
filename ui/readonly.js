@@ -147,7 +147,7 @@ function avatarMarkup(account){
 }
 const PAGES=Object.fromEntries(WORKBENCH_MODULES.map(x=>[x.id,x.name]));
 const GROUPS=[...new Set(WORKBENCH_MODULES.map(x=>x.group))].map(name=>({name,pages:WORKBENCH_MODULES.filter(x=>x.group===name).map(x=>x.id)}));
-const NAV={accounts:'user',other_accounts:'user',agents:'sparkles',models:'brain',config:'shield',projects:'folder',knowledge:'book-open',services:'server',connections:'globe'};
+const NAV={accounts:'user',other_accounts:'users',agents:'sparkles',models:'brain',config:'shield',projects:'folder',knowledge:'book-open',services:'server',connections:'globe'};
 const STATES={backlog:['待处理','orange','inbox'],ready:['待执行','blue','clock'],running:['执行中','purple','circle-play'],done:['已完成','green','circle-check'],archived:['已归档','muted','archive']};
 const TYPES={image_generation:'图像生成',video_generation:'视频生成',reasoning:'推理',multimodal:'多模态',speech_to_text:'语音转文字',text_to_speech:'文字转语音',embedding:'嵌入',rerank:'重排序',unconfigured:'未配置'};
 const RESULTS={completed:'成功',failed:'失败',interrupted:'已中断',cancelled:'已取消',inProgress:'执行中'};

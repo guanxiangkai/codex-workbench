@@ -67,9 +67,8 @@ const accountOrder=[{id:'new',observed_at:30,is_default:true},{id:'main',observe
 assert.equal(h.orderedAccounts(accountOrder).map(x=>x.id).join(','),'main,new,old');assert.equal(accountOrder[0].id,'new');
 const configData={folders:[{id:'p',name:'生产环境'},{id:'s',name:'数据服务器',parent_id:'p'},{id:'d',name:'开发环境'}],entries:[{id:'a',label:'业务数据库',folder_id:'s',service_type:'postgresql',service_type_label:'PostgreSQL',tags:['核心'],updated_at:10},{id:'b',label:'缓存',folder_id:'d',service_type:'redis',service_type_label:'Redis',tags:['内网'],updated_at:20}]};
 assert.equal(h.folderPath(configData.folders,'s'),'生产环境 / 数据服务器');
-assert.equal(h.filteredConfigurations(configData,'p','','','').length,1);
-assert.equal(h.filteredConfigurations(configData,'','','','数据服务器')[0].id,'a');
-assert.equal(h.filteredConfigurations(configData,'','redis','核心','').length,0);
-assert.equal(h.filteredConfigurations(configData,'','redis','内网','缓存')[0].id,'b');
+assert.equal(h.filteredConfigurations(configData,'p','','').length,1);
+assert.equal(h.filteredConfigurations(configData,'','','数据服务器')[0].id,'a');
+assert.equal(h.filteredConfigurations(configData,'','redis','缓存')[0].id,'b');
 assert.equal(h.folderPath([{id:'x',name:'X',parent_id:'y'},{id:'y',name:'Y',parent_id:'x'}],'x'),'Y / X');
-console.log('配置中心：目录后代、循环保护、类型与标签交集、目录搜索通过');
+console.log('配置中心：目录后代、循环保护、类型与搜索交集、目录搜索通过');

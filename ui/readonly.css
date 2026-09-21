@@ -166,5 +166,5 @@ main>.toolbar{margin-top:-12px}
 .config-toolbar .count{width:96px;text-align:right}
 @media(max-width:760px){.config-toolbar{grid-template-columns:minmax(0,1fr) 96px}.config-toolbar .select{grid-column:1/-1;width:100%}}
 
-/* 搜索与筛选控件使用透明背景。 */
-.search,.select select,.config-toolbar .select,.config-toolbar .select:has(#config-tag),.search input:focus-visible,.select select:focus-visible{background:transparent}
+/* 搜索与筛选所在行去掉背景，保留控件自身样式。 */
+main>.toolbar,.config-controls{background:transparent}

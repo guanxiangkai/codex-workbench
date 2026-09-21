@@ -104,6 +104,17 @@ class OtherAccountsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             other_accounts(self.path)
 
+    def test_individual_account_fragments_merge_and_reject_duplicate_ids(self):
+        self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
+        fragment = self.path.parent / 'zhipu-second.json'
+        second = {**self.account, 'id': 'zhipu-second', 'label': '智谱第二账户'}
+        fragment.write_text(json.dumps({'version': 1, 'provider': {'id': 'zhipu', 'name': '智谱'}, 'account': second}), encoding='utf-8')
+        projection = other_accounts(self.path)
+        self.assertEqual(['zhipu-team', 'zhipu-second'], [item['id'] for item in projection['accounts']])
+        fragment.write_text(json.dumps({'version': 1, 'provider': {'id': 'zhipu', 'name': '智谱'}, 'account': self.account}), encoding='utf-8')
+        with self.assertRaises(ValueError):
+            other_accounts(self.path)
+
     def test_config_retains_linked_model_credential_and_exposes_public_association(self):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
         self.fixture.credentials.list = lambda: {'entries': [{'id': 'zhipu-key', 'tags': [], 'label': '智谱密钥'}], 'folders': [], 'status': {'ready': True}}

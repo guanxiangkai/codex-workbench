@@ -4,6 +4,22 @@ from pathlib import Path
 import tempfile
 
 from codex_workbench.service import Workbench, _page_view
+from codex_workbench.source_versions import SourceVersions
+
+
+class DirectorySignalTest(unittest.TestCase):
+    def test_directory_scan_is_reused_but_refresh_and_expiry_rescan(self):
+        versions=SourceVersions('/tmp/synthetic.db','/tmp/synthetic')
+        with patch('codex_workbench.source_versions.tree',return_value=['first']) as scan, patch('codex_workbench.source_versions.time.monotonic',return_value=10) as clock:
+            self.assertEqual(['first'],versions._tree('/tmp/synthetic'))
+            versions._tree('/tmp/synthetic')
+            self.assertEqual(1,scan.call_count)
+            versions.invalidate()
+            versions._tree('/tmp/synthetic')
+            self.assertEqual(2,scan.call_count)
+            clock.return_value=13
+            versions._tree('/tmp/synthetic')
+            self.assertEqual(3,scan.call_count)
 
 
 class PaginationShapeTest(unittest.TestCase):

@@ -87,6 +87,9 @@ class UsageTests(unittest.TestCase):
     def test_page_entry_refreshes_without_writing_catalog_or_querying_from_search(self):
         fixture = Fixture()
         self.addCleanup(fixture.close)
+        home = patch('codex_workbench.source_versions.current_account_home', return_value=str(fixture.root))
+        home.start()
+        self.addCleanup(home.stop)
         path = fixture.root / 'resources/accounts/catalog.json'
         path.parent.mkdir(parents=True)
         account = {'id': 'primary', 'label': 'MiniMax 主账户', 'usage_credential_id': 'key.one'}
@@ -96,6 +99,8 @@ class UsageTests(unittest.TestCase):
         fetcher = Mock(side_effect=[{'ok': True, 'snapshot': snapshot()},
                                    {'ok': True, 'snapshot': snapshot('2026-09-17T04:01:00+00:00')}])
         fixture.board.account_usage = AccountUsage(fetcher)
+        fixture.board.call('workbench_sync', {'view': 'other_accounts'})
+        fetcher.assert_not_called()
         first = fixture.board.call('workbench_sync', {'view': 'other_accounts', 'refresh': True})
         second = fixture.board.call('workbench_sync', {'view': 'other_accounts', 'refresh': True})
         self.assertEqual('2026-09-17T04:00:00+00:00', first['data']['accounts'][0]['updated_at'])

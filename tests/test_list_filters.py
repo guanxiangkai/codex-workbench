@@ -22,29 +22,24 @@ class DirectorySignalTest(unittest.TestCase):
             self.assertEqual(3,scan.call_count)
 
 
-class PaginationShapeTest(unittest.TestCase):
-    def test_realistic_model_shape_pages_without_duplicates(self):
+class FilterShapeTest(unittest.TestCase):
+    def test_realistic_model_shape_returns_all_matching_items(self):
         rows=[{'id':f'm{i}','name':f'MiniMax {i}','model_type':'chat',
                'provider_id':'minimax','provider_name':'MiniMax',
                'tags':['minmax'] if i % 2 == 0 else []} for i in range(25)]
-        first=_page_view({'models':rows},page=1,page_size=20,query='minmax')
-        second=_page_view({'models':rows},page=2,page_size=20,query='minmax')
-        self.assertEqual(25,first['pagination']['total'])
-        self.assertEqual(20,len(first['models']))
-        self.assertEqual(5,len(second['models']))
-        self.assertTrue(set(x['id'] for x in first['models']).isdisjoint(x['id'] for x in second['models']))
-        self.assertEqual(2,first['pagination']['total_pages'])
+        result=_page_view({'models':rows},query='minmax')
+        self.assertEqual(25,len(result['models']))
+        self.assertNotIn('pagination',result)
 
     def test_accounts_do_not_leak_full_provider_lists(self):
         rows=[{'id':str(i),'provider_id':'glm','is_current':i==24} for i in range(25)]
         result=_page_view({'accounts':rows,'providers':[{'id':'glm','name':'智谱','accounts':rows}]})
-        self.assertEqual(20,len(result['accounts']))
+        self.assertEqual(25,len(result['accounts']))
         self.assertEqual('24',result['accounts'][0]['id'])
         self.assertNotIn('accounts',result['providers'][0])
 
-    def test_empty_shape_still_has_pagination(self):
-        result=_page_view({'models':[]},page=1,page_size=20)
-        self.assertEqual({'page':1,'page_size':20,'total':0,'total_pages':0},result['pagination'])
+    def test_empty_shape_has_no_pagination(self):
+        self.assertNotIn('pagination',_page_view({'models':[]}))
 
     def test_filter_aliases_and_array_tags(self):
         value={'entries':[{'id':'a','kind':'service','service_type':'chat','service_type_label':'对话','account_provider_ids':['glm'],'tags':['production']}]}
@@ -55,12 +50,12 @@ class PaginationShapeTest(unittest.TestCase):
         rows=[{'id':'a','folder_id':'grandchild'},
               {'id':'b','folder_id':'root','folder_parent_id':None}]
         result=_page_view({'entries':rows,'folders':[{'id':'root','parent_id':None},{'id':'child','parent_id':'root'},{'id':'grandchild','parent_id':'child'}]},folder='root')
-        self.assertEqual(2,result['pagination']['total'])
+        self.assertEqual(2,len(result['entries']))
         self.assertEqual(2,result['facets']['folder_counts']['root'])
         self.assertEqual(1,result['facets']['folder_counts']['child'])
 
 
-class SnapshotPaginationTest(unittest.TestCase):
+class SnapshotFilterTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
         self.native=Mock()
@@ -74,18 +69,22 @@ class SnapshotPaginationTest(unittest.TestCase):
     def tearDown(self):
         self.service.close(); self.patch.stop(); self.tmp.cleanup()
 
-    def test_refresh_reads_source_once_then_all_pages_reuse_snapshot(self):
-        self.service.call('workbench_sync',{'view':'agents','page':1,'page_size':20})
-        self.service.call('workbench_sync',{'view':'agents','page':2,'page_size':20})
+    def test_sync_reads_only_persisted_snapshot(self):
+        pending=self.service.call('workbench_sync',{'view':'agents'})
+        self.assertEqual('pending',pending['data']['status']['snapshot']['state'])
+        self.assertEqual(0,self.native.skills.call_count)
+        self.service.collect_snapshot('agents')
+        self.service.call('workbench_sync',{'view':'agents'})
+        self.service.call('workbench_sync',{'view':'agents','query':'2'})
         self.assertEqual(1,self.native.skills.call_count)
-        self.service.call('workbench_sync',{'view':'agents','page':2,'page_size':20,'refresh':True})
-        self.assertEqual(2,self.native.skills.call_count)
 
     def test_context_switch_does_not_reuse_snapshot(self):
-        self.service.call('workbench_sync',{'view':'agents','page':1})
+        self.service.collect_snapshot('agents')
+        self.service.call('workbench_sync',{'view':'agents'})
         self.src.context.return_value='other'
-        self.service.call('workbench_sync',{'view':'agents','page':1})
-        self.assertEqual(2,self.native.skills.call_count)
+        result=self.service.call('workbench_sync',{'view':'agents'})
+        self.assertEqual('pending',result['data']['status']['snapshot']['state'])
+        self.assertEqual(1,self.native.skills.call_count)
 
 
 if __name__ == '__main__':

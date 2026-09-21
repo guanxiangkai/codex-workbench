@@ -36,6 +36,17 @@ class KnowledgeCatalog:
         return {'scopes':scopes,'selected_scope':scope,'knowledge':[{k:x[k] for k in keys if k in x} for x in values],
                 'limit_reached':len(values)>=(50 if query.strip() else 100)}
 
+    def snapshot(self):
+        """采集各活动范围自身的公开摘要，排除来源工具附带的继承知识。"""
+        scopes=self.scopes();items=[];limited=[]
+        keys=('knowledge_key','scope_key','title','summary','tags','scope_priority')
+        for scope in scopes:
+            values=self._read(['catalog',scope['id'],'1000'])
+            own=[x for x in values if x.get('scope_key')==scope['id']]
+            items.extend({k:x[k] for k in keys if k in x} for x in own)
+            if len(own)>=1000:limited.append(scope['id'])
+        return {'scopes':scopes,'knowledge':items,'limited_scopes':limited}
+
     def detail(self,scope,key):
         """返回指定已审核条目；同名键仍按 Scope 解析。"""
         if scope not in {x['id'] for x in self.scopes()}:raise ValueError('知识范围不存在或不可访问')

@@ -25,6 +25,18 @@ class ConfiguredModelTests(unittest.TestCase):
     def test_catalog_change_invalidates_signature(self):
         self.save(self.model);before=self.f.board._model_catalog_revision();self.save({**self.model,'name':'Updated model name'});self.assertNotEqual(before,self.f.board._model_catalog_revision())
 
+    def test_individual_fragments_merge_with_legacy_and_reject_duplicate_ids(self):
+        self.save(self.model)
+        fragment=self.path.parent/'reasoning.json'
+        second={**self.model,'id':'reasoning','name':'Reasoning','model_type':'reasoning','base_url':'https://example.invalid/v1','model_source':'explicit','model':'reasoning'}
+        fragment.write_text(json.dumps({'version':1,'model':second}))
+        self.assertEqual(['image','reasoning'],[item['id'] for item in configured_models(self.path)])
+        before=self.f.board._model_catalog_revision()
+        fragment.write_text(json.dumps({'version':1,'model':{**second,'name':'Updated reasoning'}}))
+        self.assertNotEqual(before,self.f.board._model_catalog_revision())
+        fragment.write_text(json.dumps({'version':1,'model':self.model}))
+        with self.assertRaises(ValueError):configured_models(self.path)
+
     def test_network_scope_is_explicit_and_preserved(self):
         for scope in ('internal','external'):
             self.save({**self.model,'network_scope':scope})

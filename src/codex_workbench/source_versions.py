@@ -87,6 +87,9 @@ class SourceVersions:
             signals.extend(self._tree(knowledge,2,3000))
         if view in ('config','services'):
             signals.extend(self._tree(self._local_source_dir('WORKBENCH_VAULT_DIR'),2,1000))
-        if view in ('other_accounts','config') and self.resources_dir:
-            signals.append(stamp(self.resources_dir/'accounts/catalog.json'))
+        if self.resources_dir:
+            if view in ('models','config','services'):
+                signals.extend(tree(self.resources_dir/'models',1,1100))
+            if view in ('other_accounts','config'):
+                signals.extend(tree(self.resources_dir/'accounts',1,1100))
         return digest(signals)

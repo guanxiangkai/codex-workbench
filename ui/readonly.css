@@ -87,9 +87,10 @@ main:is([data-module="models"],[data-module="config"]) tbody tr:hover{background
 .account-tags{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 /* 配置中心：目录位置、服务类型和标签分别表达。 */
 main[data-module="config"] .config-layout{grid-template-columns:248px minmax(0,1fr);align-items:start;gap:24px}
-main[data-module="config"] .directories{padding:12px;background:linear-gradient(160deg,color-mix(in srgb,var(--tint) 40%,white),var(--surface) 45%);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));border-radius:14px;box-shadow:0 4px 16px #20242c05;position:sticky;top:0;align-self:start;max-height:calc(100dvh - 20px);height:calc(100dvh - 172px)}
+main[data-module="config"] .directories{padding:12px;background:linear-gradient(160deg,color-mix(in srgb,var(--tint) 40%,white),var(--surface) 45%);border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));border-radius:14px;box-shadow:0 4px 16px #20242c05;display:flex;flex-direction:column;overflow:hidden;position:sticky;top:0;align-self:start;max-height:calc(100dvh - 20px);height:calc(100dvh - 172px)}
 main[data-module="config"] .directories h2{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);padding:0;margin:0}
-.directory-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 16px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.directory-tree{flex:1;min-height:0;overflow:auto}
+.directory-heading{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 16px;margin-bottom:12px;border-bottom:1px solid var(--line)}
 .directory-heading h2 .icon{color:var(--accent);width:18px;height:18px;flex-basis:18px}
 .directory-total{font-size:11px;color:var(--muted);white-space:nowrap}
 .directory-row{display:flex;align-items:center;padding-left:calc(var(--depth)*14px);min-width:0;gap:0;margin-bottom:4px}
@@ -118,7 +119,7 @@ main[data-module="config"] .folder.active{background:color-mix(in srgb,var(--fol
 .account[data-tone] .avatar{color:var(--type-color);background:var(--type-tint)}.account[data-tone] .progress span{background:var(--type-color,var(--green))}.account[data-tone] .quota{color:var(--type-color)}
 @media(max-width:1100px){main[data-module="config"] .config-layout{grid-template-columns:210px minmax(0,1fr)}.config-toolbar .select{flex:1 1 140px}}
 @media(max-width:850px){.config-grid{grid-template-columns:1fr}}
-@media(max-width:700px){main[data-module="config"] .config-layout{grid-template-columns:1fr;gap:16px}main[data-module="config"] .directories{display:block;position:static;height:auto;max-height:240px;padding:16px 12px}main[data-module="config"] .directories h2{display:flex}main[data-module="config"] .folder{min-width:0;white-space:normal;padding:8px 6px!important}.config-card{min-height:180px}.config-list-heading h2{font-size:18px}.config-toolbar .select{max-width:none}}
+@media(max-width:700px){main[data-module="config"] .config-layout{grid-template-columns:1fr;gap:16px}main[data-module="config"] .directories{display:flex;position:static;height:240px;max-height:240px;padding:16px 12px}main[data-module="config"] .directories h2{display:flex}main[data-module="config"] .folder{min-width:0;white-space:normal;padding:8px 6px!important}.config-card{min-height:180px}.config-list-heading h2{font-size:18px}.config-toolbar .select{max-width:none}}
 @media(prefers-reduced-motion:reduce){.config-card{transition:none}}
 .config-toolbar select{background:transparent;border-color:transparent}.config-toolbar .select:focus-within{box-shadow:0 0 0 2px #08756533}
 .config-card .badge{max-width:100%;white-space:normal;overflow-wrap:anywhere}

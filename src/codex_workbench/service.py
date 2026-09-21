@@ -118,7 +118,8 @@ class Workbench:
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
         if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        for (name,filters),entry in sorted(snapshots,key=lambda pair:pair[0][0]!=view):
+        for (name,filters),entry in snapshots:
+            if name!=view:continue
             value={'args':{'view':name,**dict(filters)},**entry}
             length=len(json.dumps(value,ensure_ascii=False).encode())
             if size+length>700_000:continue

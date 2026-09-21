@@ -20,30 +20,29 @@ class NativePageTests(unittest.TestCase):
     def bootstrap(self,page):return json.loads(re.search(r'const WORKBENCH_BOOTSTRAP=(.*?);</script>',page['html']).group(1))
     def test_cold_page_returns_shell_without_reading_sources(self):
         self.prepare()
-        self.service.sync=lambda *args,**kwargs: (_ for _ in ()).throw(AssertionError('blocking source read'))
         page=self.service.page(native=True);data=self.bootstrap(page)
         self.assertEqual([],data['views']);self.assertEqual([],self.native.calls)
         self.assertNotIn('transport',data);self.assertEqual([],page['csp']['connectDomains'])
 
     def test_warm_page_reuses_initial_snapshot(self):
-        self.prepare();self.service.sync('accounts')
+        self.prepare();self.service.collect_snapshot('accounts')
         calls=list(self.native.calls);data=self.bootstrap(self.service.page(native=True))
         self.assertTrue(data['views']);self.assertEqual(calls,self.native.calls)
         self.assertEqual('accounts',data['views'][0]['data']['view'])
 
     def test_bootstrap_contains_only_requested_page(self):
-        self.prepare();self.service.sync('accounts');self.service.sync('agents')
+        self.prepare();self.service.collect_snapshot('accounts');self.service.collect_snapshot('agents')
         data=self.bootstrap(self.service.page('agents'))
         self.assertTrue(data['views'])
         self.assertEqual({'agents'},{item['args']['view'] for item in data['views']})
 
     def test_bootstrap_json_is_html_safe(self):
         self.prepare();self.native.skills=lambda:[{'id':'a','name':'</script><img src=x onerror=alert(1)>'}]
-        self.service.sync('agents')
+        self.service.collect_snapshot('agents')
         page=self.service.page('agents');self.assertNotIn('<img',page['html']);self.assertIn('\\u003c',page['html'])
 
     def test_account_switch_drops_old_bootstrap(self):
-        self.prepare();self.service.sync('accounts')
+        self.prepare();self.service.collect_snapshot('accounts')
         first=self.bootstrap(self.service.page(native=True));self.service.source_versions.epoch='b'
         second=self.bootstrap(self.service.page(native=True))
         self.assertEqual('a',first['context']);self.assertEqual('b',second['context'])

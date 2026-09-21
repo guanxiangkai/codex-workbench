@@ -1,6 +1,6 @@
 # Codex 工作台
 
-为 Codex 提供统一的本机只读工作台：查看账户额度、筛选模型、浏览技能与资源，并通过受控通道查看配置。
+为 Codex 提供统一的本机只读工作台：查看账户额度、筛选模型、浏览技能与知识，并通过受控通道查看配置。
 
 ![当前版其他账户界面](design/current/other-accounts.png)
 
@@ -9,16 +9,19 @@
 | 模块 | 功能 |
 | --- | --- |
 | Codex 账户 | 展示已登录账户的官方额度、重置时间与已提供的账户状态 |
-| 其他账户 | 按平台筛选账户；进入页面时刷新已绑定 MiniMax Token Plan 的官方用量；失败保留上次快照 |
+| 其他账户 | 按平台筛选账户；后台定期刷新已绑定账户的官方用量；失败保留上次快照 |
 | 配置中心 | 目录、平台、类型与标签筛选；中文标题；普通字段与敏感字段分开展示 |
 | 模型目录 | 按供应商、能力和状态筛选，支持中文名称和 MiniMax 常见拼写检索 |
 | 技能助手 | 浏览 Codex 已发现的技能和能力说明 |
-| 资源中心 | 预览技能内的图标、图片、字体及其他受限素材 |
 | 知识中心 | 通过外部只读适配器查阅已审核的知识目录与内容 |
 
-界面使用两级导航：“账户与配置”和“能力与知识”。MCP 只提供一个“工作台”入口，浏览器预览与 MCP 使用同一套只读服务。列表支持有界缓存与增量更新；页面恢复可见时更新，无定时业务轮询。
+界面使用两级导航：“账户与配置”和“能力与知识”。MCP 只提供一个“工作台”入口，浏览器预览与 MCP 使用同一套只读服务。列表读取本机 JSON 快照并全量展示筛选结果，不再分页。后台按模块关注程度定时采集，打开页面不等待来源接口；采集失败保留上次成功数据。
 
 公开代码不含任何实际账户、模型服务登记、密码、API Key、登录态、个人业务记录或运行数据库。配置中的字段名与测试中的合成占位值用于说明协议。
+
+## 可恢复功能分支
+
+资源中心保存在 `feature/resource-center`，列表分页保存在 `feature/list-pagination`；两者以移除前的稳定主分支为恢复起点。执行记录保存在 `archive/execution-records`。这些分支用于保留实现，恢复时应基于当前开发分支移植对应改动并重新验证，避免直接合并旧快照覆盖后续功能。
 
 ## 运行
 
@@ -42,6 +45,12 @@ python3 -m venv .venv
 
 可设置 `WORKBENCH_PYTHON` 指定 Python，`WORKBENCH_CODEX_PATH` 指定安装时使用的 Codex CLI，`WORKBENCH_RESOURCES_DIR` 指定非秘密资源目录。直接启动也支持 `--data-dir`、`--resources-dir`、`--codex` 参数。默认活动数据放在本机应用数据目录，不放在仓库。
 
+### 后台快照与账户资料
+
+后台进程按 `refresh-schedule.json` 采集公开列表；可在资源目录放置同名文件覆盖间隔。最近 15 分钟访问过的模块使用活跃频率，其余使用空闲频率：账户 1/5 分钟、其他账户与配置 5/30 分钟、模型与知识 10/60 分钟、技能 30/360 分钟。最多同时采集三个模块，同一模块不会重复并发采集。页面仅查询本机快照，手动刷新只加入后台队列。
+
+快照保存在本机数据目录的 `snapshots.json`，原子写入并使用仅当前用户可读写的权限；来源失败保留上次结果。初次没有数据时显示采集中，不将尚未取得的分类统计显示为零。首次官网确认的昵称和头像保存在同目录 `account-profiles.json`，按账户身份与凭据引用匹配，实时官方字段优先；缺失字段沿用已确认资料，不以邮箱冒充昵称。该文件不包含密码、Cookie 或会话材料，也不进入仓库。
+
 ### 外部适配器
 
 密钥保险库和知识工具是可选外部依赖，本仓库不分发用户的私有工具、密文库或主密钥。适配器需要遵循 [接口说明](docs/adapters.md)。缺少适配器时，相应功能不可用；不得把密码写进示例 JSON 代替配置。
@@ -58,7 +67,7 @@ MiniMax 用量查询需要显式设置账户的 `usage_credential_id`，指向�
 PYTHONPATH=src:tests .venv/bin/python -m unittest \
   test_readonly_service test_other_accounts test_account_usage \
   test_api test_mcp test_mcp_resource_isolation test_ui_release \
-  test_runtime test_module_catalogs test_asset_catalog \
+  test_runtime test_module_catalogs \
   test_credential_details test_credential_probe test_credentials \
   test_install test_titles
 .venv/bin/python publish_ui.py

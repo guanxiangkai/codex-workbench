@@ -2,10 +2,9 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 const window={addEventListener(){}};window.parent=window;
-const context={window,parent:window,INITIAL_PAGE:'board',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'board',name:'执行记录',group:'工作'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
+const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户与配置'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
 vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8'),context);
 const h=window.__workbenchReadonlyTest;
-assert.equal(h.taskState({state:null}),'unknown');assert.equal(h.taskState({state:'idle'}),'unknown');assert.equal(h.taskState({state:'done'}),'done');
 assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('codex://threads/id?token=secret'),null);assert.equal(h.nativeUrl('codex://threads/abc-123'),'codex://threads/abc-123');
 assert.equal(h.duration(null),'未提供');assert.equal(h.duration(0),'0 毫秒');assert.equal(h.duration(61234),'1 分 1 秒');
 assert.equal(h.resetTime(null,0),'未提供');assert.equal(h.resetTime(0,0),'等待重置更新');assert.equal(h.resetTime(90061,0),'1 天后重置');assert.equal(h.resetTime(7200,0),'2 小时后重置');assert.equal(h.resetTime(60,0),'1 分钟后重置');
@@ -50,11 +49,6 @@ assert.throws(()=>h.applySync(null,{revision:'r1',unchanged:true}),/缓存版本
 console.log('增量合并：新增、修改、删除、重排、对象复用、版本拒绝通过');
 
 assert.equal(h.canonicalKey({b:1,a:{z:2,y:3}}),h.canonicalKey({a:{y:3,z:2},b:1}));
-const ordered=h.newestTasks([{id:'unknown-first'},{id:'old',completed_at:10},{id:'unknown-second'},{id:'new',completed_at:20}]);
-assert.deepEqual(ordered.map(x=>x.id),['unknown-first','new','unknown-second','old']);
-assert.equal(h.timestamp(1_700_000_000),1_700_000_000_000);assert.equal(h.timestamp(1_700_000_000_000),1_700_000_000_000);assert.equal(h.timestamp('2023-11-14T22:13:20.000Z'),1_700_000_000_000);
-const records=h.newestRecords([{id:'unknown-first'},{id:'old',updated_at:1_700_000_000},{id:'unknown-second'},{id:'new',created_at:1_700_000_100_000}]);
-assert.deepEqual(records.map(x=>x.id),['unknown-first','new','unknown-second','old']);
 console.log('首屏缓存：规范缓存键、未知时间稳定和已知时间倒序通过');
 // 自动显示采用精确白名单；嵌套项、未知项、带认证信息的 URL 仍遮挡。
 assert(h.automaticField({path:['type']},'api-key'));

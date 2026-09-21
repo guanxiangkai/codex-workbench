@@ -152,3 +152,16 @@ main[data-module="config"] .folder.active{background:color-mix(in srgb,var(--fol
 .other-account .provider-badge{color:var(--type-color);background:var(--type-tint)}
 .provider-filters button[data-provider]:not([data-provider=""]){color:var(--type-color);border-color:color-mix(in srgb,var(--type-color) 30%,white);background:var(--type-tint)}
 .provider-filters button[data-provider]:not([data-provider=""])[aria-pressed=true]{border-color:var(--type-color);box-shadow:inset 0 0 0 1px var(--type-color);font-weight:600}
+
+/* 列表共享视口高度：导航、标题和筛选固定，仅结果区域滚动。 */
+#app:has(>main.list-view){height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+#app:has(>main.list-view)>.top,#app:has(>main.list-view)>.subnav{flex-shrink:0;position:static}
+main.list-view{flex:1;min-height:0;margin:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:16px}
+main.list-view> :not(.account-grid,.skill-grid,.knowledge-list,.table-scroll,.config-layout){flex-shrink:0}
+main.list-view>:is(.account-grid,.skill-grid,.knowledge-list,.table-scroll){min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;align-content:start}
+main.list-view>.config-layout{flex:1;min-height:0;align-items:stretch}
+main.list-view .config-main{min-height:0;display:flex;flex-direction:column}
+main.list-view .config-list-heading,main.list-view .config-toolbar{flex-shrink:0}
+main.list-view .config-grid{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;align-content:start}
+main.list-view[data-module="config"] .directories{position:static;height:100%;max-height:none;min-height:0;overscroll-behavior:contain}
+@media(max-width:700px){main.list-view>.config-layout{grid-template-rows:minmax(80px,22dvh) minmax(0,1fr)}main.list-view[data-module="config"] .directories{padding:12px}main.list-view .heading{margin-bottom:16px}main.list-view .toolbar{margin-bottom:12px}}

@@ -129,7 +129,7 @@ class NativeRead:
         result=[]
         for a in records:
             is_current = a['id']=='current'
-            item={'id':a['id'],'name':a.get('display_name') or a.get('name') or 'Codex', 'is_current':is_current,'is_default':a['id']==default_id,
+            item={'id':a['id'],'name':'用户名未提供','name_source':'unavailable', 'is_current':is_current,'is_default':a['id']==default_id,
                   'email':None,'plan':None,'login_status':'unavailable','remaining_percent':None,
                   'resets_at':None,'reset_cards':None,'observed_at':timestamp()}
             try:
@@ -161,8 +161,9 @@ class NativeRead:
                     item.update(email=identity.get('email'),plan=identity.get('planType'),login_status='ready',
                                 remaining_percent=max(0,min(100,100-percent)) if percent is not None else None,
                                 resets_at=number(window.get('resetsAt')) if window else None,reset_cards=normalized.get('resetCredits'))
-                    official=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip()),None)
-                    item['name']=official or identity.get('email') or a.get('display_name') or a.get('name') or '用户名未提供'
+                    official=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip() and '@' not in identity[k]),None)
+                    item['name']=official.strip() if official else '用户名未提供'
+                    item['name_source']='official' if official else 'unavailable'
             except (OSError,ValueError,sqlite3.Error):
                 item['login_status']='unavailable'
             result.append(item)

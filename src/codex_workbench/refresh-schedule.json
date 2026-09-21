@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "active_window_seconds": 900,
+  "views": {
+    "accounts": {"active_seconds": 60, "idle_seconds": 300},
+    "other_accounts": {"active_seconds": 300, "idle_seconds": 1800},
+    "config": {"active_seconds": 300, "idle_seconds": 1800},
+    "models": {"active_seconds": 600, "idle_seconds": 3600},
+    "agents": {"active_seconds": 1800, "idle_seconds": 21600},
+    "knowledge": {"active_seconds": 600, "idle_seconds": 3600}
+  }
+}

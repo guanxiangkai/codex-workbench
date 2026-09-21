@@ -19,7 +19,7 @@ jobs:
       - name: Backend contracts
         env:
           PYTHONPATH: src:tests
-        run: python -m unittest tests.test_list_pagination tests.test_readonly_service tests.test_mcp tests.test_module_catalogs tests.test_other_accounts tests.test_account_identity tests.test_account_usage tests.test_bigmodel_usage tests.test_view_cache
+        run: python -m unittest tests.test_list_filters tests.test_snapshot_store tests.test_account_profiles tests.test_current_account tests.test_native_page tests.test_readonly_service tests.test_mcp tests.test_module_catalogs tests.test_other_accounts tests.test_account_identity tests.test_account_usage tests.test_bigmodel_usage tests.test_view_cache
       - name: UI and encrypted detail contracts
         run: WORKBENCH_TEST_PYTHON="$(command -v python)" python publish_ui.py
       - name: Release matches sources

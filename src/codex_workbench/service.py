@@ -38,11 +38,16 @@ def _model_search_text(model):
     return normalized+(' minmax' if 'minimax' in normalized else '')
 
 
-def _page_view(value, query='', kind='', provider='', tag='', folder='', **_ignored):
+def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', **_ignored):
     """在完整公开快照上筛选并计算分类；列表一次返回全部匹配项。"""
     key=next((k for k in ('accounts','skills','models','entries','knowledge','services','connections','projects') if isinstance(value.get(k),list)),None)
     if key is None:return value
     items=[x for x in value[key] if isinstance(x,dict)]
+    if key=='knowledge':
+        if 'scopes' in value and scope not in {x['id'] for x in value['scopes']}:raise ValueError('知识范围不存在或不可访问')
+        items=[x for x in items if x.get('scope_key')==scope]
+        value={**value,'selected_scope':scope,'limit_reached':scope in value.get('limited_scopes',[])}
+        value.pop('limited_scopes',None)
     directory={str(x['id']):x for x in value.get('folders',[]) if isinstance(x,dict) and x.get('id')}
     def ancestors(identifier):
         seen=set()
@@ -278,7 +283,7 @@ class Workbench:
                  ('models',lambda:self._snapshot_state('models').get('models',[]),'id','name','provider_name'),
                  ('config',lambda:self._snapshot_state('config').get('entries',[]),'id','label','kind'),
                  ('other_accounts',lambda:self._snapshot_state('other_accounts').get('accounts',[]),'id','label','provider_name'),
-                 ('knowledge',lambda:self._snapshot_state('knowledge').get('knowledge',[]),'knowledge_key','title','summary')]
+                 ('knowledge',lambda:self.state('knowledge',scope=scope).get('knowledge',[]),'knowledge_key','title','summary')]
         for module,read,key,title,summary in sources:
             if module not in {m['id'] for m in MODULES}:continue
             try:
@@ -301,7 +306,7 @@ class Workbench:
         elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=True))
-        elif view=='knowledge':result.update(self.knowledge.listing())
+        elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='config':
             catalog=self.credentials.list();result.update(catalog);result['status']={**catalog['status'],'state':'ok','observed_at':timestamp()}
             result['configuration_schema']=configuration_schema()
@@ -322,7 +327,6 @@ class Workbench:
         """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
         allowed={'query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
-        scope=filters.pop('scope','global') if view=='knowledge' else None
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()
         if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view,refresh=refresh)

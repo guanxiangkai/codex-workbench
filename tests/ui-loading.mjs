@@ -9,7 +9,7 @@ function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex',group:'账户与配置'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
@@ -53,10 +53,24 @@ assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.re
 otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();
 otherAccounts.controls.get('refresh-usage').click();await flush();
 assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.refresh,true);
-assert.match(otherAccounts.root.innerHTML,/正在更新用量/);
+assert.match(otherAccounts.root.innerHTML,/刷新中\.\.\./);
 otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();
-assert.doesNotMatch(otherAccounts.root.innerHTML,/正在更新用量/);
+assert.doesNotMatch(otherAccounts.root.innerHTML,/刷新中\.\.\./);
 console.log('其他账户：页面恢复使用缓存，用户刷新用量及忙状态清理通过');
+for(const page of ['accounts','other_accounts']){
+ const board=boot({page});await flush();
+ const result=(revision,refreshing,name)=>({context:'usage-test',revision,reset:true,data:{view:page,accounts:[{id:'one',display_name:name}],status:{snapshot:{state:'ready',refreshing}}}});
+ board.requests[0].resolve(result('old',false,'旧账户'));await flush();
+ board.controls.get('refresh-usage').click();await flush();
+ board.requests.at(-1).resolve(result('pending',true,'中间数据'));await flush();
+ assert.match(board.root.innerHTML,/旧账户/);assert.doesNotMatch(board.root.innerHTML,/中间数据/);assert.match(board.root.innerHTML,/刷新中\.\.\./);
+ for(const [id,timer] of [...board.timers])if(timer.ms===1000){board.timers.delete(id);timer.fn();}await flush();
+ assert.equal(JSON.parse(board.requests.at(-1).options.body).arguments.refresh,false);
+ board.requests.at(-1).resolve(result('saved',false,'新账户'));await flush();
+ assert.match(board.root.innerHTML,/新账户/);assert.doesNotMatch(board.root.innerHTML,/刷新中\.\.\./);
+}
+console.log('账户用量：采集中保留旧数据，完成后统一替换，两个账户页通过');
+
 
 // 原生入口会主动推送首屏结果，即使页面自主 tools/call 仍在等待也必须显示。
 const pushed=boot({embedded:true});await flush();await pushed.reply(pushed.messages[0],{});assert.match(pushed.root.innerHTML,/正在读取/);

@@ -22,8 +22,8 @@ from .model_catalog import configured_models
 from .model_observations import ModelObservations
 from .other_accounts import other_accounts
 from .account_usage import AccountUsage
+from .account_preferences import set_default_account
 from .view_cache import ViewCache
-from .execution_pages import ExecutionPages
 from .source_versions import SourceVersions, stamp
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
@@ -35,6 +35,54 @@ def _model_search_text(model):
     values=[model.get(key,'') for key in ('id','name','service_name','model_type','model','provider_id','provider_name')]
     normalized=' '.join(str(value) for value in values).casefold()
     return normalized+(' minmax' if 'minimax' in normalized else '')
+
+
+def _page_view(value, page=1, page_size=20, query='', kind='', provider='', tag='', folder=''):
+    """在完整公开快照上筛选、计数，再仅返回当前页。"""
+    page=max(1,int(page or 1)); page_size=min(50,max(1,int(page_size or 20)))
+    key=next((k for k in ('accounts','skills','models','entries','knowledge','assets','services','connections','projects') if isinstance(value.get(k),list)),None)
+    if key is None:return value
+    items=[x for x in value[key] if isinstance(x,dict)]
+    directory={str(x['id']):x for x in value.get('folders',[]) if isinstance(x,dict) and x.get('id')}
+    def ancestors(identifier):
+        seen=set()
+        while identifier and identifier not in seen:
+            seen.add(identifier);yield identifier
+            identifier=str(directory.get(identifier,{}).get('parent_id') or '')
+    def item_kind(x):
+        return str((x.get('model_type') if key=='models' else x.get('service_type') if key=='entries' else None) or x.get('kind') or '')
+    def item_providers(x):
+        p=x.get('account_provider_ids',[]) if key=='entries' else x.get('provider_id') or x.get('provider') or []
+        return [str(y) for y in (p if isinstance(p,list) else [p]) if y]
+    def search_text(x):
+        parts=[str(v) for v in x.values() if isinstance(v,(str,int,float,bool))]
+        parts.extend(str(v) for v in x.get('tags',[]) or [])
+        parts.extend(str(directory[f].get('name','')) for f in ancestors(str(x.get('folder_id') or '')) if f in directory)
+        text=' '.join(parts).casefold()
+        return text+(' minmax' if key=='models' and 'minimax' in text else '')
+    q=str(query or '').casefold()
+    selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or ''))))]
+    # 没有时间戳时保持源顺序，有时间戳时用标识消除并列顺序的不确定性。
+    if any(x.get('updated_at') or x.get('created_at') for x in selected):
+        selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or x.get('knowledge_key') or '')),reverse=True)
+    if key=='accounts':
+        selected.sort(key=lambda x:(not bool(x.get('is_current')),not bool(x.get('is_default'))))
+    # 平台汇总只保留元数据，避免通过嵌套账户绕过分页。
+    if key=='accounts' and isinstance(value.get('providers'),list):
+        value={**value,'providers':[{k:v for k,v in p.items() if k!='accounts'} for p in value['providers']]}
+    total=len(selected);pages=(total+page_size-1)//page_size;page=min(page,max(1,pages))
+    providers={};kinds={};tags={};folders={}
+    for x in items:
+        for p in item_providers(x):
+            entry=providers.setdefault(p,{'id':p,'name':x.get('provider_name') or p,'count':0});entry['count']+=1
+        k=item_kind(x)
+        if k:
+            entry=kinds.setdefault(k,{'id':k,'name':x.get('service_type_label') or k,'count':0});entry['count']+=1
+        for t in x.get('tags') or []:tags[str(t)]=tags.get(str(t),0)+1
+        for f in ancestors(str(x.get('folder_id') or '')):folders[f]=folders.get(f,0)+1
+    return {**value,key:selected[(page-1)*page_size:page*page_size],
+            'pagination':{'page':page,'page_size':page_size,'total':total,'total_pages':pages},
+            'facets':{'providers':[providers[k] for k in sorted(providers)],'kinds':[kinds[k] for k in sorted(kinds)],'tags':[{'id':k,'name':k,'count':v} for k,v in sorted(tags.items())],'folder_counts':folders}}
 
 
 class Workbench:
@@ -51,11 +99,11 @@ class Workbench:
         self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
+        self.source_cache=ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
-        self.execution_pages=ExecutionPages()
         self.account_usage=account_usage or AccountUsage()
         self.model_observations=ModelObservations(self.data_dir)
-        self._closing=False;self.lock=threading.RLock();self._turn_cursors={}
+        self._closing=False;self.lock=threading.RLock()
 
     def manifest(self,page,known_revision=None):
         """读取 UI/工具发布快照，不访问账户和业务对象。"""
@@ -67,7 +115,9 @@ class Workbench:
         if self._closing:raise ValueError('工作台正在关闭')
         epoch=self.source_versions.context();initial_error=None
         snapshots=self.view_cache.snapshots(self.source_versions.context)
-        def default(key):return key==(view,()) or view=='knowledge' and key==('knowledge',(('query',''),('scope','global')))
+        def default(key):
+            name,filters=key;args=dict(filters)
+            return name==view and args.get('page',1)==1 and args.get('scope','global')=='global' and not any(args.get(k) for k in ('query','kind','provider','tag','folder'))
         if not any(default(key) for key,_ in snapshots):
             try:
                 self.sync(view)
@@ -92,7 +142,7 @@ class Workbench:
     def close(self):
         """清理进程内读取状态；没有业务运行需要取消或补偿。"""
         with self.lock:
-            self._closing=True;self._turn_cursors.clear();self.view_cache.clear();self.execution_pages.clear()
+            self._closing=True;self.view_cache.clear();self.source_cache.clear()
 
     def _model_catalog_revision(self):
         """模型配置文件变化时使模型及服务投影失效，不启动轮询。"""
@@ -121,6 +171,9 @@ class Workbench:
         if refresh:
             for account in result['accounts']:
                 account.update(self.account_usage.refresh(account))
+        else:
+            for account in result['accounts']:
+                account.update(self.account_usage.cached(account))
         return result
 
     def _catalog(self):
@@ -128,32 +181,6 @@ class Workbench:
         for session in snapshot.get('sessions',[]):
             session.pop('name_token',None)
         return snapshot
-
-    def board_state(self,session_id=None,cursor=None,section_id=None,project_id=None):
-        """默认汇总全部可访问会话；筛选、分页和统计使用同一数据范围。"""
-        snapshot=self._catalog();sessions=snapshot['sessions']
-        filtered=[s for s in sessions if
-                  (not section_id or (not s.get('section_id') if section_id=='__none__' else s.get('section_id')==section_id))
-                  and (not project_id or s.get('project_id')==project_id)]
-        selected=next((s for s in filtered if s['id']==session_id),None) if session_id else None
-        if session_id and selected is None:raise ValueError('所选会话不存在或不属于当前筛选')
-        def read(session,native_cursor):
-            records,next_cursor=self.native.turns(session,native_cursor)
-            with self.lock:
-                for task in records:self._turn_cursors[(session['id'],task['turn_id'])]=native_cursor
-                while len(self._turn_cursors)>5000:self._turn_cursors.pop(next(iter(self._turn_cursors)))
-            return records,next_cursor
-        if selected:
-            tasks,next_cursor=read(selected,cursor)
-        else:
-            tasks,next_cursor=self.execution_pages.read(filtered,cursor,(section_id,project_id),
-                                                        self.source_versions.context(),read)
-        tasks.sort(key=lambda t:(t.get('started_at') or t.get('completed_at') or 0,t['id']),reverse=True)
-        return {'read_only':True,'view':'board','sections':snapshot['sections'],'projects':snapshot['projects'],
-                'sessions':sessions,'tasks':tasks,'selected_session_id':selected['id'] if selected else None,
-                'next_cursor':next_cursor,'status':{'state':'ok','observed_at':timestamp(),'source':'codex',
-                'scope':'selected_session' if selected else 'all_sessions','task_unit':'execution_turn',
-                'truncated':snapshot.get('status',{}).get('truncated',False)}}
 
     def project_state(self):
         """原生项目只做关联聚合，不创建独立项目记录。"""
@@ -174,7 +201,7 @@ class Workbench:
                  ('agents',self.native.skills,'id','display_name','description'),
                  ('assets',lambda:self.assets.list()['assets'],'id','name','skill_name'),
                  ('models',self._models,'id','name','provider_name'),
-                 ('config',lambda:self.state('config')['entries'],'id','label','kind'),
+                 ('config',lambda:self.state('config',_paginate=False)['entries'],'id','label','kind'),
                  ('other_accounts',lambda:self._other_accounts()['accounts'],'id','label','provider_name'),
                  ('knowledge',lambda:self.knowledge.listing(scope,query)['knowledge'],'knowledge_key','title','summary')]
         for module,read,key,title,summary in sources:
@@ -191,15 +218,14 @@ class Workbench:
             except (ValueError,OSError,sqlite3.Error):errors.append(module)
         return {'results':result,'source_errors':errors}
 
-    def state(self,view=DEFAULT_VIEW):
+    def state(self,view=DEFAULT_VIEW,_paginate=True,_refresh_usage=False,**paging):
         """按页惰性读取，配置页不会扫描会话，打开页面不会创建任何资源。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
-        if view=='board':return {**result,**self.board_state()}
         if view=='accounts':result['accounts']=self.native.accounts()
         elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
-        elif view=='other_accounts':result.update(self._other_accounts(refresh=True))
+        elif view=='other_accounts':result.update(self._other_accounts(refresh=_refresh_usage))
         elif view=='projects':result.update(self.project_state())
         elif view=='assets':result.update(self.assets.list())
         elif view=='knowledge':result.update(self.knowledge.listing())
@@ -212,33 +238,37 @@ class Workbench:
             result['entries']=configuration_entries(catalog['entries'],models,other['accounts'])
             result['other_account_providers']=[{'id':provider['id'],'name':provider['name']} for provider in other['providers']]
         else:raise ValueError('页面不存在')
-        return result
+        return _page_view(result,**paging) if _paginate else result
 
     def sync(self,view,revision=None,refresh=False,**filters):
-        """只缓存展示页公开投影，查询键隔离视图、范围、会话和分页。"""
-        allowed={'session_id','cursor','section_id','project_id'} if view=='board' else {'scope','query'} if view=='knowledge' else set()
+        """源快照按视图共享，分页缓存只保存当前页；筛选不重复读取来源。"""
+        if refresh and hasattr(self.source_versions,'invalidate'):self.source_versions.invalidate()
+        allowed={'page','page_size','query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
-        if view=='knowledge':filters={'scope':filters.get('scope','global'),'query':filters.get('query','')}
-        key=(view,tuple(sorted(filters.items())))
+        scope=filters.pop('scope','global') if view=='knowledge' else None
+        paging={'page':1,'page_size':20,'query':'','kind':'','provider':'','tag':'','folder':'',**filters}
+        source_key=(view,scope)
+        key=(view,tuple(sorted({**paging,**({'scope':scope} if scope else {})}.items())))
+        ttl={'accounts':60,'other_accounts':60,'projects':60,'agents':120,'assets':120,'connections':120,'knowledge':30,'config':60,'services':60,'models':120}[view]
+        signature=lambda:(self.source_versions.signature(view),self._model_catalog_revision() if view in ('models','services','config') else None)
         def read():
-            if view=='board':return self.board_state(**filters)
-            if view=='knowledge':return self.knowledge.listing(**filters)
-            return self.state(view)
-        ttl={'board':10,'accounts':60,'other_accounts':60,'projects':60,'agents':120,'assets':120,'connections':120,'knowledge':30,'config':60,'services':60,'models':120}[view]
-        return self.view_cache.sync(key,revision,read,self.source_versions.context,lambda:(self.source_versions.signature(view), self._model_catalog_revision() if view in ('models','services','config') else None),ttl,refresh)
+            if view=='knowledge':return self.knowledge.listing(scope=scope,query='')
+            return self.state(view,_paginate=False,_refresh_usage=refresh)
+        source=self.source_cache.sync(source_key,None,read,self.source_versions.context,signature,ttl,refresh)
+        return self.view_cache.sync(key,revision,lambda:_page_view(source['data'],**paging),self.source_versions.context,lambda:(signature(),source['revision']),ttl,refresh)
 
     def call(self,name,arguments):
         """先验证固定工具与字段，再进入只读处理；不存在可转发的写入通道。"""
         args=validate(name,arguments)
         with self.lock:
             if self._closing:raise ValueError('工作台正在关闭')
+        if name=='account_default':return set_default_account(self.db,self.native,args['id'],args['expected_default_id'])
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
-        if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW))
-        if name=='board_state':return self.board_state(**args)
-        if name=='module_list':return {'modules':MODULES,'read_only':True}
+        if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
+        if name=='module_list':return {'modules':MODULES,'read_only':False}
         if name=='project_list':return self.project_state()
         if name=='project_detail':
             data=self.project_state();item=next((x for x in data['projects'] if x['id']==args['id']),None)
@@ -269,14 +299,4 @@ class Workbench:
             if item.get('credential_id'):
                 credential=next((e for e in self.credentials.list()['entries'] if e['id']==item['credential_id']),None)
             return {'model':item,'credential':credential,'api_contract':contract_for(item)}
-        if name=='task_detail':
-            snapshot=self._catalog();session=next((s for s in snapshot['sessions'] if s['id']==args['session_id']),None)
-            if session is None:raise ValueError('会话不存在或不可访问')
-            with self.lock:
-                cursor=self._turn_cursors.get((session['id'],args['turn_id']))
-            tasks,_=self.native.turns(session,cursor)
-            task=next((t for t in tasks if t['turn_id']==args['turn_id']),None)
-            if task is None:raise ValueError('执行记录不在当前页，请刷新任务列表')
-            return {'task':task,'session':session,'metrics':{k:task[k] for k in ('duration_ms','input_tokens','output_tokens','cached_input_tokens','reasoning_output_tokens','total_tokens')},
-                    'native_url':task['native_url'],'description':task.get('description') or task['title']}
         raise ValueError('只读工具不存在')

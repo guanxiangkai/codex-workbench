@@ -1,0 +1,26 @@
+name: Workbench checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install -r requirements.txt
+      - name: Backend contracts
+        env:
+          PYTHONPATH: src:tests
+        run: python -m unittest tests.test_list_pagination tests.test_readonly_service tests.test_mcp tests.test_module_catalogs tests.test_other_accounts tests.test_account_identity tests.test_account_usage tests.test_bigmodel_usage tests.test_view_cache
+      - name: UI and encrypted detail contracts
+        run: WORKBENCH_TEST_PYTHON="$(command -v python)" python publish_ui.py
+      - name: Release matches sources
+        run: git diff --exit-code -- ui/release.json

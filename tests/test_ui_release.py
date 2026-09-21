@@ -41,3 +41,9 @@ class UiReleaseTests(unittest.TestCase):
         self.assertEqual(previous, view.manifest("workbench"))
         self.release.write_text("{broken", encoding="utf-8")
         self.assertEqual(previous, view.manifest("workbench"))
+
+    def test_release_uses_revisioned_resource_uri_for_the_workbench_entry(self):
+        page = self.first["pages"]["workbench"]
+        entry = next(tool for tool in page["tools"] if tool["name"] == page["entry"])
+        self.assertEqual(f"ui://codex-workbench/v7/workbench/{self.first['revision']}.html", page["resource_uri"])
+        self.assertEqual(page["resource_uri"], entry["_meta"]["ui"]["resourceUri"])

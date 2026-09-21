@@ -77,8 +77,8 @@ class SourceVersions:
             signals.extend(stamp(p) for p in [self.db,Path(str(self.db)+'-wal')])
         if view=='projects':
             signals.append(NativeCatalog(home,include_archived=True).revision())
-        if view in ('agents','assets','connections'):
-            signals.extend(self._tree(home/'skills',4 if view=='assets' else 3))
+        if view in ('agents','connections'):
+            signals.extend(self._tree(home/'skills',3))
             signals.extend(self._tree(home/'plugins',2,500))
             signals.extend(self._tree(self.cwd/'.agents/skills',3,300))
             signals.extend(self._tree(self.cwd/'.codex/skills',3,300))

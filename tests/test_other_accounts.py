@@ -27,8 +27,12 @@ class OtherAccountsTests(unittest.TestCase):
     def save(self, providers):
         self.path.write_text(json.dumps({'version': 1, 'providers': providers}), encoding='utf-8')
 
+    def collect(self, view='other_accounts'):
+        self.assertTrue(self.fixture.board.collect_snapshot(view))
+
     def test_missing_catalog_returns_empty_projection_without_touching_codex_account(self):
         self.path.unlink(missing_ok=True)
+        self.collect()
         state = self.fixture.board.call('workbench_state', {'view': 'other_accounts'})
         self.assertEqual([], state['providers'])
         self.assertEqual([], state['accounts'])
@@ -42,6 +46,7 @@ class OtherAccountsTests(unittest.TestCase):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]},
                    {'id': 'custom-ai', 'name': '自定义平台', 'accounts': [second]},
                    {'id': 'deepseek', 'name': 'DeepSeek', 'accounts': []}])
+        self.collect()
         state = self.fixture.board.call('workbench_state', {'view': 'other_accounts'})
         self.assertEqual(['zhipu', 'custom-ai'], [item['id'] for item in state['providers']])
         self.assertEqual(['zhipu-team', 'custom-free'], [item['id'] for item in state['accounts']])
@@ -103,6 +108,7 @@ class OtherAccountsTests(unittest.TestCase):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
         self.fixture.credentials.list = lambda: {'entries': [{'id': 'zhipu-key', 'tags': [], 'label': '智谱密钥'}], 'folders': [], 'status': {'ready': True}}
         self.fixture.board._models = lambda: [{'id': 'model', 'credential_id': 'zhipu-key'}]
+        self.collect('config')
         state = self.fixture.board.call('workbench_state', {'view': 'config'})
         self.assertEqual([{'id': 'zhipu', 'name': '智谱'}], state['other_account_providers'])
         self.assertEqual(['zhipu-team'], state['entries'][0]['other_account_ids'])
@@ -110,21 +116,25 @@ class OtherAccountsTests(unittest.TestCase):
 
     def test_sync_uses_other_accounts_view_and_reloads_changed_catalog(self):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
+        self.collect()
         first = self.fixture.board.call('workbench_sync', {'view': 'other_accounts'})
         self.account['label'] = '智谱已更新账户'
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
+        self.collect()
         changed = self.fixture.board.call('workbench_sync', {'view': 'other_accounts', 'revision': first['revision']})
         self.assertFalse(changed['unchanged'])
-        self.assertEqual('智谱已更新账户', changed['patch']['collections']['accounts']['upsert'][0]['label'])
+        self.assertEqual('智谱已更新账户', changed['data']['accounts'][0]['label'])
 
     def test_observation_time_change_is_sent_as_account_delta(self):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
+        self.collect()
         first = self.fixture.board.call('workbench_sync', {'view': 'other_accounts'})
         self.account['observed_at'] = '2026-09-16T08:09:00+08:00'
         self.account['usage']['observed_at'] = '2026-09-16T08:08:00+08:00'
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
+        self.collect()
         changed = self.fixture.board.call('workbench_sync', {'view': 'other_accounts', 'revision': first['revision'], 'refresh': True})
-        item = changed['patch']['collections']['accounts']['upsert'][0]
+        item = changed['data']['accounts'][0]
         self.assertEqual('2026-09-16T08:09:00+08:00', item['observed_at'])
         self.assertEqual('2026-09-16T08:08:00+08:00', item['usage']['observed_at'])
 

@@ -165,3 +165,6 @@ main>.toolbar{margin-top:-12px}
 .config-toolbar .select{width:174px;min-width:0;max-width:none}
 .config-toolbar .count{width:96px;text-align:right}
 @media(max-width:760px){.config-toolbar{grid-template-columns:minmax(0,1fr) 96px}.config-toolbar .select{grid-column:1/-1;width:100%}}
+
+/* 搜索与筛选所在行去掉背景，保留控件自身样式。 */
+main>.toolbar,.config-controls{background:transparent}

@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 const window={addEventListener(){}};window.parent=window;
 const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户与配置'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
-vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8'),context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8'),context);
 const h=window.__workbenchReadonlyTest;
 assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('codex://threads/id?token=secret'),null);assert.equal(h.nativeUrl('codex://threads/abc-123'),'codex://threads/abc-123');
 assert.equal(h.duration(null),'未提供');assert.equal(h.duration(0),'0 毫秒');assert.equal(h.duration(61234),'1 分 1 秒');

@@ -32,6 +32,27 @@ class ModuleCatalogTests(unittest.TestCase):
         self.assertEqual('查询',runner.calls[-1][1]['input']);self.assertNotIn('查询',runner.calls[-1][0])
         with self.assertRaises(ValueError):catalog.listing('project:unknown')
         self.assertEqual('正文',catalog.detail('project:a','rule.a')['knowledge']['content'])
+    def test_knowledge_snapshot_and_sync_filter_scope_and_query(self):
+        from unittest.mock import Mock, patch
+        from pathlib import Path
+        import tempfile
+        from codex_workbench.service import Workbench
+        runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
+        with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
+            release.return_value.revision='test'
+            versions=Mock();versions.context.return_value='test'
+            board=Workbench(Path(directory),Path(directory)/'resources',native_reader=Mock(),source_versions=versions,knowledge_catalog=catalog)
+            self.addCleanup(board.close)
+            self.assertTrue(board.collect_snapshot('knowledge'))
+            initial=board.sync('knowledge',scope='global')
+            selected=board.sync('knowledge',scope='project:a',revision=initial['revision'])
+            self.assertFalse(selected['unchanged'])
+            self.assertEqual('project:a',selected['data']['selected_scope'])
+            self.assertEqual(['project:a'],[x['scope_key'] for x in selected['data']['knowledge']])
+            self.assertEqual([],board.sync('knowledge',scope='project:a',query='不存在')['data']['knowledge'])
+            self.assertEqual('global',board.call('knowledge_list',{'scope':'global'})['selected_scope'])
+            with self.assertRaises(ValueError):board.sync('knowledge',scope='project:missing')
+
     def test_knowledge_reader_never_performs_mutation(self):
         runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
         catalog.listing();catalog.detail('global','rule.a')
@@ -75,7 +96,7 @@ class ModuleSearchTests(unittest.TestCase):
     def test_search_never_searches_or_returns_secret_fields(self):
         f=Fixture();self.addCleanup(f.close)
         f.board.source_versions=self._versions()
-        f.board.knowledge=type('Knowledge',(),{'listing':lambda self,*a:{'knowledge':[]}})()
+        f.board.knowledge=type('Knowledge',(),{'snapshot':lambda self:{'scopes':[{'id':'global'}],'knowledge':[]}})()
         f.credentials.list=lambda:{'entries':[{'id':'entry','label':'公开名称','kind':'credential','password':'private-value'}],'folders':[],'status':{}}
         f.board.collect_snapshot('config')
         result=f.board.call('global_search',{'query':'private-value'})
@@ -84,9 +105,9 @@ class ModuleSearchTests(unittest.TestCase):
         self.assertEqual('config',result['results'][0]['module']);self.assertNotIn('private-value',json.dumps(result))
     def test_knowledge_snapshot_respects_search_query(self):
         f=Fixture();self.addCleanup(f.close)
-        f.board.knowledge=type('Knowledge',(),{'listing':lambda self,*args:{'knowledge':[
-            {'knowledge_key':'rule.a','title':'保留标题','summary':'可检索摘要'},
-            {'knowledge_key':'rule.b','title':'无关内容','summary':'无关内容'}]}})()
+        f.board.knowledge=type('Knowledge',(),{'snapshot':lambda self:{'scopes':[{'id':'global'}],'knowledge':[
+            {'scope_key':'global','knowledge_key':'rule.a','title':'保留标题','summary':'可检索摘要'},
+            {'scope_key':'global','knowledge_key':'rule.b','title':'无关内容','summary':'无关内容'}]}})()
         f.board.collect_snapshot('knowledge')
         result=f.board.call('global_search',{'query':'保留'})
         self.assertEqual(['rule.a'],[item['id'] for item in result['results'] if item['module']=='knowledge'])

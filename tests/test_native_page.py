@@ -16,26 +16,33 @@ class NativePageTests(unittest.TestCase):
             def context(self):return self.epoch
             def signature(self,view):return view
         self.service.source_versions=Versions()
-        self.release.manifest.return_value={'html':"<html><script>const INITIAL_PAGE='board';const WORKBENCH_BOOTSTRAP=null;</script></html>",'resource_uri':'ui://test'}
+        self.release.manifest.return_value={'html':"<html><script>const INITIAL_PAGE='accounts';const WORKBENCH_BOOTSTRAP=null;</script></html>",'resource_uri':'ui://test'}
     def bootstrap(self,page):return json.loads(re.search(r'const WORKBENCH_BOOTSTRAP=(.*?);</script>',page['html']).group(1))
-    def test_native_page_contains_initial_cache_without_waiting_for_bridge(self):
-        self.prepare();page=self.service.page(native=True);data=self.bootstrap(page)
-        self.assertTrue(data['views']);self.assertNotIn('transport',data);self.assertEqual([],page['csp']['connectDomains'])
-        self.assertEqual('board',data['views'][0]['data']['view']);self.assertEqual(1,self.native.calls.count('snapshot'))
-        self.service.page(native=True);self.assertEqual(1,self.native.calls.count('snapshot'))
-        self.assertNotIn('capability',self.release.manifest.return_value['html'])
-    def test_native_page_has_no_preview_dependency(self):
-        self.prepare();page=self.service.page(native=True);data=self.bootstrap(page)
-        self.assertTrue(data['views']);self.assertNotIn('error',data);self.assertNotIn('transport',data)
-        self.assertEqual([],page['csp']['connectDomains'])
+    def test_cold_page_returns_shell_without_reading_sources(self):
+        self.prepare()
+        self.service.sync=lambda *args,**kwargs: (_ for _ in ()).throw(AssertionError('blocking source read'))
+        page=self.service.page(native=True);data=self.bootstrap(page)
+        self.assertEqual([],data['views']);self.assertEqual([],self.native.calls)
+        self.assertNotIn('transport',data);self.assertEqual([],page['csp']['connectDomains'])
+
+    def test_warm_page_reuses_initial_snapshot(self):
+        self.prepare();self.service.sync('accounts')
+        calls=list(self.native.calls);data=self.bootstrap(self.service.page(native=True))
+        self.assertTrue(data['views']);self.assertEqual(calls,self.native.calls)
+        self.assertEqual('accounts',data['views'][0]['data']['view'])
 
     def test_bootstrap_json_is_html_safe(self):
         self.prepare();self.native.skills=lambda:[{'id':'a','name':'</script><img src=x onerror=alert(1)>'}]
+        self.service.sync('agents')
         page=self.service.page('agents');self.assertNotIn('<img',page['html']);self.assertIn('\\u003c',page['html'])
+
     def test_account_switch_drops_old_bootstrap(self):
-        self.prepare();first=self.bootstrap(self.service.page(native=True));self.service.source_versions.epoch='b'
+        self.prepare();self.service.sync('accounts')
+        first=self.bootstrap(self.service.page(native=True));self.service.source_versions.epoch='b'
         second=self.bootstrap(self.service.page(native=True))
-        self.assertEqual('a',first['context']);self.assertEqual('b',second['context']);self.assertEqual(2,self.native.calls.count('snapshot'))
+        self.assertEqual('a',first['context']);self.assertEqual('b',second['context'])
+        self.assertEqual([],second['views'])
+
     def test_preview_rejects_cross_origin_access(self):
         self.prepare();server=PreviewServer(('127.0.0.1',0),self.service);thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         try:

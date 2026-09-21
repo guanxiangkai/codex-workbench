@@ -1,6 +1,7 @@
 """其他账户受管目录的只读投影与配置中心关联契约。"""
 import json
 import unittest
+from unittest.mock import patch
 
 from codex_workbench.other_accounts import other_accounts
 from readonly_fixture import Fixture
@@ -8,6 +9,9 @@ from readonly_fixture import Fixture
 
 class OtherAccountsTests(unittest.TestCase):
     def setUp(self):
+        context = patch("codex_workbench.source_versions.current_account_home", return_value="/synthetic/codex")
+        context.start()
+        self.addCleanup(context.stop)
         self.fixture = Fixture()
         self.addCleanup(self.fixture.close)
         self.path = self.fixture.root / 'resources/accounts/catalog.json'

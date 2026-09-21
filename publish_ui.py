@@ -21,7 +21,7 @@ def main():
     raw=ui_html()
     script=re.search(r'<script>([\s\S]*)</script>',raw).group(1)
     subprocess.run([executable,'--check'],input=script,text=True,check=True,cwd=root)
-    for check in ('ui-readonly.mjs','ui-other-accounts.mjs','ui-loading.mjs','configuration-crypto.mjs'):
+    for check in ('ui-primitives.mjs','ui-readonly.mjs','ui-other-accounts.mjs','ui-loading.mjs','configuration-crypto.mjs'):
         subprocess.run([executable,str(root/'tests'/check)],check=True,cwd=root)
     release=build_release()
     temporary=None

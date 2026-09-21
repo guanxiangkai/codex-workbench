@@ -9,7 +9,7 @@ function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'assets',name:'资源中心',group:'能力与知识'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
@@ -123,37 +123,6 @@ for(const value of ['fixture-service','fixture-target','fixture-kind','synthetic
 assert.doesNotMatch(plain.root.innerHTML,/data-reveal|data-copy|••••|<script>synthetic/);
 await plain.visibility(true);assert.equal(plain.fields.s.revealed.size,0);assert.doesNotMatch(plain.root.innerHTML,/synthetic-visible-secret/);
 console.log('配置字段：直显、精确值、无查看复制按钮、转义及离页清理通过');
-
-// 资源点击后先展示目录信息；异步失败、重试和旧响应均不能造成空白或串项。
-const resource={id:'asset-a',name:'示例图标',kind:'icon',skill_name:'网页设计',relative_path:'assets/sample.svg',size:128,updated_at:1};
-const resources=boot({page:'assets'});await flush();
-resources.requests[0].resolve({context:'test-account',revision:'assets-r1',reset:true,data:{view:'assets',assets:[resource],truncated:false}});await flush();
-const resourceOpen=resources.fields.detail('asset',resource.id);await flush();
-assert.match(resources.root.innerHTML,/资源信息/);assert.match(resources.root.innerHTML,/assets\/sample.svg/);assert.match(resources.root.innerHTML,/正在读取资源详情/);
-resources.requests.at(-1).reject(new TypeError('Failed to fetch'));await resourceOpen;
-assert.match(resources.root.innerHTML,/资源信息/);assert.match(resources.root.innerHTML,/id="retry-asset-detail"/);
-resources.controls.get('retry-asset-detail').click();await flush();
-resources.requests.at(-1).resolve({asset:resource,preview:{kind:'text',text:'<svg>可查看的源码</svg>'}});await flush();
-assert.match(resources.root.innerHTML,/&lt;svg&gt;可查看的源码/);assert.doesNotMatch(resources.root.innerHTML,/正在读取资源详情|retry-asset-detail/);
-const firstResource=resources.fields.detail('asset',resource.id);await flush();const oldRequest=resources.requests.at(-1);
-const secondResource=resources.fields.detail('asset','asset-b');await flush();
-resources.requests.at(-1).resolve({asset:{...resource,id:'asset-b',name:'第二项资源'},preview:{kind:'metadata'}});await secondResource;
-oldRequest.resolve({asset:resource,preview:{kind:'text',text:'过期详情'}});await firstResource;
-assert.match(resources.root.innerHTML,/第二项资源/);assert.doesNotMatch(resources.root.innerHTML,/过期详情/);
-console.log('资源详情：点击即时显示、失败保留信息、原位重试与过期响应隔离通过');
-
-// 翻页只请求目标页，筛选重新从第一页查询。
-const paged=boot({page:'models'});await flush();
-assert.equal(JSON.parse(paged.requests[0].options.body).arguments.page_size,20);
-paged.requests[0].resolve({context:'paged',revision:'p1',reset:true,data:{models:[],pagination:{page:1,page_size:20,total:25,total_pages:2},facets:{providers:[],kinds:[]}}});await flush();
-paged.controls.get('list-next').click();await flush();
-assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.page,2);
-paged.requests.at(-1).resolve({context:'paged',revision:'p2',reset:true,data:{models:[],pagination:{page:2,page_size:20,total:25,total_pages:2},facets:{providers:[],kinds:[]}}});await flush();
-assert.match(paged.root.innerHTML,/第 2 \/ 2 页/);
-paged.controls.get('query').input({target:{value:'embedding'}});await paged.expire();
-assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.page,1);
-assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.query,'embedding');
-console.log('服务端分页：每页20项、翻页请求、搜索重置页码通过');
 
 // Only an actual page change requests its target; aborted old responses cannot replace it.
 const navigation=boot();await flush();

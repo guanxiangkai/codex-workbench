@@ -253,6 +253,8 @@ def serve(data_dir: Path, resources_dir: Path, codex: str, preview_port_override
         preview_thread = None
         preview_descriptor = directory / PREVIEW_DESCRIPTOR
         try:
+            # 页面只读取持久快照；来源查询由这一唯一后台调度器完成。
+            service.start_snapshots()
             preview_descriptor.unlink(missing_ok=True)
             if endpoint.exists():
                 if not stat.S_ISSOCK(endpoint.lstat().st_mode):

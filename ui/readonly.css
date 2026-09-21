@@ -152,3 +152,16 @@ main[data-module="config"] .folder.active{background:color-mix(in srgb,var(--fol
 .other-account .provider-badge{color:var(--type-color);background:var(--type-tint)}
 .provider-filters button[data-provider]:not([data-provider=""]){color:var(--type-color);border-color:color-mix(in srgb,var(--type-color) 30%,white);background:var(--type-tint)}
 .provider-filters button[data-provider]:not([data-provider=""])[aria-pressed=true]{border-color:var(--type-color);box-shadow:inset 0 0 0 1px var(--type-color);font-weight:600}
+
+/* 导航随页面滚动，列表筛选在到达窗口顶部后保持可见。 */
+.top,.subnav{position:static}
+main>.toolbar,.config-controls{position:sticky;top:0;z-index:3;background:var(--page);padding-top:12px;padding-bottom:12px}
+main>.toolbar{margin-top:-12px}
+.config-controls{margin-top:-12px}
+.config-controls .config-toolbar{margin-bottom:0}
+/* 筛选数量变化不参与搜索框宽度分配。 */
+.config-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 174px 96px}
+.config-toolbar .search{width:100%;min-width:0}
+.config-toolbar .select{width:174px;min-width:0;max-width:none}
+.config-toolbar .count{width:96px;text-align:right}
+@media(max-width:760px){.config-toolbar{grid-template-columns:minmax(0,1fr) 96px}.config-toolbar .select{grid-column:1/-1;width:100%}}

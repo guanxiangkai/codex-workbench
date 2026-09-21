@@ -21,6 +21,23 @@ class DirectorySignalTest(unittest.TestCase):
             versions._tree('/tmp/synthetic')
             self.assertEqual(3,scan.call_count)
 
+    def test_resource_fragments_add_modify_and_delete_change_source_revision(self):
+        with tempfile.TemporaryDirectory() as temporary, patch('codex_workbench.source_versions.current_account_home', return_value=temporary):
+            root=Path(temporary);resources=root/'resources'
+            versions=SourceVersions(root/'workbench.sqlite3',root,resources)
+            for directory, view in (('models','models'),('accounts','other_accounts')):
+                path=resources/directory/'entry.json';path.parent.mkdir(parents=True)
+                before=versions.signature(view)
+                path.write_text('{"version":1}',encoding='utf-8')
+                added=versions.signature(view)
+                path.write_text('{"version":2}',encoding='utf-8')
+                changed=versions.signature(view)
+                path.unlink()
+                removed=versions.signature(view)
+                self.assertNotEqual(before,added)
+                self.assertNotEqual(added,changed)
+                self.assertNotEqual(changed,removed)
+
 
 class FilterShapeTest(unittest.TestCase):
     def test_realistic_model_shape_returns_all_matching_items(self):

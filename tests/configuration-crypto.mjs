@@ -23,7 +23,7 @@ const path=await import('node:path');
 const root=fileURLToPath(new URL('..',import.meta.url));
 const cross=await api.prepare({id:'fixture-entry',revision:4});
 const synthetic={schema:'codex-workbench.credential',version:1,credential:{private_key:'synthetic-pgp\nline-two',account:'fixture-user',port:5432}};
-const processResult=spawnSync(path.join(process.env.HOME,'.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'),['-B','-m','codex_workbench.credential_details',cross.arguments.id,'4','2',cross.arguments.request_id,cross.arguments.public_key],{cwd:root,env:{...process.env,PYTHONPATH:path.join(root,'src')},input:JSON.stringify(synthetic),encoding:'utf8',timeout:10000});
+const processResult=spawnSync(process.env.WORKBENCH_TEST_PYTHON || path.join(process.env.HOME,'.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3'),['-B','-m','codex_workbench.credential_details',cross.arguments.id,'4','2',cross.arguments.request_id,cross.arguments.public_key],{cwd:root,env:{...process.env,PYTHONPATH:path.join(root,'src')},input:JSON.stringify(synthetic),encoding:'utf8',timeout:10000});
 assert.equal(processResult.status,0);assert.equal(processResult.stderr,'');assert.equal(processResult.stdout.includes('synthetic-pgp'),false);
 const crossDecoded=await api.decrypt(cross,JSON.parse(processResult.stdout));assert.equal(crossDecoded.fields.credential.private_key,'synthetic-pgp\nline-two');assert.equal(crossDecoded.fields.credential.port,5432);
 console.log('Python consumer to browser encrypted-detail interoperability passed');

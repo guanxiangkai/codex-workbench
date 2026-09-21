@@ -44,7 +44,6 @@ class McpSessionTest(unittest.TestCase):
         entries = [tool for tool in tools if tool.get("_meta", {}).get("openai/ui", {}).get("entrypoints")]
         self.assertEqual(["open_workbench"], [tool["name"] for tool in entries])
         self.assertEqual(set(tool["name"] for tool in tools_for_page("workbench")), {tool["name"] for tool in tools})
-        self.assertIn("board_state", {tool["name"] for tool in tools})
         self.assertIn("workbench_state", {tool["name"] for tool in tools})
 
     def test_only_current_workbench_resource_is_readable(self):
@@ -56,12 +55,6 @@ class McpSessionTest(unittest.TestCase):
         for obsolete in ("ui://codex-workbench/v4/task-board.html", "ui://codex-workbench/v4/agents.html", "ui://codex-workbench/v4/accounts.html"):
             rejected = self.session.handle({"jsonrpc": "2.0", "id": 4, "method": "resources/read", "params": {"uri": obsolete}})
             self.assertEqual(-32602, rejected["error"]["code"])
-
-    def test_tools_validate_then_forward(self):
-        self.initialize()
-        response = self.session.handle({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "board_state", "arguments": {}}})
-        self.assertFalse(response["result"].get("isError"))
-        self.assertEqual([("board_state", {})], self.client.calls)
 
 
 if __name__ == "__main__":

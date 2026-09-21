@@ -1,8 +1,8 @@
 """运行时 manifest 驱动的 MCP stdio 入口。"""
 from __future__ import annotations
-import json, os, select, sys, threading
+import json, os, re, select, sys, threading
 from typing import Any
-from .catalog import PAGES
+from .catalog import PAGES, UI_URIS
 from .runtime import RuntimeClient, MAX_MESSAGE, safe_error
 from .ui_resources import ui_html, page_icons
 
@@ -55,7 +55,11 @@ class McpSession:
         return result
     def _resource_allowed(self,uri):
         """只接受本页当前、历史或已批准的资源；订阅在退订后不再单独授权。"""
-        return isinstance(uri, str) and uri == self.manifest["resource_uri"]
+        if not isinstance(uri, str):return False
+        if uri == self.manifest["resource_uri"]:return True
+        # 宿主可能继续请求发布前缓存的地址；仅映射同一工作台的修订地址。
+        base=UI_URIS[self.entry]
+        return uri == base or re.fullmatch(re.escape(base.removesuffix(".html"))+r"/[0-9a-f]{64}\.html",uri) is not None
     def handle(self,message:dict):
         ident,method=message.get("id"),message.get("method");notification="id" not in message
         if message.get("jsonrpc")!="2.0" or not isinstance(method,str):return {"jsonrpc":"2.0","id":ident,"error":{"code":-32600,"message":"Invalid Request"}}

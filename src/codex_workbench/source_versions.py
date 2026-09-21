@@ -55,7 +55,7 @@ class SourceVersions:
         home=Path(current_account_home());signals=[stamp(home/'config.toml')]
         if view in ('models','accounts','config','services'):
             signals.extend(stamp(p) for p in [self.db,Path(str(self.db)+'-wal')])
-        if view in ('projects','board'):
+        if view=='projects':
             signals.append(NativeCatalog(home,include_archived=True).revision())
         if view in ('agents','assets','connections'):
             signals.extend(tree(home/'skills',4 if view=='assets' else 3))

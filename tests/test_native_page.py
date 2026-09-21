@@ -31,6 +31,12 @@ class NativePageTests(unittest.TestCase):
         self.assertTrue(data['views']);self.assertEqual(calls,self.native.calls)
         self.assertEqual('accounts',data['views'][0]['data']['view'])
 
+    def test_bootstrap_contains_only_requested_page(self):
+        self.prepare();self.service.sync('accounts');self.service.sync('agents')
+        data=self.bootstrap(self.service.page('agents'))
+        self.assertTrue(data['views'])
+        self.assertEqual({'agents'},{item['args']['view'] for item in data['views']})
+
     def test_bootstrap_json_is_html_safe(self):
         self.prepare();self.native.skills=lambda:[{'id':'a','name':'</script><img src=x onerror=alert(1)>'}]
         self.service.sync('agents')

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
-const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s};window.__workbenchReadonlyTest={');
+const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s,load,pageChange};window.__workbenchReadonlyTest={');
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}){
  const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map();let timerId=0;
@@ -18,9 +18,9 @@ const data=name=>({context:'test-account',revision:name,reset:true,unchanged:fal
 const hidden=boot();await flush();assert.match(hidden.root.innerHTML,/正在读取/);
 await hidden.visibility(true);hidden.requests[0].resolve(data('hidden-result'));await flush();
 assert.match(hidden.root.innerHTML,/hidden-result/);assert.doesNotMatch(hidden.root.innerHTML,/正在读取/);
-await hidden.visibility(false);assert.equal(hidden.requests.length,2);
-await hidden.visibility(true);await hidden.visibility(false);assert.equal(hidden.requests.length,2);
-hidden.requests[1].resolve(data('fresh'));await flush();assert.match(hidden.root.innerHTML,/fresh/);
+await hidden.visibility(false);assert.equal(hidden.requests.length,1);
+await hidden.visibility(true);await hidden.visibility(false);assert.equal(hidden.requests.length,1);
+assert.match(hidden.root.innerHTML,/hidden-result/);
 assert.doesNotMatch(hidden.root.innerHTML,/>只读</);
 // 离开页面时请求取消并解除忙状态；从页面缓存恢复后可重新读取。
 const restored=boot();await flush();await restored.event('pagehide');assert.doesNotMatch(restored.root.innerHTML,/aria-busy="true"/);
@@ -33,22 +33,22 @@ const stale=boot();await flush();await stale.event('pagehide');await stale.event
 const bodyStall=boot();await flush();bodyStall.requests[0].response({ok:true,json:()=>new Promise(()=>{})});await flush();await bodyStall.expire();assert.match(bodyStall.root.innerHTML,/超时/);assert.doesNotMatch(bodyStall.root.innerHTML,/aria-busy="true"/);
 const host=boot({embedded:true});await flush();await host.reply(host.messages[0],{});const call=host.messages.find(x=>x.method==='tools/call');assert(call);
 await host.visibility(true);await host.reply(call,data('host-result'));assert.match(host.root.innerHTML,/host-result/);
-await host.visibility(false);await host.expire();assert.match(host.root.innerHTML,/超时/);assert.doesNotMatch(host.root.innerHTML,/aria-busy="true"/);
+await host.visibility(false);assert.equal(host.messages.filter(x=>x.method==='tools/call').length,1);await host.expire();assert.doesNotMatch(host.root.innerHTML,/超时/);assert.doesNotMatch(host.root.innerHTML,/aria-busy="true"/);
 console.log('UI 加载：隐藏/返回、页面恢复、超时重试、乱序响应、宿主桥接通过');
 assert.equal(host.timers.size,0);assert.equal(stalled.timers.size,0);assert.equal(bodyStall.timers.size,0);
 
 const cached=boot();await flush();cached.requests[0].resolve(data('cached-result'));await flush();const rendered=cached.root.renders;
 await cached.visibility(true);await cached.visibility(false);assert.match(cached.root.innerHTML,/cached-result/);assert.doesNotMatch(cached.root.innerHTML,/正在读取/);
-const request=JSON.parse(cached.requests[1].options.body);assert.equal(request.name,'workbench_sync');assert.equal(request.arguments.revision,'cached-result');
+assert.equal(cached.requests.length,1);cached.fields.load();await flush();const request=JSON.parse(cached.requests[1].options.body);assert.equal(request.name,'workbench_sync');assert.equal(request.arguments.revision,'cached-result');
 cached.requests[1].resolve({context:'test-account',revision:'cached-result',unchanged:true});await flush();assert.equal(cached.root.renders,rendered);
-await cached.visibility(true);await cached.visibility(false);assert.equal(JSON.parse(cached.requests.at(-1).options.body).arguments.refresh,false);
+cached.fields.load();await flush();assert.equal(JSON.parse(cached.requests.at(-1).options.body).arguments.refresh,false);
 cached.requests.at(-1).resolve({context:'another-account',revision:'another',reset:true,data:{skills:[]}});await flush();assert.doesNotMatch(cached.root.innerHTML,/cached-result/);
 console.log('页面缓存：保留可见数据、携带版本、不重建未变 DOM、自动同步、换号清理通过');
 
 const otherAccounts=boot({page:'other_accounts'});await flush();
 assert.equal(JSON.parse(otherAccounts.requests[0].options.body).arguments.refresh,false);
 otherAccounts.requests[0].resolve({context:'other-account',revision:'other-r1',reset:true,data:{view:'other_accounts',accounts:[]}});await flush();
-await otherAccounts.visibility(true);await otherAccounts.visibility(false);
+await otherAccounts.visibility(true);await otherAccounts.visibility(false);assert.equal(otherAccounts.requests.length,1);otherAccounts.fields.load();await flush();
 assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.refresh,false);
 otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();
 otherAccounts.controls.get('refresh-usage').click();await flush();
@@ -62,7 +62,7 @@ console.log('其他账户：页面恢复使用缓存，用户刷新用量及忙�
 const pushed=boot({embedded:true});await flush();await pushed.reply(pushed.messages[0],{});assert.match(pushed.root.innerHTML,/正在读取/);
 await pushed.hostResult({structuredContent:{view:'agents',skills:[{id:'host-initial',name:'Host initial'}],_sync:{context:'test-account',revision:'initial-revision'}}});
 assert.match(pushed.root.innerHTML,/Host initial/);assert.doesNotMatch(pushed.root.innerHTML,/正在读取/);assert.equal(pushed.timers.size,0);
-await pushed.visibility(true);await pushed.visibility(false);const subsequent=pushed.messages.filter(x=>x.method==='tools/call').at(-1);assert.equal(subsequent.params.arguments.revision,'initial-revision');
+await pushed.visibility(true);await pushed.visibility(false);pushed.fields.load();await flush();const subsequent=pushed.messages.filter(x=>x.method==='tools/call').at(-1);assert.equal(subsequent.params.arguments.revision,'initial-revision');
 await pushed.reply(subsequent,{structuredContent:{context:'test-account',revision:'initial-revision',unchanged:true}});assert.match(pushed.root.innerHTML,/Host initial/);
 console.log('原生首屏：主动推送解除加载、取消重复请求、携带首屏版本增量同步通过');
 
@@ -91,7 +91,7 @@ const network=boot();await flush();network.requests[0].reject(new TypeError('Fai
 assert.match(network.root.innerHTML,/暂时无法连接本机工作台/);assert.doesNotMatch(network.root.innerHTML,/Failed to fetch|正在读取/);assert.equal(network.requests.length,1);
 network.controls.get('retry').click();await flush();network.requests.at(-1).resolve(data('network-restored'));await flush();
 assert.match(network.root.innerHTML,/network-restored/);assert.doesNotMatch(network.root.innerHTML,/暂时无法连接|id="retry"/);
-await network.visibility(true);await network.visibility(false);network.requests.at(-1).reject(new TypeError('Failed to fetch'));await flush();
+network.fields.load();await flush();network.requests.at(-1).reject(new TypeError('Failed to fetch'));await flush();
 assert.match(network.root.innerHTML,/network-restored/);assert.match(network.root.innerHTML,/暂时无法连接本机工作台/);assert.equal(network.requests.length,3);
 network.controls.get('retry').click();await flush();network.requests.at(-1).resolve(data('latest-network-data'));await flush();
 assert.match(network.root.innerHTML,/latest-network-data/);assert.doesNotMatch(network.root.innerHTML,/暂时无法连接|id="retry"/);assert.equal(network.timers.size,0);
@@ -154,3 +154,15 @@ paged.controls.get('query').input({target:{value:'embedding'}});await paged.expi
 assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.page,1);
 assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.query,'embedding');
 console.log('服务端分页：每页20项、翻页请求、搜索重置页码通过');
+
+// Only an actual page change requests its target; aborted old responses cannot replace it.
+const navigation=boot();await flush();
+navigation.fields.pageChange('agents');await flush();assert.equal(navigation.requests.length,1);
+navigation.fields.pageChange('models');await flush();assert.equal(navigation.requests.length,2);
+assert(navigation.requests[0].options.signal.aborted);
+assert.equal(JSON.parse(navigation.requests[1].options.body).arguments.view,'models');
+navigation.requests[1].resolve({context:'test-account',revision:'models-r1',reset:true,data:{models:[]}});
+navigation.requests[0].resolve(data('obsolete-page'));await flush();
+assert.equal(navigation.fields.s.page,'models');assert.doesNotMatch(navigation.root.innerHTML,/obsolete-page/);
+await navigation.visibility(true);await navigation.visibility(false);assert.equal(navigation.requests.length,2);
+console.log('按页加载：只请求目标页、同页点击和窗口聚焦不请求、旧响应隔离通过');

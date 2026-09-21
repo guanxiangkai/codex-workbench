@@ -113,16 +113,9 @@ class Workbench:
         """把公开缓存带入首屏；发布文件本身不保存任何运行数据或临时许可。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         if self._closing:raise ValueError('工作台正在关闭')
-        epoch=self.source_versions.context();initial_error=None
+        epoch=self.source_versions.context()
         snapshots=self.view_cache.snapshots(self.source_versions.context)
-        def default(key):
-            name,filters=key;args=dict(filters)
-            return name==view and args.get('page',1)==1 and args.get('scope','global')=='global' and not any(args.get(k) for k in ('query','kind','provider','tag','folder'))
-        if not any(default(key) for key,_ in snapshots):
-            try:
-                self.sync(view)
-                snapshots=self.view_cache.snapshots(self.source_versions.context)
-            except (ValueError,OSError,sqlite3.Error,RuntimeError):initial_error='首屏数据暂时不可用，请重试'
+        # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
         if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
         for (name,filters),entry in sorted(snapshots,key=lambda pair:pair[0][0]!=view):
@@ -131,7 +124,6 @@ class Workbench:
             if size+length>700_000:continue
             views.append(value);size+=length
         bootstrap={'views':views,'context':epoch}
-        if initial_error:bootstrap['error']=initial_error
         csp={'connectDomains':[],'resourceDomains':[]}
         manifest=self.ui_release.manifest('workbench')
         html=manifest['html'].replace(f"const INITIAL_PAGE='{DEFAULT_VIEW}';",f"const INITIAL_PAGE='{view}';")

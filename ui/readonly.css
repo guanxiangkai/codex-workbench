@@ -143,3 +143,4 @@ main[data-module="config"] .folder.active{background:var(--type-tint,#eaf6f1);bo
 .toolbar .count{order:1;flex:0 0 auto;white-space:nowrap}
 .toolbar>.select,.toolbar>button{order:2}
 @media(min-width:761px){.toolbar .count{order:3}.toolbar .search{flex-basis:240px}}
+@media(max-width:760px){.toolbar>.select,.toolbar>button{flex-basis:100%;max-width:none}.toolbar .search{max-width:none}}

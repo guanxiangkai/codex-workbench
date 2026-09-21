@@ -42,7 +42,7 @@ class UiRelease:
     def refresh(self):
         with self._lock:
             try:
-                paths=[ROOT/'ui/app.html',ROOT/'ui/readonly.js',ROOT/'ui/readonly.css',ROOT/'ui/configuration-crypto.js',ROOT/'ui/assets/readonly-icons.json',ROOT/'ui/icons/board.svg'] if self.source_mode else [self.file]
+                paths=[ROOT/'ui/app.html',ROOT/'ui/readonly.js',ROOT/'ui/readonly-primitives.js',ROOT/'ui/readonly.css',ROOT/'ui/configuration-crypto.js',ROOT/'ui/assets/readonly-icons.json',ROOT/'ui/icons/board.svg'] if self.source_mode else [self.file]
                 signature=tuple((p.stat().st_mtime_ns,p.stat().st_size) for p in paths)
                 if signature==self._signature:return
                 published=build_release() if self.source_mode else json.loads(self.file.read_text(encoding='utf-8'))

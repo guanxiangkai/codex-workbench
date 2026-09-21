@@ -159,3 +159,9 @@ main>.toolbar,.config-controls{position:sticky;top:0;z-index:3;background:var(--
 main>.toolbar{margin-top:-12px}
 .config-controls{margin-top:-12px}
 .config-controls .config-toolbar{margin-bottom:0}
+/* 筛选数量变化不参与搜索框宽度分配。 */
+.config-toolbar{display:grid;grid-template-columns:minmax(0,1fr) 174px 96px}
+.config-toolbar .search{width:100%;min-width:0}
+.config-toolbar .select{width:174px;min-width:0;max-width:none}
+.config-toolbar .count{width:96px;text-align:right}
+@media(max-width:760px){.config-toolbar{grid-template-columns:minmax(0,1fr) 96px}.config-toolbar .select{grid-column:1/-1;width:100%}}

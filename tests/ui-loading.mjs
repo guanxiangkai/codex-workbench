@@ -9,7 +9,7 @@ function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex',group:'账户与配置'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'knowledge',name:'知识中心',group:'能力与知识'},{id:'accounts',name:'Codex',group:'账户与配置'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
@@ -149,3 +149,28 @@ navigation.requests[0].resolve(data('obsolete-page'));await flush();
 assert.equal(navigation.fields.s.page,'models');assert.doesNotMatch(navigation.root.innerHTML,/obsolete-page/);
 await navigation.visibility(true);await navigation.visibility(false);assert.equal(navigation.requests.length,2);
 console.log('按页加载：只请求目标页、同页点击和窗口聚焦不请求、旧响应隔离通过');
+
+// Knowledge searches on input, coalesces typing and rejects superseded responses.
+const knowledge=boot({page:'knowledge'});await flush();
+const knowledgeData=(name,items=[])=>({context:'test-account',revision:name,reset:true,data:{knowledge:items,scopes:[{id:'global',name:'全局'}],selected_scope:'global'}});
+knowledge.requests[0].resolve(knowledgeData('initial'));await flush();
+assert.doesNotMatch(knowledge.root.innerHTML,/id="knowledge-query"/);
+assert.match(knowledge.root.innerHTML,/0 条知识/);
+const typeKnowledge=(value,isComposing=false)=>knowledge.controls.get('query').input({target:{value},isComposing});
+typeKnowledge('a');typeKnowledge('ab');await knowledge.expire();
+assert.equal(knowledge.requests.length,2);
+assert.equal(JSON.parse(knowledge.requests[1].options.body).arguments.query,'ab');
+typeKnowledge('abc');assert(knowledge.requests[1].options.signal.aborted);
+knowledge.requests[1].resolve(knowledgeData('stale',[{title:'旧结果'}]));await flush();
+assert.doesNotMatch(knowledge.root.innerHTML,/旧结果/);
+await knowledge.expire();knowledge.requests[2].resolve(knowledgeData('new',[{title:'新结果'}]));await flush();
+assert.match(knowledge.root.innerHTML,/1 条知识/);
+typeKnowledge('zhong',true);await knowledge.expire();assert.equal(knowledge.requests.length,3);
+knowledge.controls.get('query').compositionend({target:{value:'中文'}});await knowledge.expire();
+assert.equal(JSON.parse(knowledge.requests[3].options.body).arguments.query,'中文');
+knowledge.requests[3].reject(Error('查询失败'));await flush();assert.match(knowledge.root.innerHTML,/查询失败/);
+typeKnowledge('');await knowledge.expire();assert.equal(JSON.parse(knowledge.requests[4].options.body).arguments.query,'');
+knowledge.requests[4].resolve(knowledgeData('clear'));await flush();
+typeKnowledge('pending');knowledge.controls.get('knowledge-scope').change({target:{value:'global'}});await flush();
+const scopeRequests=knowledge.requests.length;await knowledge.expire();assert.equal(knowledge.requests.length,scopeRequests);
+console.log('知识动态查询：防抖、输入法、过期响应、错误、清空、范围切换与结果计数通过');

@@ -395,9 +395,10 @@ function entryTitle(e){return chineseTitle(e.label||e.name||e.id,'配置');}
 function projectMeta(t){const p=A(s.data.projects).find(x=>x.id===t.project_id),sec=A(s.data.sections).find(x=>x.id===t.section_id);return [sec,p].filter(Boolean).map(entityTag).join('');}
 function sessionsFiltered(){return A(s.data.sessions).filter(x=>(!s.section||(s.section==='__none__'?!x.section_id:x.section_id===s.section))&&(!s.project||x.project_id===s.project));}
 function orderedAccounts(items){const sorted=newestRecords(items);return [...sorted.filter(a=>a.is_current),...sorted.filter(a=>!a.is_current)];}
+function usageRefreshButton(){return `<button id="refresh-usage" class="soft usage-refresh" aria-busy="${s.usageRefreshing}" ${s.usageRefreshing?'disabled':''}>${s.usageRefreshing?'刷新中...':'刷新用量'}</button>`;}
 function accountView(){
  const items=orderedAccounts(findText(s.data.accounts,s.query,['display_name','username','name','email']));
- return `<div class="toolbar">${search()}</div><div class="account-grid">${items.map(a=>{
+ return `<div class="toolbar">${search()}${usageRefreshButton()}</div><div class="account-grid">${items.map(a=>{
   const percent=num(a.remaining_percent);
   const status={ready:'',not_logged_in:'未登录',identity_mismatch:'身份待确认',unavailable:'暂未读取'}[a.login_status]||'未读取';
   return `<article class="card account" data-tone="${a.is_current?'green':a.is_default?'yellow':'blue'}"><div class="identity">${avatarMarkup(a)}<div class="grow"><h2 id="account-title-${E(a.id)}" tabindex="-1" title="${E(accountTitle(a))}">${E(accountTitle(a))}</h2><p>${E(a.email||'邮箱未提供')}</p></div>${badge(({pro:'Pro',plus:'Plus',free:'Free',team:'Team',business:'Business'})[a.plan]||a.plan||'套餐未提供','green')}</div><div class="account-tags">${a.is_current&&a.login_status==='ready'?`<span class="badge type-badge" data-tone="green">${I('user')}主账户</span>`:a.login_status==='ready'?'':badge(status,'muted')}${a.is_default?`<span class="badge type-badge" data-tone="yellow">${I('star')}默认</span>`:''}</div><span class="muted">额度剩余</span><strong class="quota" aria-label="剩余额度百分比">${percent===null?'—':Math.round(percent)+'%'}</strong><div class="progress" role="img" aria-label="${percent===null?'额度未提供':'剩余 '+percent+'%'}"><span style="width:${percent===null?0:Math.max(0,Math.min(100,percent))}%"></span></div><div class="metrics"><div><span>重置时间</span><strong title="${E(fmtDate(a.resets_at))}">${resetTime(a.resets_at)}</strong></div><div><span>重置卡</span><strong>${num(a.reset_cards)===null?'未提供':a.reset_cards+' 张'}</strong></div></div><div class="account-footer"><small>更新于 ${E(fmtDate(a.profile_observed_at||a.observed_at))}</small>${defaultAccountButton(a)}</div></article>`;
@@ -443,7 +444,7 @@ function otherAccountCard(a){
 function otherAccountsView(data=s.data,query=s.query,selected=s.accountProvider){
  const accounts=A(data.accounts),providers=data.facets?.providers||accountProviders(accounts),provider=providers.some(p=>p.id===selected)?selected:'';
  const items=findText(accounts,query,['label','provider_name']).filter(a=>!provider||a.provider_id===provider);
- return `<div class="toolbar other-account-toolbar">${search()}<button id="refresh-usage" class="soft" ${s.usageRefreshing?'disabled':''}>刷新用量</button><span class="count" role="status">${items.length} 个账户</span>${s.usageRefreshing?'<span class="muted" role="status">正在更新用量…</span>':''}</div>${providers.length?`<div class="provider-filters" role="group" aria-label="账户平台"><button id="provider-all" data-provider="" aria-pressed="${!provider}">全部平台 <span>${providers.reduce((n,p)=>n+p.count,0)||accounts.length}</span></button>${providers.map(p=>`<button id="provider-${E(p.id)}" data-provider="${E(p.id)}" aria-pressed="${provider===p.id}">${E(p.name)} <span>${p.count}</span></button>`).join('')}</div>`:''}<div class="account-grid other-account-grid">${items.map(otherAccountCard).join('')||empty(accounts.length?'没有匹配的账户':'暂无其他账户，配置账户后会显示对应平台')}</div>`;
+ return `<div class="toolbar other-account-toolbar">${search()}${usageRefreshButton()}<span class="count" role="status">${items.length} 个账户</span></div>${providers.length?`<div class="provider-filters" role="group" aria-label="账户平台"><button id="provider-all" data-provider="" aria-pressed="${!provider}">全部平台 <span>${providers.reduce((n,p)=>n+p.count,0)||accounts.length}</span></button>${providers.map(p=>`<button id="provider-${E(p.id)}" data-provider="${E(p.id)}" aria-pressed="${provider===p.id}">${E(p.name)} <span>${p.count}</span></button>`).join('')}</div>`:''}<div class="account-grid other-account-grid">${items.map(otherAccountCard).join('')||empty(accounts.length?'没有匹配的账户':'暂无其他账户，配置账户后会显示对应平台')}</div>`;
 }
 
 function configType(x){return x.service_type||x.kind||'unknown';}
@@ -544,9 +545,10 @@ async function setDefaultAccount(id){
 }
 async function load({cursor,session,refresh=false,poll=false}={}){
  if(s.page==='accounts'&&s.accountSaving!==null)return;
+ if(s.usageRefreshing&&refresh)return;
  clearTimeout(snapshotPollTimer);snapshotPollTimer=null;if(!poll)snapshotPollAttempts=0;
  const seq=++s.seq;abort?.abort();abort=new AbortController();clearSecrets();s.error='';s.syncing=true;
- const page=s.page,usageRefresh=page==='other_accounts'&&refresh,shouldRefresh=refresh,args={view:page};
+ const page=s.page,usageRefresh=['accounts','other_accounts'].includes(page)&&refresh,shouldRefresh=refresh,args={view:page};
  if(['other_accounts','models','config'].includes(page))Object.assign(args,{query:s.query,kind:s.kind,provider:page==='models'?s.modelProvider:page==='config'?s.configProvider:s.accountProvider,tag:s.configTag,folder:s.folder});
 
  if(page==='knowledge'){args.scope=s.scope;args.query=s.query;}
@@ -562,6 +564,20 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   if(cacheContext!==null&&cacheContext!==response.context){viewCache.clear();cached=null;s.data={};s.detail=null;clearSecrets();}
   cacheContext=response.context;
   if(!cached&&!response.reset){response=await bridge.tool('workbench_sync',{...args,refresh:shouldRefresh},abort.signal);if(seq!==s.seq||page!==s.page)return;}
+  // 手动刷新只轮询本地快照；采集及原子 JSON 写入结束前不替换可见数据。
+  if(usageRefresh){
+   let attempt=0;
+   while(applySync(cached,response).data.status?.snapshot?.refreshing){
+    if(++attempt>120)throw Error('用量刷新尚未完成，已保留原数据，请稍后重试');
+    await new Promise(resolve=>setTimeout(resolve,1000));
+    if(seq!==s.seq||page!==s.page)return;
+    response=await bridge.tool('workbench_sync',{...args,refresh:false},abort.signal);
+    if(seq!==s.seq||page!==s.page)return;
+    if(response.context!==cacheContext)throw Error('账户环境已变化，请重新打开页面');
+   }
+   const snapshot=applySync(cached,response).data.status?.snapshot;
+   if(snapshot&&['stale','error'].includes(snapshot.state))throw Error(snapshot.error||'用量刷新失败，已保留原数据');
+  }
   const next=applySync(cached,response);rememberView(key,next);
   let data=next.data;
   const shouldRender=!response.unchanged||changed||!cached||usageRefresh;

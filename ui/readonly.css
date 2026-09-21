@@ -147,3 +147,8 @@ main[data-module="config"] .folder.active{background:color-mix(in srgb,var(--fol
 .toolbar>.select,.toolbar>button{order:2}
 @media(min-width:761px){.toolbar .count{order:3}.toolbar .search{flex-basis:240px}}
 @media(max-width:760px){.toolbar>.select,.toolbar>button{flex-basis:100%;max-width:none}.toolbar .search{max-width:none}}
+
+/* 平台身份色统一用于卡片、头像、额度和筛选项；状态仍保留语义色。 */
+.other-account .provider-badge{color:var(--type-color);background:var(--type-tint)}
+.provider-filters button[data-provider]:not([data-provider=""]){color:var(--type-color);border-color:color-mix(in srgb,var(--type-color) 30%,white);background:var(--type-tint)}
+.provider-filters button[data-provider]:not([data-provider=""])[aria-pressed=true]{border-color:var(--type-color);box-shadow:inset 0 0 0 1px var(--type-color);font-weight:600}

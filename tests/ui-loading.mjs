@@ -9,7 +9,7 @@ function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'assets',name:'资源中心',group:'能力与知识'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'board',name:'执行记录',group:'工作'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'assets',name:'资源中心',group:'能力与知识'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
@@ -45,8 +45,18 @@ await cached.visibility(true);await cached.visibility(false);assert.equal(JSON.p
 cached.requests.at(-1).resolve({context:'another-account',revision:'another',reset:true,data:{skills:[]}});await flush();assert.doesNotMatch(cached.root.innerHTML,/cached-result/);
 console.log('页面缓存：保留可见数据、携带版本、不重建未变 DOM、自动同步、换号清理通过');
 
-const otherAccounts=boot({page:'other_accounts'});await flush();assert.equal(JSON.parse(otherAccounts.requests[0].options.body).arguments.refresh,true);otherAccounts.requests[0].resolve({context:'other-account',revision:'other-r1',reset:true,data:{view:'other_accounts',accounts:[]}});await flush();assert.doesNotMatch(otherAccounts.root.innerHTML,/正在更新用量/);await otherAccounts.visibility(true);await otherAccounts.visibility(false);assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.refresh,true);assert.match(otherAccounts.root.innerHTML,/正在更新用量/);otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();assert.doesNotMatch(otherAccounts.root.innerHTML,/正在更新用量/);
-console.log('其他账户：进入与可见恢复显式刷新用量，缓存展示和刷新状态清理通过');
+const otherAccounts=boot({page:'other_accounts'});await flush();
+assert.equal(JSON.parse(otherAccounts.requests[0].options.body).arguments.refresh,false);
+otherAccounts.requests[0].resolve({context:'other-account',revision:'other-r1',reset:true,data:{view:'other_accounts',accounts:[]}});await flush();
+await otherAccounts.visibility(true);await otherAccounts.visibility(false);
+assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.refresh,false);
+otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();
+otherAccounts.controls.get('refresh-usage').click();await flush();
+assert.equal(JSON.parse(otherAccounts.requests.at(-1).options.body).arguments.refresh,true);
+assert.match(otherAccounts.root.innerHTML,/正在更新用量/);
+otherAccounts.requests.at(-1).resolve({context:'other-account',revision:'other-r1',unchanged:true});await flush();
+assert.doesNotMatch(otherAccounts.root.innerHTML,/正在更新用量/);
+console.log('其他账户：页面恢复使用缓存，用户刷新用量及忙状态清理通过');
 
 // 原生入口会主动推送首屏结果，即使页面自主 tools/call 仍在等待也必须显示。
 const pushed=boot({embedded:true});await flush();await pushed.reply(pushed.messages[0],{});assert.match(pushed.root.innerHTML,/正在读取/);
@@ -74,9 +84,7 @@ assert.match(handshake.root.innerHTML,/重新连接成功/);assert.doesNotMatch(
 const cold=boot({embedded:true,bootstrap:{views:[],error:'首屏数据暂时不可用，请点击刷新读取'}});assert.match(cold.root.innerHTML,/首屏数据暂时不可用/);assert.doesNotMatch(cold.root.innerHTML,/正在读取/);
 console.log('原生首屏：缓存即时显示、单次握手、宿主增量同步、失联手动恢复、无 HTTP 请求通过');
 
-const boardFirst=boot({page:'board',bootstrap:{context:'board-account',views:[{args:{view:'board'},revision:'board-r1',data:{view:'board',selected_session_id:'session-1',tasks:[],sessions:[],projects:[],sections:[]}}]}});
-await flush();assert.doesNotMatch(boardFirst.root.innerHTML,/读取中|正在读取/);assert.equal(JSON.parse(boardFirst.requests[0].options.body).arguments.revision,'board-r1');boardFirst.requests[0].resolve({context:'board-account',revision:'board-r1',unchanged:true});await flush();assert.doesNotMatch(boardFirst.root.innerHTML,/读取中|正在读取/);
-console.log('执行首屏：默认会话与明确会话共享缓存，后台核对不显示读取中通过');
+
 
 // 浏览器首次失败和缓存刷新失败都能手动恢复，不重复发起后台重试。
 const network=boot();await flush();network.requests[0].reject(new TypeError('Failed to fetch'));await flush();
@@ -105,21 +113,6 @@ const again=fields.fields.readSecret('fields');await flush();await fields.visibi
 await fields.visibility(false);const failing=fields.fields.readSecret('fields');await flush();fields.requests.at(-1).reject(new TypeError('synthetic network failure'));await failing;assert.equal(fields.fields.s.fieldBusy,false);assert.equal(fields.fields.s.detail.fieldsState,'error');
 console.log('配置默认展开：一次读取、普通字段直显、秘密遮挡、离页与过期清理、错误恢复通过');
 
-// 默认汇总；单会话切回全部必须清除查询，不能沿用旧会话。
-const allBoard=boot({page:'board'});await flush();
-assert.equal(JSON.parse(allBoard.requests[0].options.body).arguments.session_id,undefined);
-allBoard.requests[0].resolve({context:'board-account',revision:'all-r1',reset:true,data:{view:'board',selected_session_id:null,tasks:[],sessions:[{id:'one',title:'One'},{id:'two',title:'Two'}],projects:[],sections:[]}});await flush();
-assert.match(allBoard.root.innerHTML,/>全部会话</);
-allBoard.controls.get('session').change({target:{value:'two'}});await flush();
-assert.equal(JSON.parse(allBoard.requests.at(-1).options.body).arguments.session_id,'two');
-allBoard.requests.at(-1).resolve({context:'board-account',revision:'one-r1',reset:true,data:{view:'board',selected_session_id:'two',tasks:[],sessions:[{id:'one'},{id:'two'}],projects:[],sections:[]}});await flush();
-allBoard.controls.get('session').change({target:{value:''}});await flush();
-assert.equal(JSON.parse(allBoard.requests.at(-1).options.body).arguments.session_id,undefined);
-allBoard.requests.at(-1).resolve({context:'board-account',revision:'all-r1',unchanged:true});await flush();
-allBoard.controls.get('section').change({target:{value:'__none__'}});await flush();
-const filteredArgs=JSON.parse(allBoard.requests.at(-1).options.body).arguments;
-assert.equal(filteredArgs.section_id,'__none__');assert.equal(filteredArgs.session_id,undefined);
-console.log('全部会话：默认汇总、单会话切回全部、分区查询清除会话通过');
 
 // 配置中心按用户选择直显全部字段，仍只在详情临时解密，离页清空。
 const plain=boot({page:'config',fieldPayload:{format:'json',fields:{service:'fixture-service',target:'fixture-target',kind:'fixture-kind',password:'synthetic-visible-secret',enabled:false,port:0,nested:{value:'<script>synthetic</script>'}}}});
@@ -148,3 +141,16 @@ resources.requests.at(-1).resolve({asset:{...resource,id:'asset-b',name:'第二�
 oldRequest.resolve({asset:resource,preview:{kind:'text',text:'过期详情'}});await firstResource;
 assert.match(resources.root.innerHTML,/第二项资源/);assert.doesNotMatch(resources.root.innerHTML,/过期详情/);
 console.log('资源详情：点击即时显示、失败保留信息、原位重试与过期响应隔离通过');
+
+// 翻页只请求目标页，筛选重新从第一页查询。
+const paged=boot({page:'models'});await flush();
+assert.equal(JSON.parse(paged.requests[0].options.body).arguments.page_size,20);
+paged.requests[0].resolve({context:'paged',revision:'p1',reset:true,data:{models:[],pagination:{page:1,page_size:20,total:25,total_pages:2},facets:{providers:[],kinds:[]}}});await flush();
+paged.controls.get('list-next').click();await flush();
+assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.page,2);
+paged.requests.at(-1).resolve({context:'paged',revision:'p2',reset:true,data:{models:[],pagination:{page:2,page_size:20,total:25,total_pages:2},facets:{providers:[],kinds:[]}}});await flush();
+assert.match(paged.root.innerHTML,/第 2 \/ 2 页/);
+paged.controls.get('query').input({target:{value:'embedding'}});await paged.expire();
+assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.page,1);
+assert.equal(JSON.parse(paged.requests.at(-1).options.body).arguments.query,'embedding');
+console.log('服务端分页：每页20项、翻页请求、搜索重置页码通过');

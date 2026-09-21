@@ -11,6 +11,7 @@ class Fixture:
         self.patch=patch('codex_workbench.service.UiRelease');self.release=self.patch.start().return_value;self.release.revision='test'
         self.native=FakeNative();self.credentials=FakeCredentials();self.secret_reads=[]
         def reader(*args):self.secret_reads.append(args[1:]);return {'ciphertext':'synthetic-envelope','entry_id':args[1]}
-        self.board=Workbench(self.root,self.root/'resources',native_reader=self.native,credential_catalog=self.credentials,credential_reader=reader)
+        versions=type('Versions',(),{'context':lambda self:'fixture-context'})()
+        self.board=Workbench(self.root,self.root/'resources',native_reader=self.native,credential_catalog=self.credentials,credential_reader=reader,source_versions=versions)
     def close(self):
         self.board.close();self.patch.stop();self.temp.cleanup()

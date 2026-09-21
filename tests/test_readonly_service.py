@@ -31,15 +31,16 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.native=FakeNative();self.credentials=FakeCredentials()
         self.patch=patch('codex_workbench.service.UiRelease');self.release=self.patch.start().return_value;self.release.revision='test'
+        versions=type('Versions',(),{'context':lambda self:'fixture-context'})()
         self.service=Workbench(self.root,self.root/'resources',native_reader=self.native,credential_catalog=self.credentials,
-                               credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]})
+                               credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
         for view in ['accounts','agents','models','config']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
-        self.assertEqual([],self.native.calls);self.assertEqual(1,self.credentials.calls)
+        self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
     def test_all_advertised_tools_read_only_and_old_writes_rejected(self):
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name']!='account_default') for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:

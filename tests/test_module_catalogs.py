@@ -21,10 +21,10 @@ class Runner:
 
 class ModuleCatalogTests(unittest.TestCase):
     def test_only_user_requested_modules_are_advertised(self):
-        self.assertEqual({'agents','assets','knowledge','models','accounts','other_accounts','config'},{m['id'] for m in MODULES})
+        self.assertEqual({'agents','knowledge','models','accounts','other_accounts','config'},{m['id'] for m in MODULES})
         self.assertFalse({'成果中心','运行诊断','验收记录'}&{m['name'] for m in MODULES})
         self.assertIn('技能助手',{m['name'] for m in MODULES})
-        self.assertEqual(20,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name']!='account_default') for t in TOOLS))
+        self.assertEqual(18,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name']!='account_default') for t in TOOLS))
     def test_knowledge_list_scope_and_body_exclusion(self):
         runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
         result=catalog.listing('project:a','查询')
@@ -68,37 +68,38 @@ class ModuleCatalogTests(unittest.TestCase):
 
 
 class ModuleSearchTests(unittest.TestCase):
+    @staticmethod
+    def _versions():
+        return type('Versions',(),{'context':lambda self:'test-account'})()
+
     def test_search_never_searches_or_returns_secret_fields(self):
         f=Fixture();self.addCleanup(f.close)
-        f.board.assets=type('Assets',(),{'list':lambda self:{'assets':[]}})()
+        f.board.source_versions=self._versions()
         f.board.knowledge=type('Knowledge',(),{'listing':lambda self,*a:{'knowledge':[]}})()
         f.credentials.list=lambda:{'entries':[{'id':'entry','label':'公开名称','kind':'credential','password':'private-value'}],'folders':[],'status':{}}
+        f.board.collect_snapshot('config')
         result=f.board.call('global_search',{'query':'private-value'})
         self.assertEqual([],result['results']);self.assertEqual([],f.secret_reads)
         result=f.board.call('global_search',{'query':'公开'})
         self.assertEqual('config',result['results'][0]['module']);self.assertNotIn('private-value',json.dumps(result))
-    def test_source_errors_are_reported_without_private_exception_text(self):
+    def test_knowledge_snapshot_respects_search_query(self):
         f=Fixture();self.addCleanup(f.close)
-        class Broken:
-            def list(self):raise ValueError('/private/source/details')
-        f.board.assets=Broken();f.board.knowledge=type('Knowledge',(),{'listing':lambda self,*a:{'knowledge':[]}})()
-        result=f.board.call('global_search',{'query':'skill'})
-        self.assertIn('assets',result['source_errors']);self.assertNotIn('/private',json.dumps(result))
+        f.board.knowledge=type('Knowledge',(),{'listing':lambda self,*args:{'knowledge':[
+            {'knowledge_key':'rule.a','title':'保留标题','summary':'可检索摘要'},
+            {'knowledge_key':'rule.b','title':'无关内容','summary':'无关内容'}]}})()
+        f.board.collect_snapshot('knowledge')
+        result=f.board.call('global_search',{'query':'保留'})
+        self.assertEqual(['rule.a'],[item['id'] for item in result['results'] if item['module']=='knowledge'])
+        result=f.board.call('global_search',{'query':'不存在'})
+        self.assertFalse(any(item['module']=='knowledge' for item in result['results']))
 
 class ModuleConcurrencyTest(unittest.TestCase):
     def test_slow_account_read_does_not_block_model_catalog(self):
-        import threading
         f=Fixture();self.addCleanup(f.close)
-        started=threading.Event();release=threading.Event();finished=threading.Event()
-        def accounts():started.set();release.wait(3);return []
-        f.native.accounts=accounts
-        account_thread=threading.Thread(target=lambda:f.board.call('workbench_state',{'view':'accounts'}))
-        model_thread=threading.Thread(target=lambda:(f.board.call('model_list',{}),finished.set()))
-        account_thread.start()
-        try:
-            self.assertTrue(started.wait(1));model_thread.start();self.assertTrue(finished.wait(.5))
-        finally:
-            release.set();account_thread.join(4)
-            if model_thread.ident:model_thread.join(4)
+        f.board.source_versions=ModuleSearchTests._versions()
+        f.native.accounts=lambda:(_ for _ in ()).throw(AssertionError('页面不应读取账户来源'))
+        state=f.board.call('workbench_state',{'view':'accounts'})
+        self.assertEqual('pending',state['status']['snapshot']['state'])
+        self.assertIn('models',f.board.call('model_list',{}))
 
 if __name__=='__main__':unittest.main()

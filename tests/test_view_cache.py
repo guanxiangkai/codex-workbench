@@ -50,7 +50,7 @@ class CacheTests(unittest.TestCase):
         def read():self.calls+=1;self.stamp=str(self.calls);return self.data
         self.cache.sync('a',None,read,lambda:self.epoch,lambda:self.stamp)
         self.cache.sync('a',None,read,lambda:self.epoch,lambda:self.stamp);self.assertEqual(2,self.calls)
-    def test_pagination_and_scope_have_independent_snapshots(self):
+    def test_views_and_scopes_have_independent_snapshots(self):
         for key in [('board','s1','page1'),('board','s1','page2'),('board','s2','page1'),('knowledge','a'),('knowledge','b')]:self.sync(key=key)
         self.assertEqual(5,self.calls)
     def test_evicted_revision_requires_full_reset(self):
@@ -87,6 +87,7 @@ class SyncServiceTests(unittest.TestCase):
             def context(self):return 'test-account'
             def signature(self,view):return view
         self.service.source_versions=Versions()
+        self.service.collect_snapshot('agents')
         first=self.service.call('workbench_sync',{'view':'agents'})
         same=self.service.call('workbench_sync',{'view':'agents','revision':first['revision']})
         self.assertTrue(same['unchanged']);self.assertEqual(['skills'],self.native.calls)
@@ -98,6 +99,7 @@ class SyncServiceTests(unittest.TestCase):
             def context(self):return 'account'
             def signature(self,view):return view
         self.service.source_versions=Versions()
+        self.service.collect_snapshot('accounts')
         first=self.service.call('open_workbench',{})
         self.assertEqual('accounts',first['view']);self.assertIn('revision',first['_sync']);self.assertIn('accounts',first)
         self.service.call('open_workbench',{})

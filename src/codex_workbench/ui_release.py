@@ -24,6 +24,13 @@ def build_release() -> dict:
     revision=hashlib.sha256(json.dumps(pages,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     for entry in pages.values():
         entry['revision']=revision
+        # 宿主会按 URI 缓存 MCP App 资源。发布内容变更时必须换 URI，并让
+        # 入口工具声明同一资源，否则已打开的工作台可能继续使用旧页面脚本。
+        resource_uri=f"{entry['resource_uri'].removesuffix('.html')}/{revision}.html"
+        entry['resource_uri']=resource_uri
+        for tool in entry['tools']:
+            if tool['name']==entry['entry']:
+                tool['_meta']['ui']['resourceUri']=resource_uri
         entry['html']=entry['html'].replace('__WORKBENCH_UI_REVISION__',revision)
     return {'version':VERSION,'revision':revision,'pages':pages}
 

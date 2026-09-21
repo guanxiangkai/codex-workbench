@@ -24,11 +24,6 @@
       "group": "能力与知识"
     },
     {
-      "id": "assets",
-      "name": "资源中心",
-      "group": "能力与知识"
-    },
-    {
       "id": "knowledge",
       "name": "知识中心",
       "group": "能力与知识"
@@ -42,8 +37,6 @@
   "tools": [
     "open_workbench",
     "workbench_state",
-    "board_state",
-    "task_detail",
     "skill_detail",
     "model_list",
     "model_detail",
@@ -53,8 +46,6 @@
     "module_list",
     "project_list",
     "project_detail",
-    "asset_list",
-    "asset_detail",
     "knowledge_list",
     "knowledge_detail",
     "service_list",

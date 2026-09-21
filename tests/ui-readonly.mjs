@@ -9,6 +9,12 @@ assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('
 assert.equal(h.duration(null),'未提供');assert.equal(h.duration(0),'0 毫秒');assert.equal(h.duration(61234),'1 分 1 秒');
 assert.equal(h.resetTime(null,0),'未提供');assert.equal(h.resetTime(0,0),'等待重置更新');assert.equal(h.resetTime(90061,0),'1 天后重置');assert.equal(h.resetTime(7200,0),'2 小时后重置');assert.equal(h.resetTime(60,0),'1 分钟后重置');
 assert.equal(h.findText([{title:'修复 A'},{title:'检查 B'}],'修复',['title']).length,1);
+assert.equal(h.accountTitle({email:'name@example.com'}),'用户名未提供');
+assert.equal(h.accountTitle({display_name:'Jacob',email:'name@example.com'}),'Jacob');
+assert.match(h.avatarMarkup({avatar_data_uri:'data:image/png;base64,AA=='}),/<img /);
+assert.doesNotMatch(h.avatarMarkup({avatar_data_uri:'data:image/svg+xml;base64,PHN2Zz4='}),/<img /);
+assert.doesNotMatch(h.avatarMarkup({avatar_data_uri:'https://example.invalid/avatar.png'}),/<img /);
+assert.match(h.otherAccountCard({id:'p',label:'Provider label',display_name:'Jacob',provider_name:'Provider',field_notes:{}}),/>Jacob</);
 const minimax={id:'minimax-text',name:'MiniMax 文本',model:'MiniMax-Text-01',base_url:'https://api.minimax.invalid/v1',provider_id:'minimax',provider_name:'MiniMax',model_type:'reasoning',validation_status:'pending'};
 const legacy={id:'legacy',name:'未登记供应商模型',base_url:'https://legacy.invalid/v1',model_type:'embedding',validation_status:'pending'};
 assert.deepEqual(JSON.parse(JSON.stringify(h.modelProviders([minimax,legacy]))),[{id:'minimax',name:'MiniMax'}]);

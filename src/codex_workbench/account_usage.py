@@ -52,6 +52,18 @@ class AccountUsage:
         self.inflight = {}
         self.snapshots = OrderedDict()
 
+    def cached(self, account):
+        """页面读取只使用已取得的快照，不等待供应商网络请求。"""
+        if account.get('provider_id') != 'minimax':
+            return {}
+        binding = (account['id'], account.get('usage_credential_id'))
+        with self.lock:
+            previous = self.snapshots.get(binding, {})
+            if previous and account.get('updated_at'):
+                if datetime.fromisoformat(previous['updated_at']) < datetime.fromisoformat(account['updated_at']):
+                    return {}
+            return deepcopy(previous)
+
     def refresh(self, account):
         """返回用量覆盖字段，失败不清空上次成功的额度或伪造新的用量时间。"""
         credential = account.get('usage_credential_id')

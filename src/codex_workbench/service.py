@@ -171,6 +171,9 @@ class Workbench:
         if refresh:
             for account in result['accounts']:
                 account.update(self.account_usage.refresh(account))
+        else:
+            for account in result['accounts']:
+                account.update(self.account_usage.cached(account))
         return result
 
     def _catalog(self):
@@ -215,14 +218,14 @@ class Workbench:
             except (ValueError,OSError,sqlite3.Error):errors.append(module)
         return {'results':result,'source_errors':errors}
 
-    def state(self,view=DEFAULT_VIEW,_paginate=True,**paging):
+    def state(self,view=DEFAULT_VIEW,_paginate=True,_refresh_usage=False,**paging):
         """按页惰性读取，配置页不会扫描会话，打开页面不会创建任何资源。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
         if view=='accounts':result['accounts']=self.native.accounts()
         elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
-        elif view=='other_accounts':result.update(self._other_accounts(refresh=True))
+        elif view=='other_accounts':result.update(self._other_accounts(refresh=_refresh_usage))
         elif view=='projects':result.update(self.project_state())
         elif view=='assets':result.update(self.assets.list())
         elif view=='knowledge':result.update(self.knowledge.listing())
@@ -239,6 +242,7 @@ class Workbench:
 
     def sync(self,view,revision=None,refresh=False,**filters):
         """源快照按视图共享，分页缓存只保存当前页；筛选不重复读取来源。"""
+        if refresh and hasattr(self.source_versions,'invalidate'):self.source_versions.invalidate()
         allowed={'page','page_size','query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         scope=filters.pop('scope','global') if view=='knowledge' else None
@@ -249,7 +253,7 @@ class Workbench:
         signature=lambda:(self.source_versions.signature(view),self._model_catalog_revision() if view in ('models','services','config') else None)
         def read():
             if view=='knowledge':return self.knowledge.listing(scope=scope,query='')
-            return self.state(view,_paginate=False)
+            return self.state(view,_paginate=False,_refresh_usage=refresh)
         source=self.source_cache.sync(source_key,None,read,self.source_versions.context,signature,ttl,refresh)
         return self.view_cache.sync(key,revision,lambda:_page_view(source['data'],**paging),self.source_versions.context,lambda:(signature(),source['revision']),ttl,refresh)
 

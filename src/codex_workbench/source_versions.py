@@ -2,6 +2,8 @@
 import hashlib
 import json
 import os
+import threading
+import time
 from pathlib import Path
 from .account_runtime import current_account_home
 from .readonly_sources import rows
@@ -37,7 +39,25 @@ def tree(path,depth=3,limit=3000):
 
 class SourceVersions:
     """缓存账户边界与视图来源信号；只返回不可逆摘要。"""
-    def __init__(self,db,cwd,resources_dir=None):self.db,self.cwd,self.resources_dir=Path(db),Path(cwd),Path(resources_dir) if resources_dir else None
+    def __init__(self,db,cwd,resources_dir=None):
+        self.db,self.cwd,self.resources_dir=Path(db),Path(cwd),Path(resources_dir) if resources_dir else None
+        self._trees={}
+        self._tree_lock=threading.Lock()
+
+    def invalidate(self):
+        with self._tree_lock:self._trees.clear()
+
+    def _tree(self,path,depth=3,limit=3000):
+        """两秒内复用目录元数据；身份检查及单文件标记始终实时读取。"""
+        key=(str(path),depth,limit);now=time.monotonic()
+        with self._tree_lock:
+            entry=self._trees.get(key)
+            if entry and now-entry[0]<2:return entry[1]
+        value=tree(path,depth,limit)
+        with self._tree_lock:
+            self._trees={k:v for k,v in self._trees.items() if now-v[0]<2}
+            self._trees[key]=(now,value)
+        return value
 
     def _local_source_dir(self, environment_name):
         """返回公开来源目录；未配置时只检查本机数据目录。"""
@@ -58,15 +78,15 @@ class SourceVersions:
         if view=='projects':
             signals.append(NativeCatalog(home,include_archived=True).revision())
         if view in ('agents','assets','connections'):
-            signals.extend(tree(home/'skills',4 if view=='assets' else 3))
-            signals.extend(tree(home/'plugins',2,500))
-            signals.extend(tree(self.cwd/'.agents/skills',3,300))
-            signals.extend(tree(self.cwd/'.codex/skills',3,300))
+            signals.extend(self._tree(home/'skills',4 if view=='assets' else 3))
+            signals.extend(self._tree(home/'plugins',2,500))
+            signals.extend(self._tree(self.cwd/'.agents/skills',3,300))
+            signals.extend(self._tree(self.cwd/'.codex/skills',3,300))
         if view=='knowledge':
             knowledge=self._local_source_dir('WORKBENCH_KNOWLEDGE_DIR')
-            signals.extend(tree(knowledge,2,3000))
+            signals.extend(self._tree(knowledge,2,3000))
         if view in ('config','services'):
-            signals.extend(tree(self._local_source_dir('WORKBENCH_VAULT_DIR'),2,1000))
+            signals.extend(self._tree(self._local_source_dir('WORKBENCH_VAULT_DIR'),2,1000))
         if view in ('other_accounts','config') and self.resources_dir:
             signals.append(stamp(self.resources_dir/'accounts/catalog.json'))
         return digest(signals)

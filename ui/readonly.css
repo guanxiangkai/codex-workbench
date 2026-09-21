@@ -137,3 +137,9 @@ main[data-module="config"] .folder.active{background:var(--type-tint,#eaf6f1);bo
 .avatar{overflow:hidden}.avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
 
 .usage-refresh{width:8rem;min-width:8rem;flex:0 0 8rem;white-space:nowrap}
+
+/* 数量与搜索保持同排，筛选控件在窄屏可换行。 */
+.toolbar .search{order:0;flex:1 1 120px;min-width:0}
+.toolbar .count{order:1;flex:0 0 auto;white-space:nowrap}
+.toolbar>.select,.toolbar>button{order:2}
+@media(min-width:761px){.toolbar .count{order:3}.toolbar .search{flex-basis:240px}}

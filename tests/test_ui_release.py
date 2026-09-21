@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from codex_workbench import ui_release
 from codex_workbench.ui_release import UiRelease, build_release
 
 
@@ -47,3 +48,21 @@ class UiReleaseTests(unittest.TestCase):
         entry = next(tool for tool in page["tools"] if tool["name"] == page["entry"])
         self.assertEqual(f"ui://codex-workbench/v7/workbench/{self.first['revision']}.html", page["resource_uri"])
         self.assertEqual(page["resource_uri"], entry["_meta"]["ui"]["resourceUri"])
+
+    def test_source_mode_rebuilds_when_primitives_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in ("ui/app.html", "ui/readonly.js", "ui/readonly-primitives.js", "ui/readonly.css", "ui/configuration-crypto.js", "ui/assets/readonly-icons.json", "ui/icons/board.svg"):
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("initial", encoding="utf-8")
+            changed = json.loads(json.dumps(self.first))
+            changed["revision"] = "b" * 64
+            for page in changed["pages"].values():
+                page["revision"] = changed["revision"]
+            with patch.object(ui_release, "ROOT", root), patch.object(ui_release, "build_release", side_effect=[self.first, changed]) as builder:
+                view = UiRelease(source_mode=True)
+                self.assertEqual(self.first["revision"], view.revision)
+                (root / "ui/readonly-primitives.js").write_text("changed primitive", encoding="utf-8")
+                self.assertEqual(changed["revision"], view.revision)
+                self.assertEqual(2, builder.call_count)

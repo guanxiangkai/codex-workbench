@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 const window={addEventListener(){}};window.parent=window;
 const context={window,parent:window,INITIAL_PAGE:'other_accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'other_accounts',name:'其他账户',group:'账户与配置'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
-vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8'),context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8'),context);
 const h=window.__workbenchReadonlyTest;
 const account={id:'sample',label:'开发账户',provider_id:'zhipu',provider_name:'智谱',usage:null,is_used:null};
 assert.equal(h.accountUsage(null).value,'未提供');

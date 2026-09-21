@@ -11,6 +11,8 @@ from typing import Any
 
 _ROOT_FIELDS = frozenset({"version", "providers"})
 _PROVIDER_FIELDS = frozenset({"id", "name", "accounts"})
+_FRAGMENT_FIELDS = frozenset({"version", "provider", "account"})
+_PROVIDER_REFERENCE_FIELDS = frozenset({"id", "name"})
 _ACCOUNT_FIELDS = frozenset({"id", "label", "vault_id", "usage", "usage_windows", "api_auth", "field_notes", "is_used", "status_source", "observed_at", "expires_at", "resets_at", "last_used_at", "updated_at", "usage_credential_id"})
 _USAGE_FIELDS = frozenset({"used", "limit", "remaining", "unit", "observed_at", "source"})
 _API_AUTH_FIELDS = frozenset({"status", "source", "observed_at"})
@@ -21,37 +23,46 @@ _VAULT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
 def other_accounts(path: Path) -> dict[str, list[dict[str, Any]]]:
-    """读取版本化公开目录，缺失目录返回空投影，格式错误明确失败。
+    """读取账户目录及每账户分片，缺失目录返回空投影，格式错误明确失败。
 
     `vault_id` 只是配置中心条目引用，函数不访问保险库或任何网络来源。
     """
     path = Path(path)
-    if not path.exists():
+    directory = path.parent
+    sources = []
+    if path.exists():
+        sources.extend(_legacy_providers(path))
+    if directory.exists():
+        for fragment in sorted(directory.glob("*.json")):
+            if fragment == path:
+                continue
+            sources.append(_fragment_provider(fragment))
+    if not sources:
         return {"providers": [], "accounts": []}
-    try:
-        if path.stat().st_size > 1024 * 1024:
-            raise ValueError("其他账户目录超过大小限制")
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        raise ValueError("其他账户目录不是有效 JSON") from error
-    if not isinstance(raw, dict) or set(raw) != _ROOT_FIELDS or type(raw.get("version")) is not int or raw["version"] != 1 or not isinstance(raw.get("providers"), list) or len(raw["providers"]) > 200:
-        raise ValueError("其他账户目录格式无效")
 
     providers: list[dict[str, Any]] = []
     accounts: list[dict[str, Any]] = []
-    provider_ids: set[str] = set()
     account_ids: set[str] = set()
-    for provider in raw["providers"]:
+    grouped = {}
+    for provider in sources:
         if not isinstance(provider, dict) or set(provider) != _PROVIDER_FIELDS:
             raise ValueError("其他账户平台字段无效")
         provider_id = _identifier(provider.get("id"), "平台标识")
         provider_name = _text(provider.get("name"), "平台名称")
         provider_accounts = provider.get("accounts")
-        if provider_id in provider_ids or not isinstance(provider_accounts, list) or len(provider_accounts) > 500:
+        if not isinstance(provider_accounts, list) or len(provider_accounts) > 500:
             raise ValueError("其他账户平台标识或账户列表无效")
-        provider_ids.add(provider_id)
+        if provider_id in grouped and grouped[provider_id]["name"] != provider_name:
+            raise ValueError("其他账户平台标识或账户列表无效")
+        grouped.setdefault(provider_id, {"name": provider_name, "accounts": []})["accounts"].extend(provider_accounts)
+    if len(grouped) > 200:
+        raise ValueError("其他账户目录格式无效")
+    for provider_id, provider in grouped.items():
+        provider_name = provider["name"]
+        if len(provider["accounts"]) > 500:
+            raise ValueError("其他账户平台标识或账户列表无效")
         public_accounts = []
-        for account in provider_accounts:
+        for account in provider["accounts"]:
             item = _account(account, provider_id, provider_name)
             if item["id"] in account_ids:
                 raise ValueError("其他账户标识重复")
@@ -62,6 +73,32 @@ def other_accounts(path: Path) -> dict[str, list[dict[str, Any]]]:
         if public_accounts:
             providers.append({"id": provider_id, "name": provider_name, "accounts": public_accounts})
     return {"providers": providers, "accounts": accounts}
+
+
+def _load(path: Path, message: str) -> Any:
+    if path.stat().st_size > 1024 * 1024:
+        raise ValueError(message + "超过大小限制")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(message + "不是有效 JSON") from error
+
+
+def _legacy_providers(path: Path) -> list[dict[str, Any]]:
+    raw = _load(path, "其他账户目录")
+    if not isinstance(raw, dict) or set(raw) != _ROOT_FIELDS or type(raw.get("version")) is not int or raw["version"] != 1 or not isinstance(raw.get("providers"), list) or len(raw["providers"]) > 200:
+        raise ValueError("其他账户目录格式无效")
+    return raw["providers"]
+
+
+def _fragment_provider(path: Path) -> dict[str, Any]:
+    raw = _load(path, "其他账户分片")
+    if not isinstance(raw, dict) or set(raw) != _FRAGMENT_FIELDS or type(raw.get("version")) is not int or raw["version"] != 1:
+        raise ValueError("其他账户分片格式无效")
+    provider = raw.get("provider")
+    if not isinstance(provider, dict) or set(provider) != _PROVIDER_REFERENCE_FIELDS:
+        raise ValueError("其他账户分片平台字段无效")
+    return {**provider, "accounts": [raw.get("account")]}
 
 
 def _account(value: Any, provider_id: str, provider_name: str) -> dict[str, Any]:

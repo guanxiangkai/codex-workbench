@@ -156,6 +156,9 @@ const KINDS={private_key:'私钥',certificate:'证书',api_key:'API Key',credent
 const LABELS={type:'类型',purpose:'用途',source:'来源',authentication_tested:'已验证认证',account:'账户',username:'用户名',password:'密码',key:'Key',api_key:'API Key',token:'Token',endpoint:'服务地址',base_url:'接口地址',host:'主机',ip:'IP 地址',port:'端口',database:'数据库',database_type:'数据库类型',database_index:'数据库索引',namespace:'命名空间',group:'配置组',bucket:'Bucket',region:'Region',access_key:'Access Key',secret_key:'Secret Key',private_key:'私钥',public_key:'公钥',description:'说明',remote_path:'路径',passphrase:'口令',certificate:'证书',kubeconfig:'Kubeconfig',extra_config:'扩展配置'};
 const A=x=>Array.isArray(x)?x:[];const E=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const I=(name,cls='')=>`<span class="icon ${E(cls)}" aria-hidden="true">${READONLY_ICONS[name]||READONLY_ICONS['file-text']||''}</span>`;
+const primitives=window.createWorkbenchReadonlyPrimitives?.({escape:E,icon:I});
+if(!primitives)throw Error('只读渲染组件未加载');
+const {options,select,listCount,search:renderSearch,empty,toolbar:renderToolbar}=primitives;
 const badge=(name,tone='muted')=>`<span class="badge ${E(tone)}">${E(name)}</span>`;
 // 类型配色只表达类别；验证、登录和启用状态保留独立的语义色。
 const CATEGORY={
@@ -387,11 +390,10 @@ function entityIcon(entity,fallback='folder'){
 }
 function entityTag(entity,withIcon=true){return `<span class="project-tag" style="color:${color(entity.color)}">${withIcon?entityIcon(entity):''}${E(entity.name)}</span>`;}
 
-function options(items,value,empty){return `<option value="">${E(empty)}</option>`+A(items).map(x=>`<option value="${E(x.id)}" ${x.id===value?'selected':''}>${E(x.name||x.title||x.id)}</option>`).join('');}
-function select(id,label,content){return `<label class="select"><span class="sr-only">${E(label)}</span><select id="${id}">${content}</select>${I('chevron-down')}</label>`;}
-function listCount(items,unit){return `<span class="count" role="status">${items.length} ${unit}</span>`;}
-function search(){return `<label class="search">${I('search')}<span class="sr-only">搜索${PAGES[s.page]}</span><input id="query" placeholder="搜索${PAGES[s.page]}" value="${E(s.query)}" autocomplete="off"></label>`;}
-function empty(text='暂无数据'){return `<div class="empty">${I('inbox')}<p>${E(text)}</p></div>`;}
+// 视图状态只在适配层读取，底层积木可在任意页面上下文复用。
+function search(){return renderSearch(PAGES[s.page],s.query);}
+function toolbar(...content){return renderToolbar(...content);}
+
 function entryTitle(e){return chineseTitle(e.label||e.name||e.id,'配置');}
 function projectMeta(t){const p=A(s.data.projects).find(x=>x.id===t.project_id),sec=A(s.data.sections).find(x=>x.id===t.section_id);return [sec,p].filter(Boolean).map(entityTag).join('');}
 function sessionsFiltered(){return A(s.data.sessions).filter(x=>(!s.section||(s.section==='__none__'?!x.section_id:x.section_id===s.section))&&(!s.project||x.project_id===s.project));}
@@ -399,7 +401,7 @@ function orderedAccounts(items){const sorted=newestRecords(items);return [...sor
 function usageRefreshButton(){return `<button id="refresh-usage" class="soft usage-refresh" aria-busy="${s.usageRefreshing}" ${s.usageRefreshing?'disabled':''}>${s.usageRefreshing?'刷新中...':'刷新用量'}</button>`;}
 function accountView(){
  const items=orderedAccounts(findText(s.data.accounts,s.query,['display_name','username','name','email']));
- return `<div class="toolbar">${search()}${usageRefreshButton()}${listCount(items,'个账户')}</div><div class="account-grid">${items.map(a=>{
+ return `${toolbar(search(),usageRefreshButton(),listCount(items,'个账户'))}<div class="account-grid">${items.map(a=>{
   const percent=num(a.remaining_percent);
   const status={ready:'',not_logged_in:'未登录',identity_mismatch:'身份待确认',unavailable:'暂未读取'}[a.login_status]||'未读取';
   return `<article class="card account" data-tone="${a.is_current?'green':a.is_default?'yellow':'blue'}"><div class="identity">${avatarMarkup(a)}<div class="grow"><h2 id="account-title-${E(a.id)}" tabindex="-1" title="${E(accountTitle(a))}">${E(accountTitle(a))}</h2><p>${E(a.email||'邮箱未提供')}</p></div>${badge(({pro:'Pro',plus:'Plus',free:'Free',team:'Team',business:'Business'})[a.plan]||a.plan||'套餐未提供','green')}</div><div class="account-tags">${a.is_current&&a.login_status==='ready'?`<span class="badge type-badge" data-tone="green">${I('user')}主账户</span>`:a.login_status==='ready'?'':badge(status,'muted')}${a.is_default?`<span class="badge type-badge" data-tone="yellow">${I('star')}默认</span>`:''}</div><span class="muted">额度剩余</span><strong class="quota" aria-label="剩余额度百分比">${percent===null?'—':Math.round(percent)+'%'}</strong><div class="progress" role="img" aria-label="${percent===null?'额度未提供':'剩余 '+percent+'%'}"><span style="width:${percent===null?0:Math.max(0,Math.min(100,percent))}%"></span></div><div class="metrics"><div><span>重置时间</span><strong title="${E(fmtDate(a.resets_at))}">${resetTime(a.resets_at)}</strong></div><div><span>重置卡</span><strong>${num(a.reset_cards)===null?'未提供':a.reset_cards+' 张'}</strong></div></div><div class="account-footer"><small>更新于 ${E(fmtDate(a.profile_observed_at||a.observed_at))}</small>${defaultAccountButton(a)}</div></article>`;

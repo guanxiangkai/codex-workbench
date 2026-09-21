@@ -7,7 +7,7 @@ const {chromium}=require(process.env.WORKBENCH_PLAYWRIGHT_MODULE||'playwright');
 const root=process.env.WORKBENCH_TEST_ROOT||process.cwd();
 const window={addEventListener(){}};window.parent=window;
 const context={window,parent:window,INITIAL_PAGE:'other_accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(root+'/ui/assets/readonly-icons.json','utf8')),WORKBENCH_MODULES:[{id:'other_accounts',name:'其他账户',group:'账户与配置'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
-vm.createContext(context);vm.runInContext(fs.readFileSync(root+'/ui/readonly.js','utf8'),context);
+vm.createContext(context);vm.runInContext(fs.readFileSync(root+'/ui/readonly-primitives.js','utf8'),context);vm.runInContext(fs.readFileSync(root+'/ui/readonly.js','utf8'),context);
 const h=window.__workbenchReadonlyTest;
 const account={id:'synthetic',label:'示例账户',provider_id:'minimax',provider_name:'MiniMax',usage_windows:[77,19,0,100].map((used,index)=>({id:'sample-'+index,label:['通用额度 · 5 小时','通用额度 · 本周','未使用示例','已用完示例'][index],usage:{used,remaining:100-used,limit:100,unit:'%'}}))};
 const browser=await chromium.launch({headless:true,timeout:20000,...(process.env.WORKBENCH_BROWSER_EXECUTABLE?{executablePath:process.env.WORKBENCH_BROWSER_EXECUTABLE}:{})});

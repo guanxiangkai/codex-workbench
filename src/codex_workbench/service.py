@@ -23,7 +23,7 @@ from .other_accounts import other_accounts
 from .account_usage import AccountUsage
 from .account_preferences import set_default_account
 from .view_cache import ViewCache
-from .source_versions import SourceVersions, stamp
+from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
 from .account_profiles import apply_profiles
 
@@ -222,9 +222,9 @@ class Workbench:
             return False
 
     def _model_catalog_revision(self):
-        """模型配置文件变化时使模型及服务投影失效，不启动轮询。"""
-        return tuple(stamp(path) for path in (self.resources_dir/'models/catalog.json',
-                     self.model_observations.path,Path(str(self.model_observations.path)+'-journal')))
+        """模型目录或任一分片变化时使模型及服务投影失效，不启动轮询。"""
+        return tuple(tree(self.resources_dir/'models', 1, 1100))+tuple(
+            stamp(path) for path in (self.model_observations.path,Path(str(self.model_observations.path)+'-journal')))
 
     def _models(self):
         result=configured_models(self.resources_dir/'models/catalog.json')

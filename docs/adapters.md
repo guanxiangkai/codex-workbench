@@ -2,7 +2,32 @@
 
 ## 非秘密目录
 
-通过 `--resources-dir` 或 `WORKBENCH_RESOURCES_DIR` 指定目录。工作台读取其中的 `accounts/catalog.json` 与 `models/catalog.json`，但不会把内容上传到 GitHub。
+通过 `--resources-dir` 或 `WORKBENCH_RESOURCES_DIR` 指定目录。工作台只读其中的 `accounts/` 与 `models/`，不会把内容上传到 GitHub，也不提供这些目录的增删改接口。Codex 可直接维护 JSON。
+
+为避免多人或多个自动化步骤改写同一大文件，可保留旧的 `accounts/catalog.json`、`models/catalog.json`，并将每条新增记录拆成独立文件；同一目录的两种格式会合并读取，重复 ID 会明确报错，绝不按文件名或读取顺序静默覆盖。
+
+单模型分片 `models/<model-id>.json`：
+
+```json
+{"version": 1, "model": {"id": "example", "name": "示例模型", "service_name": "示例服务", "model_type": "reasoning", "base_url": "https://example.invalid/v1", "model": "example", "model_source": "explicit", "updated_at": "2026-09-21T00:00:00+08:00"}}
+```
+
+单账户分片 `accounts/<account-id>.json`：
+
+```json
+{"version": 1, "provider": {"id": "minimax", "name": "MiniMax"}, "account": {"id": "example", "label": "示例账户"}}
+```
+
+拆分可缩小同一文件的修改范围，但并不能代替写入侧的原子写、版本核对或锁。
+
+现有聚合目录可先预检，再拆分并保留恢复副本：
+
+```sh
+PYTHONPATH=src python3 migrate_resource_catalogs.py --resources-dir <资源目录>
+PYTHONPATH=src python3 migrate_resource_catalogs.py --resources-dir <资源目录> --apply --runtime-stopped
+```
+
+迁移只在目录中没有既有分片或 `legacy/catalog.json` 时执行。它先在隔离目录写入并验证拆分后的公开投影与旧目录完全一致，才落盘；应用阶段必须先停止工作台运行时，失败会恢复已移动的 catalog 并清理本次分片。成功后旧文件位于 `models/legacy/catalog.json` 和 `accounts/legacy/catalog.json`，运行时不读取该恢复副本。
 
 最小其他账户目录：
 

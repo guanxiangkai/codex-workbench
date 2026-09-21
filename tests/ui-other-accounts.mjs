@@ -46,3 +46,7 @@ assert(!h.otherAccountCard({...account,usage:{used:0,remaining:0,limit:0,unit:'%
 
 assert(!html.includes('<dt>到期时间</dt>'));assert(!html.includes('<dt>最近使用</dt>'));
 const dated=h.otherAccountCard({...verified,expires_at:'2030-01-01T00:00:00Z',last_used_at:'2026-01-01T00:00:00Z'});assert(dated.includes('<dt>到期时间</dt>'));assert(dated.includes('<dt>最近使用</dt>'));
+
+assert.notEqual(h.providerStyle("minimax"),h.providerStyle("kimi"));
+const scoped={skills:[{id:"one",name:"Alpha",scope:"user",enabled:true},{id:"two",name:"Beta",scope:"system",enabled:true}]};
+const filtered=h.skillsView(scoped,"","user");assert(filtered.includes("Alpha"));assert(!filtered.includes(">Beta<"));assert(filtered.includes("1 项技能"));assert(filtered.includes("技能类型"));assert(h.skillsView(scoped,"Beta","user").includes("0 项技能"));

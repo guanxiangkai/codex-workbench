@@ -22,7 +22,7 @@ class DirectorySignalTest(unittest.TestCase):
             self.assertEqual(3,scan.call_count)
 
     def test_resource_fragments_add_modify_and_delete_change_source_revision(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, patch('codex_workbench.source_versions.current_account_home', return_value=temporary):
             root=Path(temporary);resources=root/'resources'
             versions=SourceVersions(root/'workbench.sqlite3',root,resources)
             for directory, view in (('models','models'),('accounts','other_accounts')):

@@ -14,7 +14,6 @@ from .credential_details import read_details
 from .model_contracts import contract_for
 from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
 from .ui_release import UiRelease
-from .asset_catalog import AssetCatalog
 from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
@@ -25,6 +24,8 @@ from .account_usage import AccountUsage
 from .account_preferences import set_default_account
 from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp
+from .snapshot_store import SnapshotStore, SnapshotScheduler
+from .account_profiles import apply_profiles
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
@@ -37,10 +38,9 @@ def _model_search_text(model):
     return normalized+(' minmax' if 'minimax' in normalized else '')
 
 
-def _page_view(value, page=1, page_size=20, query='', kind='', provider='', tag='', folder=''):
-    """在完整公开快照上筛选、计数，再仅返回当前页。"""
-    page=max(1,int(page or 1)); page_size=min(50,max(1,int(page_size or 20)))
-    key=next((k for k in ('accounts','skills','models','entries','knowledge','assets','services','connections','projects') if isinstance(value.get(k),list)),None)
+def _page_view(value, query='', kind='', provider='', tag='', folder='', **_ignored):
+    """在完整公开快照上筛选并计算分类；列表一次返回全部匹配项。"""
+    key=next((k for k in ('accounts','skills','models','entries','knowledge','services','connections','projects') if isinstance(value.get(k),list)),None)
     if key is None:return value
     items=[x for x in value[key] if isinstance(x,dict)]
     directory={str(x['id']):x for x in value.get('folders',[]) if isinstance(x,dict) and x.get('id')}
@@ -67,10 +67,9 @@ def _page_view(value, page=1, page_size=20, query='', kind='', provider='', tag=
         selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or x.get('knowledge_key') or '')),reverse=True)
     if key=='accounts':
         selected.sort(key=lambda x:(not bool(x.get('is_current')),not bool(x.get('is_default'))))
-    # 平台汇总只保留元数据，避免通过嵌套账户绕过分页。
+    # 平台汇总只保留元数据，避免通过嵌套账户泄露额外列表。
     if key=='accounts' and isinstance(value.get('providers'),list):
         value={**value,'providers':[{k:v for k,v in p.items() if k!='accounts'} for p in value['providers']]}
-    total=len(selected);pages=(total+page_size-1)//page_size;page=min(page,max(1,pages))
     providers={};kinds={};tags={};folders={}
     for x in items:
         for p in item_providers(x):
@@ -80,29 +79,29 @@ def _page_view(value, page=1, page_size=20, query='', kind='', provider='', tag=
             entry=kinds.setdefault(k,{'id':k,'name':x.get('service_type_label') or k,'count':0});entry['count']+=1
         for t in x.get('tags') or []:tags[str(t)]=tags.get(str(t),0)+1
         for f in ancestors(str(x.get('folder_id') or '')):folders[f]=folders.get(f,0)+1
-    return {**value,key:selected[(page-1)*page_size:page*page_size],
-            'pagination':{'page':page,'page_size':page_size,'total':total,'total_pages':pages},
+    return {**value,key:selected,
             'facets':{'providers':[providers[k] for k in sorted(providers)],'kinds':[kinds[k] for k in sorted(kinds)],'tags':[{'id':k,'name':k,'count':v} for k,v in sorted(tags.items())],'folder_counts':folders}}
 
 
 class Workbench:
     """MCP 和 HTTP 共用同一只读白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
-                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, asset_catalog=None, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None):
+                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
         self.db=self.data_dir/'workbench.sqlite3'
         self.ui_release=UiRelease(source_mode=ui_source_mode)
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
         self.credentials=credential_catalog or ReadonlyCredentials(self.db)
         self.credential_reader=credential_reader or read_details
-        self.assets=asset_catalog or AssetCatalog(lambda:self.native.skill_sources())
         self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
-        self.source_cache=ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
         self.account_usage=account_usage or AccountUsage()
         self.model_observations=ModelObservations(self.data_dir)
+        self.snapshots=snapshot_store or SnapshotStore(self.data_dir)
+        self.snapshot_scheduler=None
+        self.snapshot_errors={}
         self._closing=False;self.lock=threading.RLock()
 
     def manifest(self,page,known_revision=None):
@@ -114,16 +113,15 @@ class Workbench:
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         if self._closing:raise ValueError('工作台正在关闭')
         epoch=self.source_versions.context()
-        snapshots=self.view_cache.snapshots(self.source_versions.context)
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
         if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        for (name,filters),entry in snapshots:
-            if name!=view:continue
-            value={'args':{'view':name,**dict(filters)},**entry}
+        snapshot=self._snapshot_state(view)
+        if snapshot['status']['snapshot']['state'] != 'pending':
+            value={'args':{'view':view},'revision':self._snapshot_revision(snapshot),'data':snapshot}
             length=len(json.dumps(value,ensure_ascii=False).encode())
-            if size+length>700_000:continue
-            views.append(value);size+=length
+            if length <= 700_000:
+                views.append(value);size+=length
         bootstrap={'views':views,'context':epoch}
         csp={'connectDomains':[],'resourceDomains':[]}
         manifest=self.ui_release.manifest('workbench')
@@ -135,7 +133,93 @@ class Workbench:
     def close(self):
         """清理进程内读取状态；没有业务运行需要取消或补偿。"""
         with self.lock:
-            self._closing=True;self.view_cache.clear();self.source_cache.clear()
+            self._closing=True;self.view_cache.clear()
+        if self.snapshot_scheduler is not None:self.snapshot_scheduler.close()
+
+    def start_snapshots(self):
+        """仅由 runtime 启动后台采集，测试构造服务不创建线程。"""
+        with self.lock:
+            if self.snapshot_scheduler is None:
+                packaged=Path(__file__).with_name('refresh-schedule.json')
+                configured=self.resources_dir/'refresh-schedule.json'
+                self.snapshot_scheduler=SnapshotScheduler(self, configured if configured.exists() else packaged)
+            scheduler=self.snapshot_scheduler
+        scheduler.start()
+
+    def has_snapshot(self,view):
+        return self.snapshots.get(self.source_versions.context(),view) is not None
+
+    def _snapshot_revision(self,value):
+        from .view_cache import encoded, stable
+        import hashlib
+        return hashlib.sha256(encoded(stable(value))).hexdigest()
+
+    def _snapshot_state(self,view,context=None):
+        context=context if context is not None else self.source_versions.context()
+        entry=self.snapshots.get(context,view)
+        refreshing=False
+        if self.snapshot_scheduler is not None:
+            with self.snapshot_scheduler.lock:
+                refreshing=(context,view) in self.snapshot_scheduler.requested or (context,view) in self.snapshot_scheduler.running
+        if entry is None:
+            if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view)
+            error=self.snapshot_errors.get((context,view))
+            snapshot={'state':'error' if error else 'pending','updated_at':None,'refreshing':True}
+            if error:snapshot['error']=error
+            return {'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp(),
+                    'snapshot':snapshot}}
+        value=entry['data']
+        error=self.snapshot_errors.get((context,view))
+        state='stale' if error else 'ready'
+        snapshot={'state':state,'updated_at':entry.get('updated_at'),'refreshing':refreshing}
+        if error:snapshot['error']=error
+        status={**value.get('status',{}),'snapshot':snapshot}
+        return {**value,'status':status}
+
+    @staticmethod
+    def _account_identity(view, account):
+        if view=='accounts':
+            # 未提供邮箱时不能把旧主体资料迁移给可能已切换的账户。
+            return ('codex',account.get('id'),account.get('email')) if account.get('email') else None
+        return ('provider',account.get('provider_id'),account.get('id'),account.get('usage_credential_id'))
+
+    def _merge_account_fields(self, view, value, previous):
+        """来源缺字段或用量失败时保留已确认资料，绝不跨账户合并。"""
+        if view not in ('accounts','other_accounts') or not isinstance(previous,dict):
+            return value
+        old={self._account_identity(view,item):item for item in previous.get('accounts',[]) if isinstance(item,dict) and self._account_identity(view,item)}
+        preserved=('display_name','avatar','avatar_url','image','avatar_data_uri','profile_observed_at',
+                   'remaining_percent','reset_cards','usage','usage_windows','resets_at','expires_at')
+        merged=[]
+        for item in value.get('accounts',[]):
+            if not isinstance(item,dict):
+                merged.append(item);continue
+            prior=old.get(self._account_identity(view,item))
+            if not prior:
+                merged.append(item);continue
+            retained={field:prior[field] for field in preserved if field in prior and item.get(field) in (None,'',[],{})}
+            # “用户名未提供”不是官方资料，短暂的官方来源缺失不能抹掉已确认姓名。
+            if (item.get('name_source') == 'unavailable' or item.get('name') in (None,'')) and prior.get('name_source') in ('official','official_page'):
+                retained.update(name=prior.get('name'),name_source=prior.get('name_source'))
+            merged.append({**item,**retained})
+        return {**value,'accounts':merged}
+
+    def collect_snapshot(self,view):
+        """后台唯一来源读取入口；失败绝不覆盖最后成功快照。"""
+        if self._closing:return False
+        context=self.source_versions.context()
+        try:
+            value=self._collect_state(view)
+            if self.source_versions.context()!=context:return False
+            existing=self.snapshots.get(context,view)
+            value=self._merge_account_fields(view,value,existing.get('data') if existing else None)
+            value={**value,'status':{k:v for k,v in value.get('status',{}).items() if k!='snapshot'}}
+            self.snapshots.put(context,view,value)
+            self.snapshot_errors.pop((context,view),None)
+            return True
+        except (ValueError,OSError,sqlite3.Error):
+            self.snapshot_errors[(context,view)]='来源暂时不可用'
+            return False
 
     def _model_catalog_revision(self):
         """模型配置文件变化时使模型及服务投影失效，不启动轮询。"""
@@ -190,13 +274,11 @@ class Workbench:
         query=query.strip()
         if not query:return {'results':[],'source_errors':[]}
         result=[{'module':m['id'],'id':m['id'],'title':m['name'],'summary':m['group'],'entity_type':'module'} for m in MODULES if query.casefold() in m['name'].casefold()];errors=[]
-        sources=[('projects',lambda:self.project_state()['projects'],'id','name',''),
-                 ('agents',self.native.skills,'id','display_name','description'),
-                 ('assets',lambda:self.assets.list()['assets'],'id','name','skill_name'),
-                 ('models',self._models,'id','name','provider_name'),
-                 ('config',lambda:self.state('config',_paginate=False)['entries'],'id','label','kind'),
-                 ('other_accounts',lambda:self._other_accounts()['accounts'],'id','label','provider_name'),
-                 ('knowledge',lambda:self.knowledge.listing(scope,query)['knowledge'],'knowledge_key','title','summary')]
+        sources=[('agents',lambda:self._snapshot_state('agents').get('skills',[]),'id','display_name','description'),
+                 ('models',lambda:self._snapshot_state('models').get('models',[]),'id','name','provider_name'),
+                 ('config',lambda:self._snapshot_state('config').get('entries',[]),'id','label','kind'),
+                 ('other_accounts',lambda:self._snapshot_state('other_accounts').get('accounts',[]),'id','label','provider_name'),
+                 ('knowledge',lambda:self._snapshot_state('knowledge').get('knowledge',[]),'knowledge_key','title','summary')]
         for module,read,key,title,summary in sources:
             if module not in {m['id'] for m in MODULES}:continue
             try:
@@ -204,58 +286,63 @@ class Workbench:
                 for item in read():
                     name=item.get(title) or item.get('name') or item[key];snippet=item.get(summary) or ''
                     searchable=_model_search_text(item) if module=='models' else (str(name)+' '+str(snippet)).casefold()
-                    if module!='knowledge' and query.casefold() not in searchable:continue
+                    if query.casefold() not in searchable:continue
                     result.append({'module':module,'id':item[key],'title':name,'summary':str(snippet)[:300],
                                    **({'scope':item.get('scope_key',scope)} if module=='knowledge' else {})});count+=1
                     if count>=10:break
             except (ValueError,OSError,sqlite3.Error):errors.append(module)
         return {'results':result,'source_errors':errors}
 
-    def state(self,view=DEFAULT_VIEW,_paginate=True,_refresh_usage=False,**paging):
-        """按页惰性读取，配置页不会扫描会话，打开页面不会创建任何资源。"""
+    def _collect_state(self,view):
+        """仅供后台采集调用；页面请求不得经过此方法。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
         if view=='accounts':result['accounts']=self.native.accounts()
         elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
-        elif view=='other_accounts':result.update(self._other_accounts(refresh=_refresh_usage))
-        elif view=='projects':result.update(self.project_state())
-        elif view=='assets':result.update(self.assets.list())
+        elif view=='other_accounts':result.update(self._other_accounts(refresh=True))
         elif view=='knowledge':result.update(self.knowledge.listing())
-        elif view=='services':result.update(self.service_state())
-        elif view=='connections':result.update(self.connections.listing())
         elif view=='config':
             catalog=self.credentials.list();result.update(catalog);result['status']={**catalog['status'],'state':'ok','observed_at':timestamp()}
             result['configuration_schema']=configuration_schema()
-            models=self._models();other=self._other_accounts()
+            models=self._models();other=self._other_accounts(refresh=False)
             result['entries']=configuration_entries(catalog['entries'],models,other['accounts'])
             result['other_account_providers']=[{'id':provider['id'],'name':provider['name']} for provider in other['providers']]
         else:raise ValueError('页面不存在')
-        return _page_view(result,**paging) if _paginate else result
+        # 官网首次确认的公开资料仅补齐当前来源未提供的字段，身份键由适配器严格校验。
+        return apply_profiles(result,view,self.data_dir/'account-profiles.json')
+
+    def state(self,view=DEFAULT_VIEW,*,snapshot_context=None,**filters):
+        """页面状态只投影本机快照；首次读取排入后台采集。"""
+        if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
+        result=self._snapshot_state(view,snapshot_context)
+        return _page_view(result,**filters)
 
     def sync(self,view,revision=None,refresh=False,**filters):
-        """源快照按视图共享，分页缓存只保存当前页；筛选不重复读取来源。"""
-        if refresh and hasattr(self.source_versions,'invalidate'):self.source_versions.invalidate()
-        allowed={'page','page_size','query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
+        """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
+        allowed={'query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         scope=filters.pop('scope','global') if view=='knowledge' else None
-        paging={'page':1,'page_size':20,'query':'','kind':'','provider':'','tag':'','folder':'',**filters}
-        source_key=(view,scope)
-        key=(view,tuple(sorted({**paging,**({'scope':scope} if scope else {})}.items())))
-        ttl={'accounts':60,'other_accounts':60,'projects':60,'agents':120,'assets':120,'connections':120,'knowledge':30,'config':60,'services':60,'models':120}[view]
-        signature=lambda:(self.source_versions.signature(view),self._model_catalog_revision() if view in ('models','services','config') else None)
-        def read():
-            if view=='knowledge':return self.knowledge.listing(scope=scope,query='')
-            return self.state(view,_paginate=False,_refresh_usage=refresh)
-        source=self.source_cache.sync(source_key,None,read,self.source_versions.context,signature,ttl,refresh)
-        return self.view_cache.sync(key,revision,lambda:_page_view(source['data'],**paging),self.source_versions.context,lambda:(signature(),source['revision']),ttl,refresh)
+        if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
+        context=self.source_versions.context()
+        if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view,refresh=refresh)
+        value=self.state(view,snapshot_context=context,**filters)
+        if self.source_versions.context()!=context:raise ValueError('账户环境已变化，请重新读取')
+        current=self._snapshot_revision(value)
+        result={'context':context,'revision':current,'base_revision':revision,'unchanged':revision==current,'checked_at_age_seconds':0}
+        if not result['unchanged']:
+            result.update(reset=True,data=value)
+        return result
 
     def call(self,name,arguments):
         """先验证固定工具与字段，再进入只读处理；不存在可转发的写入通道。"""
         args=validate(name,arguments)
         with self.lock:
             if self._closing:raise ValueError('工作台正在关闭')
-        if name=='account_default':return set_default_account(self.db,self.native,args['id'],args['expected_default_id'])
+        if name=='account_default':
+            result=set_default_account(self.db,self.native,args['id'],args['expected_default_id'])
+            if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch('accounts',refresh=True)
+            return result
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)
@@ -267,9 +354,7 @@ class Workbench:
             data=self.project_state();item=next((x for x in data['projects'] if x['id']==args['id']),None)
             if item is None:raise ValueError('项目不存在或不可访问')
             return {'project':item,'sessions':[x for x in data['sessions'] if x.get('project_id')==item['id']]}
-        if name=='asset_list':return self.assets.list()
-        if name=='asset_detail':return self.assets.detail(args['id'])
-        if name=='knowledge_list':return self.knowledge.listing(args.get('scope','global'),args.get('query',''))
+        if name=='knowledge_list':return self.state('knowledge',scope=args.get('scope','global'),query=args.get('query',''))
         if name=='knowledge_detail':return self.knowledge.detail(args['scope'],args['key'])
         if name=='service_list':return self.service_state()
         if name=='service_detail':

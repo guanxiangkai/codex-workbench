@@ -17,8 +17,6 @@ from .codex_rpc import AccountRpc, RpcError
 from .credentials import CredentialCatalog
 from .native_catalog import NativeCatalog
 from .titles import safe_display_title
-from .turn_metadata import TurnMetadata
-from .execution_titles import execution_title
 
 
 def timestamp():
@@ -93,8 +91,7 @@ class ReadonlyCredentials(CredentialCatalog):
 
 class ReadRpc(AccountRpc):
     """受限官方接口：无登录、执行、配置写入或通用方法转发。"""
-    METHODS = CURRENT_METHODS = frozenset({'account/read','account/rateLimits/read','skills/list',
-                                         'thread/read','thread/turns/list','thread/items/list','plugin/list'})
+    METHODS = CURRENT_METHODS = frozenset({'account/read','account/rateLimits/read','skills/list','plugin/list'})
 
 
 def number(value):
@@ -110,7 +107,6 @@ class NativeRead:
         self.rpc_factory = rpc_factory
         self.catalog = catalog or NativeCatalog(Path(current_account_home()), include_archived=True)
         self.cwd = str(Path(cwd or Path.cwd()).resolve())
-        self.turn_metadata=TurnMetadata(current_account_home())
 
     def rpc(self, home=None, current=True):
         """固定账户引用由本机登记决定，不接受浏览器提供的目录。"""
@@ -166,7 +162,7 @@ class NativeRead:
                                 remaining_percent=max(0,min(100,100-percent)) if percent is not None else None,
                                 resets_at=number(window.get('resetsAt')) if window else None,reset_cards=normalized.get('resetCredits'))
                     official=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip()),None)
-                    item['name']=a.get('display_name') or official or a.get('name') or 'Codex'
+                    item['name']=official or identity.get('email') or a.get('display_name') or a.get('name') or '用户名未提供'
             except (OSError,ValueError,sqlite3.Error):
                 item['login_status']='unavailable'
             result.append(item)
@@ -225,45 +221,3 @@ class NativeRead:
         value=self.catalog.snapshot(limits['accountId'])
         if value.get('status',{}).get('state')!='ok':raise RpcError('原生目录暂时无法读取')
         return value
-
-    def turns(self, session, cursor=None):
-        """分页读取原生执行摘要；不下载完整历史或扫描原始日志。"""
-        with self.rpc() as rpc:
-            identity=self.identity(rpc)
-            response=rpc.request('thread/turns/list',{'threadId':session['native_id'],'limit':50,'cursor':cursor,
-                                                     'itemsView':'summary','sortDirection':'desc'}) or {}
-            thread=rpc.request('thread/read',{'threadId':session['native_id'],'includeTurns':False}) or {}
-            metadata={}
-            path=(thread.get('thread') or {}).get('path')
-            if isinstance(path,str):
-                try:metadata=self.turn_metadata.read(path,session['native_id'])
-                except OSError:pass
-            if identity!=self.identity(rpc):raise RpcError('读取时账户身份发生变化')
-        return [{**self.turn_view(t,session),**metadata.get(t['id'],{})} for t in response.get('data',[])], response.get('nextCursor')
-
-    @staticmethod
-    def turn_view(turn, session):
-        """状态严格来自原生轮次；会话 idle、未加载及聚合 Token 不作为轮次指标。"""
-        if not isinstance(turn,dict) or not isinstance(turn.get('id'),str):raise RpcError('原生执行记录格式无效')
-        status=turn.get('status');state={'inProgress':'running','completed':'done','failed':'done','interrupted':'done','cancelled':'done'}.get(status)
-        if session.get('native_status')=='archived':state='archived'
-        summary=''
-        for item in turn.get('items',[]):
-            if item.get('type')=='userMessage':
-                summary=' '.join(c.get('text','') for c in item.get('content',[]) if isinstance(c,dict) and c.get('type')=='text')
-                break
-        # 仅传出经过净化的短摘要，不把包含附件、工具输出或秘密的原始消息传给页面。
-        if '## My request:' in summary:
-            summary=summary.split('## My request:',1)[1]
-        summary=re.sub(r'<in-app-browser-context\b[^>]*>[\s\S]*?</in-app-browser-context>', '', summary)
-        summary=re.sub(r'-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----', '私钥（已隐藏）', summary)
-        summary=re.sub(r'(^|\s)#{1,6}\s*', ' ', summary).replace('**','').replace('`','').strip()
-        title=execution_title(session['native_id'],turn['id'],summary)
-        duration=number(turn.get('durationMs'));start=number(turn.get('startedAt'));end=number(turn.get('completedAt'))
-        if duration is None and start is not None and end is not None and end>=start:duration=(end-start)*1000
-        return {'id':session['native_id']+':'+turn['id'],'turn_id':turn['id'],'session_id':session['id'],
-                'title':title,'state':state,'result':status,'started_at':start,'completed_at':end,'duration_ms':duration,
-                'input_tokens':None,'output_tokens':None,'total_tokens':None,'cached_input_tokens':None,'reasoning_output_tokens':None,
-                'model':None,'reasoning_effort':None,'account':None,'source':'codex','source_kind':'execution_turn',
-                'session_title':session['title'],'project_id':session.get('project_id'),'section_id':session.get('section_id'),
-                'native_url':'codex://threads/'+session['native_id']}

@@ -11,23 +11,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .minimax_usage_worker import ENDPOINT
+from .bigmodel_usage_worker import ENDPOINT as BIGMODEL_ENDPOINT
 
 MESSAGES = {
-    'auth_rejected': '用量刷新失败：MiniMax 拒绝了当前密钥，保留上次数据。',
-    'provider_rejected': '用量刷新失败：MiniMax 未返回可用套餐数据，保留上次数据。',
-    'network_failed': '用量刷新失败：暂时无法连接 MiniMax，保留上次数据。',
-    'invalid_response': '用量刷新失败：MiniMax 返回的数据格式异常，保留上次数据。',
+    'auth_rejected': '用量刷新失败：供应商 拒绝了当前密钥，保留上次数据。',
+    'provider_rejected': '用量刷新失败：供应商 未返回可用套餐数据，保留上次数据。',
+    'network_failed': '用量刷新失败：暂时无法连接 供应商，保留上次数据。',
+    'invalid_response': '用量刷新失败：供应商 返回的数据格式异常，保留上次数据。',
     'credential_unavailable': '用量刷新失败：无法读取已关联的密钥，保留上次数据。',
-    'provider_unavailable': '用量刷新失败：MiniMax 服务暂不可用，保留上次数据。',
+    'provider_unavailable': '用量刷新失败：供应商 服务暂不可用，保留上次数据。',
 }
 
 
-def fetch_usage(credential_id):
+def fetch_usage(credential_id, provider='minimax'):
     """固定消费者经保险库 stdin 使用密钥；父进程只取得经过筛选的用量。"""
     if not isinstance(credential_id, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', credential_id):
         return {'ok': False, 'code': 'credential_unavailable'}
     command = Path.home() / '.codex/scripts/key-vault/key-vault.sh'
-    worker = Path(__file__).with_name('minimax_usage_worker.py')
+    workers={'minimax':'minimax_usage_worker.py','bigmodel':'bigmodel_usage_worker.py'}
+    if provider not in workers:return {'ok': False, 'code': 'provider_unavailable'}
+    worker = Path(__file__).with_name(workers[provider])
     try:
         result = subprocess.run([str(command), 'exec-stdin', credential_id, sys.executable, str(worker)],
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15, check=False)
@@ -46,18 +49,32 @@ def fetch_usage(credential_id):
 class AccountUsage:
     """按显式账户和密钥引用隔离缓存；并发查询共享同一在途请求。"""
 
-    def __init__(self, fetcher=fetch_usage):
+    def __init__(self, fetcher=fetch_usage, bigmodel_fetcher=None):
         self.fetcher = fetcher
+        self.bigmodel_fetcher = bigmodel_fetcher or (lambda credential: fetch_usage(credential,'bigmodel'))
         self.lock = threading.Lock()
         self.inflight = {}
         self.snapshots = OrderedDict()
 
+    def cached(self, account):
+        """页面读取只使用已取得的快照，不等待供应商网络请求。"""
+        if account.get('provider_id') not in ('minimax','bigmodel'):
+            return {}
+        binding = (account.get('provider_id'), account['id'], account.get('usage_credential_id'))
+        with self.lock:
+            previous = self.snapshots.get(binding, {})
+            if previous and account.get('updated_at'):
+                if datetime.fromisoformat(previous['updated_at']) < datetime.fromisoformat(account['updated_at']):
+                    return {}
+            return deepcopy(previous)
+
     def refresh(self, account):
         """返回用量覆盖字段，失败不清空上次成功的额度或伪造新的用量时间。"""
         credential = account.get('usage_credential_id')
-        if account.get('provider_id') != 'minimax' or not credential:
+        provider=account.get('provider_id')
+        if provider not in ('minimax','bigmodel') or not credential:
             return {}
-        binding = (account['id'], credential)
+        binding = (provider, account['id'], credential)
         with self.lock:
             future = self.inflight.get(binding)
             owner = future is None
@@ -68,7 +85,7 @@ class AccountUsage:
             return deepcopy(future.result(timeout=20))
         try:
             try:
-                response = self.fetcher(credential)
+                response = (self.bigmodel_fetcher if provider=='bigmodel' else self.fetcher)(credential)
             except Exception:
                 response = {'ok': False, 'code': 'provider_unavailable'}
             checked = datetime.now(timezone.utc).isoformat()
@@ -90,7 +107,7 @@ class AccountUsage:
                     result = {**deepcopy(previous), 'usage_refresh': {'state': 'failed', 'observed_at': checked,
                         'message': MESSAGES.get(code, MESSAGES['provider_unavailable'])}}
                     if code == 'auth_rejected':
-                        result['api_auth'] = {'status': 'rejected', 'source': ENDPOINT, 'observed_at': checked}
+                        result['api_auth'] = {'status': 'rejected', 'source': BIGMODEL_ENDPOINT if provider=='bigmodel' else ENDPOINT, 'observed_at': checked}
             future.set_result(deepcopy(result))
             return result
         except Exception:

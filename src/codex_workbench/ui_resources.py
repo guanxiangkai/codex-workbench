@@ -23,6 +23,7 @@ def ui_html(page: str = DEFAULT_VIEW) -> str:
             .replace("__WORKBENCH_READONLY_ICONS__",icons)
             .replace("__WORKBENCH_READONLY_CSS__",(root/'readonly.css').read_text())
             .replace("__WORKBENCH_CONFIG_CRYPTO__",(root/'configuration-crypto.js').read_text())
+            .replace("__WORKBENCH_READONLY_PRIMITIVES__",(root/'readonly-primitives.js').read_text())
             .replace("__WORKBENCH_READONLY_JS__",(root/'readonly.js').read_text()))
 
 

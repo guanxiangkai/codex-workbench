@@ -160,7 +160,7 @@ main>.toolbar{position:static;top:auto;z-index:auto;margin-top:0;padding:0}
 .config-controls{position:static;margin-top:0;padding:0 0 12px}
 .config-controls .config-toolbar{margin-bottom:0}
 /* 筛选数量变化不参与搜索框宽度分配。 */
-.config-toolbar{display:grid;grid-template-columns:minmax(0,280px) 174px minmax(96px,1fr)}
+.config-toolbar{display:grid;grid-template-columns:minmax(0,400px) 174px minmax(96px,1fr)}
 .config-toolbar .search{width:100%;min-width:0}
 .config-toolbar .select{width:174px;min-width:0;max-width:none}
 .config-toolbar .count{width:96px;text-align:right;justify-self:end}

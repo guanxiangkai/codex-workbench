@@ -3,13 +3,46 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
 
 class GatewayReactivationTests(unittest.TestCase):
+    def test_prepare_defaults_to_dynamic_and_explicitly_migrates_legacy_policy(self):
+        cases = ((None, None, 'registered_accounts'),
+                 ('fixed', None, 'fixed'),
+                 ('fixed', 'registered_accounts', 'registered_accounts'),
+                 (None, 'fixed', 'fixed'))
+        for existing, override, expected in cases:
+            with self.subTest(existing=existing, override=override), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                data = home / 'Library/Application Support/CodexWorkbench'
+                root = data / 'model-gateway'
+                root.mkdir(parents=True, mode=0o700)
+                (home / 'Library/LaunchAgents').mkdir(parents=True)
+                if existing:
+                    (root / 'settings.json').write_text(json.dumps({'account_policy': existing}))
+                with sqlite3.connect(data / 'workbench.sqlite3') as db:
+                    db.execute('CREATE TABLE execution_accounts(id TEXT,codex_home TEXT,subject_id TEXT)')
+                    db.execute('INSERT INTO execution_accounts VALUES(?,?,?)',
+                               ('current', str(home / '.codex'), 'synthetic-current'))
+                source = Path(__file__).resolve().parents[1] / 'gateway_control.py'
+                spec = importlib.util.spec_from_file_location('gateway_policy_under_test', source)
+                module = importlib.util.module_from_spec(spec)
+                environment = {} if override is None else {'WORKBENCH_GATEWAY_ACCOUNT_POLICY': override}
+                with patch.dict(os.environ, environment, clear=True), patch.object(Path, 'home', return_value=home):
+                    spec.loader.exec_module(module)
+                    with patch.object(module, 'resolve_gateway_cli', return_value=Path('/synthetic/codex')), contextlib.redirect_stdout(io.StringIO()):
+                        module.prepare()
+                settings = json.loads((root / 'settings.json').read_text())
+                self.assertEqual(settings['account_policy'], expected)
+                self.assertEqual(settings['authorized_account_ids'], ['current'])
+                self.assertEqual(settings['accounts'][0]['subject_id'], 'synthetic-current')
+
     def test_reactivation_preserves_other_settings_and_refuses_changed_block(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

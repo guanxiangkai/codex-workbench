@@ -44,7 +44,7 @@ def _authorized_account_ids() -> tuple[str, ...]:
 
 ALLOWED=_authorized_account_ids()
 _existing_settings=json.loads((ROOT/'settings.json').read_text()) if (ROOT/'settings.json').exists() else {}
-ACCOUNT_POLICY=os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_POLICY', _existing_settings.get('account_policy', 'fixed'))
+ACCOUNT_POLICY=os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_POLICY', _existing_settings.get('account_policy', 'registered_accounts'))
 if ACCOUNT_POLICY not in ('fixed', 'registered_accounts'):
     raise ValueError('网关账户策略无效')
 TOP='# BEGIN CODEX WORKBENCH GATEWAY\nmodel_provider = "workbench_gateway"\n# END CODEX WORKBENCH GATEWAY\n'

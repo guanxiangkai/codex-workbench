@@ -34,7 +34,8 @@ _ACCOUNT_ID = re.compile(r'[A-Za-z0-9_.:@-]{1,160}\Z')
 
 def _authorized_account_ids() -> tuple[str, ...]:
     """读取显式网关账户白名单；配置无效时拒绝准备网关。"""
-    value=json.loads(os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_IDS', '["current"]'))
+    existing=json.loads((ROOT/'settings.json').read_text()) if (ROOT/'settings.json').exists() else {}
+    value=json.loads(os.environ['WORKBENCH_GATEWAY_ACCOUNT_IDS']) if 'WORKBENCH_GATEWAY_ACCOUNT_IDS' in os.environ else existing.get('authorized_account_ids', [a['id'] for a in existing.get('accounts', [])] or ['current'])
     if (not isinstance(value,list) or not 1 <= len(value) <= 8 or 'current' not in value
             or len(value)!=len(set(value)) or any(not isinstance(item,str) or not _ACCOUNT_ID.fullmatch(item) for item in value)):
         raise ValueError('网关账户白名单无效')
@@ -42,6 +43,10 @@ def _authorized_account_ids() -> tuple[str, ...]:
 
 
 ALLOWED=_authorized_account_ids()
+_existing_settings=json.loads((ROOT/'settings.json').read_text()) if (ROOT/'settings.json').exists() else {}
+ACCOUNT_POLICY=os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_POLICY', _existing_settings.get('account_policy', 'fixed'))
+if ACCOUNT_POLICY not in ('fixed', 'registered_accounts'):
+    raise ValueError('网关账户策略无效')
 TOP='# BEGIN CODEX WORKBENCH GATEWAY\nmodel_provider = "workbench_gateway"\n# END CODEX WORKBENCH GATEWAY\n'
 BOTTOM='''\n# BEGIN CODEX WORKBENCH PROVIDER
 [model_providers.workbench_gateway]
@@ -76,7 +81,7 @@ def prepare():
         accounts=[{'id':r['id'],'home':str(Path.home()/'.codex') if r['id']=='current' else r['codex_home'],
                    'subject_id':r['subject_id']} for r in db.execute('SELECT id,codex_home,subject_id FROM execution_accounts') if r['id'] in ALLOWED]
     if {a['id'] for a in accounts}!=set(ALLOWED) or any(not a['subject_id'] for a in accounts):raise ValueError('授权账户未完整登记')
-    atomic_json(ROOT/'settings.json',{'authorized_account_ids':list(ALLOWED),'accounts':accounts,'cli':CLI,'port':18742,'release':str(release),'probe':str(release/'validate_model_gateway.py')})
+    atomic_json(ROOT/'settings.json',{'account_policy':ACCOUNT_POLICY,'authorized_account_ids':list(ALLOWED),'accounts':accounts,'cli':CLI,'port':18742,'release':str(release),'probe':str(release/'validate_model_gateway.py')})
     RouteStore(ROOT)
     payload={'Label':LABEL,'ProgramArguments':[sys.executable,str(release/'run.py'),'--root',str(ROOT)],
              'RunAtLoad':True,'KeepAlive':{'SuccessfulExit':False},'ThrottleInterval':30,

@@ -1,13 +1,68 @@
+import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from codex_workbench.service import Workbench
-from codex_workbench.snapshot_store import SnapshotStore
+from codex_workbench.snapshot_store import SnapshotStore, SnapshotScheduler, load_schedule
 
 
 class SnapshotStoreTest(unittest.TestCase):
+    def test_codex_cached_projection_preserves_last_refresh_and_identity_status(self):
+        with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
+            release.return_value.revision = 'test'
+            native = Mock()
+            versions = Mock(); versions.context.return_value = 'account-a'
+            board = Workbench(Path(directory), Path(directory)/'resources', native_reader=native, source_versions=versions)
+            fresh = {'id':'current','email':'a@example.invalid','login_status':'ready','remaining_percent':90,'usage_refresh':{'state':'ready'}}
+            native.accounts.return_value = [dict(fresh)]
+            board.refresh_provider_usage('codex')
+            native.accounts.return_value = [{**fresh,'login_status':'unavailable','usage_refresh':{'state':'cached'}}]
+            self.assertTrue(board.collect_snapshot('accounts'))
+            cached = board.sync('accounts')['data']['accounts'][0]
+            self.assertEqual('ready', cached['login_status'])
+            self.assertEqual('ready', cached['usage_refresh']['state'])
+            native.accounts.return_value = [{**fresh,'usage_refresh':{'state':'failed'}}]
+            with self.assertRaises(ValueError): board.refresh_provider_usage('codex')
+            board.close()
+
+    def test_native_automation_requests_run_without_internal_timers(self):
+        scheduler = SnapshotScheduler(Mock())
+        try:
+            self.assertFalse(scheduler.schedule['provider_timers_enabled'])
+            self.assertTrue(all(task['scheduler'] == 'codex_automation' for task in scheduler.provider_tasks()))
+            self.assertIsNone(scheduler._due_provider(10**12))
+            for provider in ('codex', 'bigmodel', 'minimax', 'manual_reset'):
+                scheduler.request_provider(provider)
+                scheduler.request_provider(provider)
+                self.assertEqual(provider, scheduler._due_provider(10**12))
+                self.assertIsNone(scheduler._due_provider(10**12))
+            with self.assertRaises(ValueError):
+                scheduler.request_provider('unknown')
+        finally:
+            scheduler.close()
+
+    def test_provider_timer_setting_requires_a_boolean_and_drives_due_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'refresh-schedule.json'
+            for configured, expected in (({}, False), ({'provider_timers_enabled': True}, True),
+                                         ({'provider_timers_enabled': False}, False),
+                                         ({'provider_timers_enabled': 1}, False)):
+                path.write_text(json.dumps(configured), encoding='utf-8')
+                self.assertIs(expected, load_schedule(path)['provider_timers_enabled'])
+
+            path.write_text('{"provider_timers_enabled": true}', encoding='utf-8')
+            scheduler = SnapshotScheduler(Mock(), path)
+            try:
+                self.assertEqual('workbench', scheduler.provider_tasks()[0]['scheduler'])
+                due_at = time.time() + 7200
+                self.assertEqual(['codex', 'bigmodel', 'minimax', 'manual_reset'],
+                                 [scheduler._due_provider(due_at) for _ in range(4)])
+            finally:
+                scheduler.close()
+
     def test_restart_reuses_last_successful_public_snapshot(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision='test'

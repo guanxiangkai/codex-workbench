@@ -5,8 +5,9 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from codex_workbench.executor import Execution
+from codex_workbench.executor import CodexExecutor, Execution
 from codex_workbench.runner import Runner
 from codex_workbench.store import Store
 
@@ -64,16 +65,41 @@ class RunnerTests(unittest.TestCase):
                          (request.model, request.effort, request.concurrency, request.sandbox))
 
     def test_missing_execution_account_never_starts_executor(self):
-        task = self.store.get_task(self.task["id"])
-        self.store.update_task(task["id"], task["version"], execution_account_id=None)
+        unconfigured = Store(str(Path(self.temp.name) / "unconfigured.db"))
+        project = unconfigured.create_project("未配置", self.temp.name)
+        agent = unconfigured.create_agent("测试")
+        task = unconfigured.create_task(project["id"], "任务", agent_id=agent["id"])
+        unconfigured.update_task(task["id"], task["version"], state="ready")
         class ForbiddenExecutor:
             def execute(inner, *args):
-                raise AssertionError("未绑定任务不得调用任何执行器")
-        runner = Runner(self.store, ForbiddenExecutor())
+                raise AssertionError("未设置默认账户不得调用任何执行器")
+        runner = Runner(unconfigured, ForbiddenExecutor())
         self.addCleanup(runner.close)
-        with self.assertRaisesRegex(ValueError, "独立执行账户"):
+        with self.assertRaisesRegex(ValueError, "默认执行账户"):
             runner.start(task["id"])
-        self.assertEqual(self.store.list_runs(task["id"]), [])
+        self.assertEqual(unconfigured.list_runs(task["id"]), [])
+
+    def test_real_executor_requires_gateway_before_claiming(self):
+        runner = Runner(self.store, CodexExecutor(("unused",)))
+        self.addCleanup(runner.close)
+        with mock.patch("codex_workbench.account_routing.gateway_endpoint", side_effect=ValueError("网关未就绪")):
+            with self.assertRaisesRegex(ValueError, "网关未就绪"):
+                runner.start(self.task["id"])
+        self.assertEqual("ready", self.store.get_task(self.task["id"])["state"])
+        self.assertEqual([], self.store.list_runs(self.task["id"]))
+
+    def test_real_executor_receives_checked_gateway_endpoint(self):
+        observed = []
+        class RecordingExecutor(CodexExecutor):
+            def execute(inner, request, cancel, on_event):
+                observed.append(request)
+                return Execution("review", "完成")
+        runner = Runner(self.store, RecordingExecutor(("unused",)))
+        self.addCleanup(runner.close)
+        with mock.patch("codex_workbench.account_routing.gateway_endpoint", return_value="http://127.0.0.1:43123/v1"):
+            runner.start(self.task["id"])
+        self.assertEqual("done", self.await_terminal()["state"])
+        self.assertEqual("http://127.0.0.1:43123/v1", observed[0].gateway_url)
 
     def test_cancel_before_finalization_wins_over_success(self):
         entered, release = threading.Event(), threading.Event()

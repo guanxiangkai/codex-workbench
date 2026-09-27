@@ -411,8 +411,9 @@ function resetAnalysisView(analysis){
  const predicted=!unavailable&&value.predicted_reset_window&&typeof value.predicted_reset_window==='object'?value.predicted_reset_window:null;
  const point=unavailable?null:value.predicted_reset_at;
  const range=predicted?.start&&predicted?.end?`${fmtDate(predicted.start)} 至 ${fmtDate(predicted.end)}`:point?`参考时点：${fmtDate(point)}`:'未提供';
- const summary=unavailable?'待更新':value.summary|| (signal==='none'?'当前没有重置信号。':signal==='present'?'检测到近期重置信号，预计时间仅作参考。':'暂无足够数据确认重置信号。');
- return `<section class="reset-analysis" data-signal="${E(signal)}" aria-label="重置分析"><div class="reset-analysis-heading"><div class="reset-analysis-time"><span>预计重置时间</span><strong>${E(signal==='present'&&!unavailable?range:signal==='none'&&!unavailable?'无':'未确定')}</strong></div>${confidence===null?badge('置信度未提供','muted'):badge(`模型置信度 ${bounded(confidence)}`,confidence>=.7?'green':'muted')}</div><div class="reset-analysis-summary"><span>分析摘要</span><strong>${E(summary)}</strong></div><small class="reset-analysis-meta">${value.observed_at?`更新时间：${E(fmtDate(value.observed_at))}`:'更新时间未提供'}</small></section>`;
+ const rawSummary=typeof value.summary==='string'?value.summary.trim():'';
+ const summary=unavailable||rawSummary==='待更新'?'':rawSummary||(signal==='none'?'当前没有重置信号。':signal==='present'?'检测到近期重置信号，预计时间仅作参考。':'暂无足够数据确认重置信号。');
+ return `<section class="reset-analysis" data-signal="${E(signal)}" aria-label="重置分析"><div class="reset-analysis-heading"><div class="reset-analysis-time"><span>预计重置时间</span><strong>${E(signal==='present'&&!unavailable?range:signal==='none'&&!unavailable?'无':'未确定')}</strong></div>${confidence===null?badge('置信度未提供','muted'):badge(`模型置信度 ${bounded(confidence)}`,confidence>=.7?'green':'muted')}</div>${summary?`<div class="reset-analysis-summary"><span>分析摘要</span><strong>${E(summary)}</strong></div>`:''}<small class="reset-analysis-meta">${value.observed_at?`更新时间：${E(fmtDate(value.observed_at))}`:'更新时间未提供'}</small></section>`;
 }
 function accountView(data=s.data){
  const accounts=A(data.accounts); const items=orderedAccounts(findText(accounts.filter(a=>a.is_current||!['not_logged_in','unconfirmed'].includes(a.login_status)),s.query,['display_name','username','name','email']));

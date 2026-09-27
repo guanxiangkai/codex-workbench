@@ -130,7 +130,8 @@ def execute(model: dict[str, Any], request: dict[str, Any], token: str | None) -
             return _fail("request_invalid")
         body = ({"model": model_id, "messages": messages, "max_completion_tokens": maximum} if protocol == "openai-chat"
                 else {"model": model_id, "input": messages[-1]["content"], "max_output_tokens": maximum})
-        payload, _, failure = _post(endpoint, _json_body(body), "application/json", token, None, __import__("time").monotonic() + timeout)
+        # Non-streaming reasoning may not return headers within a probe's 15 seconds.
+        payload, _, failure = _post(endpoint, _json_body(body), "application/json", token, None, __import__("time").monotonic() + timeout, response_timeout=timeout)
         if failure:
             return _fail(failure["code"])
         parsed = _json(payload)

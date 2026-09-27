@@ -1,4 +1,4 @@
-/* 只读工作台：视图状态、宿主桥接与逐字段解密，均不提供业务写入。 */
+/* 工作台：目录视图、宿主桥接与本机任务、资料操作。 */
 (()=>{'use strict';
 /** 仅翻译展示名称，原始标识保留用于查找和工具调用。 */
 const CHINESE_TITLES={
@@ -146,8 +146,8 @@ function avatarMarkup(account){
   :`<span class="avatar">${I('user')}</span>`;
 }
 const PAGES=Object.fromEntries(WORKBENCH_MODULES.map(x=>[x.id,x.name]));
-const GROUPS=[...new Set(WORKBENCH_MODULES.map(x=>x.group))].map(name=>({name,pages:WORKBENCH_MODULES.filter(x=>x.group===name).map(x=>x.id)}));
-const NAV={accounts:'user',other_accounts:'users',agents:'sparkles',models:'brain',config:'shield',projects:'folder',knowledge:'book-open',services:'server',connections:'globe'};
+const GROUPS=[...new Set(WORKBENCH_MODULES.filter(x=>x.id!=='planning').map(x=>x.group))].map(name=>({name,pages:WORKBENCH_MODULES.filter(x=>x.group===name).map(x=>x.id)}));
+const NAV={accounts:'user',other_accounts:'users',agents:'sparkles',models:'brain',config:'shield',projects:'folder',knowledge:'book-open',services:'server',connections:'globe',planning:'layout-dashboard'};
 const STATES={backlog:['待处理','orange','inbox'],ready:['待执行','blue','clock'],running:['执行中','purple','circle-play'],done:['已完成','green','circle-check'],archived:['已归档','muted','archive']};
 const TYPES={image_generation:'图像生成',video_generation:'视频生成',reasoning:'推理',multimodal:'多模态',speech_to_text:'语音转文字',text_to_speech:'文字转语音',embedding:'嵌入',rerank:'重排序',unconfigured:'未配置'};
 const RESULTS={completed:'成功',failed:'失败',interrupted:'已中断',cancelled:'已取消',inProgress:'执行中'};
@@ -260,7 +260,7 @@ function fieldValue(root,path){let value=root;for(const key of path){if(value===
 function foldersIn(folders,id){const result=new Set(id?[id]:[]);for(let n=0;n<folders.length;n++){let changed=false;for(const f of folders)if(result.has(f.parent_id)&&!result.has(f.id)){result.add(f.id);changed=true;}if(!changed)break;}return result;}
 const readResult=r=>{if(r?.isError||r?.error)throw Error(r?.structuredContent?.error?.message||r.error?.message||'读取失败，请重试');const v=r?.structuredContent??r;if(!v||typeof v!=='object')throw Error('读取结果格式无效');return v;};
 /** 公共读取及宿主消息统一限制等待时间；取消时释放计时器和监听器。 */
-async function boundedRead(run,signal){
+async function boundedRead(run,signal,timeoutMs=45000){
  const controller=new AbortController();
  const cancel=()=>controller.abort(signal.reason||new DOMException('读取已取消','AbortError'));
  let timer,onAbort;
@@ -270,7 +270,7 @@ async function boundedRead(run,signal){
    onAbort=()=>reject(controller.signal.reason);
    if(controller.signal.aborted)onAbort();else controller.signal.addEventListener('abort',onAbort,{once:true});
   });
-  timer=setTimeout(()=>controller.abort(Error('读取超时，请重新读取')),45000);
+  timer=setTimeout(()=>controller.abort(Error('读取超时，请重新读取')),timeoutMs);
   return await Promise.race([interrupted,Promise.resolve().then(()=>{controller.signal.throwIfAborted();return run(controller.signal);})]);
  }finally{clearTimeout(timer);signal?.removeEventListener('abort',cancel);controller.signal.removeEventListener('abort',onAbort);}
 }
@@ -285,14 +285,14 @@ async function fetchView(url,options){
 }
 class Bridge{
  constructor(){this.embedded=window.parent!==window;this.pending=new Map();this.ready=null;window.addEventListener('message',e=>{if(e.source!==parent||!e.data||e.data.jsonrpc!=='2.0')return;const d=e.data;if(d.method==='ui/notifications/tool-result'){receiveHostResult(d.params);return;}if(d.id&&this.pending.has(d.id)){const p=this.pending.get(d.id);d.error?p.reject(Error('宿主未完成读取请求')):p.resolve(d.result);}});}
- rpc(method,params,signal){return boundedRead(active=>new Promise((resolve,reject)=>{
+ rpc(method,params,signal,timeoutMs){return boundedRead(active=>new Promise((resolve,reject)=>{
   const id=crypto.randomUUID();
   const finish=(callback,value)=>{this.pending.delete(id);active.removeEventListener('abort',cancel);callback(value);};
   const cancel=()=>finish(reject,active.reason);
   active.addEventListener('abort',cancel,{once:true});
   this.pending.set(id,{resolve:value=>finish(resolve,value),reject:error=>finish(reject,error)});
   try{parent.postMessage({jsonrpc:'2.0',id,method,params},'*');}catch(e){finish(reject,e);}
- }),signal);}
+ }),signal,timeoutMs);}
  /** 原生读取先完成宿主握手；首屏缓存可提前渲染，不能提前调用工具。 */
  async initialize(){
   if(!this.embedded)return;
@@ -300,12 +300,13 @@ class Bridge{
   return this.ready;
  }
  async tool(name,args={},signal){
-  if(this.embedded){await this.initialize();signal?.throwIfAborted();return readResult(await this.rpc('tools/call',{name,arguments:args},signal));}
+  const timeoutMs=['planning_draft','planning_intake'].includes(name)?135000:45000;
+  if(this.embedded){await this.initialize();signal?.throwIfAborted();return readResult(await this.rpc('tools/call',{name,arguments:args},signal,timeoutMs));}
   return boundedRead(async active=>{
    const response=await fetchView('/rpc',{method:'POST',headers:{'Content-Type':'application/json','X-Workbench-Request':'1'},body:JSON.stringify({name,arguments:args}),signal:active});
    if(!response.ok)throw Error('读取失败（HTTP '+response.status+'）');
    return readResult(await response.json());
-  },signal);
+  },signal,timeoutMs);
  }
  async openDocumentation(url){if(!['https://developers.openai.com/api/reference/resources/images/methods/generate','https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create'].includes(url))throw Error('文档地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.click();}
  async open(url){if(!nativeUrl(url))throw Error('原生会话地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.click();}
@@ -313,6 +314,7 @@ class Bridge{
 }
 const s={page:Object.hasOwn(PAGES,INITIAL_PAGE)?INITIAL_PAGE:(WORKBENCH_MODULES[0]?.id||'agents'),data:{},query:'',section:'',project:'',session:'',folder:'',kind:'',modelProvider:'',accountProvider:'',collapsedFolders:new Set(),loading:false,syncing:false,usageRefreshing:false,error:'',seq:0,detail:null,detailSeq:0,revealed:new Map(),fieldBusy:false,scope:'global'};
 const root=document.getElementById('app');const bridge=new Bridge();let abort,snapshotPollTimer,snapshotPollAttempts=0;
+const planningUI=window.WorkbenchPlanning?.create({tool:(name,args,signal)=>bridge.tool(name,args,signal),escape:E,icon:I,notify:message,invalidate:()=>render(),refresh:()=>load({refresh:true}),navigate:(view,taskId)=>{pageChange(view);if(taskId)planningUI.openTask(taskId);},openNative:url=>bridge.open(url)});
 // 保存状态独立于列表读取，切页和刷新不会重放写入。
 s.accountSaving=null;
 s.accountCreateBusy=false;s.accountChecking=null;
@@ -516,7 +518,7 @@ function configurationFieldTone(field){
 }
 function secretPanel(d){const entry=d.entry||d.value?.credential;if(!entry)return '';return `<section class="card secret-panel ${d.kind==='config'?'config-field-panel':''}"><div class="row"><h2>配置字段</h2><button class="soft" id="fields" ${s.fieldBusy?'disabled':''}>${s.fieldBusy?'读取中':'重新读取字段'}</button></div>${d.fieldsState==='error'?'<p class="muted">字段读取失败，请重新读取。</p>':!d.fields?.length?`<p class="muted" role="status">${s.fieldBusy?'正在读取配置…':d.fieldsState==='ready'?'暂无配置字段':'配置已清理，点击重新读取字段'}</p>`:''}<div class="configuration-fields">${A(d.fields).map((f,i)=>`<div class="secret-field"${d.kind==='config'?` data-tone="${configurationFieldTone(f)}"`: ''}><div><strong>${E(f.path.map(k=>LABELS[k]||k).join(' / ')||'内容')}</strong><pre>${s.revealed.has(i)?E(s.revealed.get(i)):'••••••••'}</pre></div>${d.kind==='config'||f.autoVisible?'':`<div class="actions"><button data-reveal="${i}" ${s.fieldBusy?'disabled':''}>${s.revealed.has(i)?'隐藏':'查看'}</button><button data-copy="${i}" ${s.fieldBusy?'disabled':''}>复制</button></div>`}</div>`).join('')}</div></section>`;}
 
-function navigation(){const group=GROUPS.find(g=>g.pages.includes(s.page));return `<header class="top"><span class="brand">${I('layout-dashboard')}工作台</span><nav aria-label="工作台分组">${GROUPS.map(g=>`<button data-group="${E(g.name)}" aria-current="${g===group?'true':'false'}">${E(g.name)}</button>`).join('')}</nav></header><nav class="subnav" aria-label="功能模块">${group.pages.map(p=>`<button data-page="${p}" aria-current="${p===s.page?'page':'false'}">${I(NAV[p])}${PAGES[p]}</button>`).join('')}</nav>`;}
+function navigation(){const group=GROUPS.find(g=>g.pages.includes(s.page));return `<header class="top"><button type="button" class="brand" data-page="planning" data-workbench-home="true" aria-label="工作台工作计划" aria-current="${s.page==='planning'?'page':'false'}">${I('layout-dashboard')}工作台</button><nav aria-label="工作台分组">${GROUPS.map(g=>`<button data-group="${E(g.name)}" aria-current="${g===group?'true':'false'}">${E(g.name)}</button>`).join('')}</nav></header>${group?.pages.length>1?`<nav class="subnav" aria-label="功能模块">${group.pages.map(p=>`<button data-page="${p}" aria-current="${p===s.page?'page':'false'}">${I(NAV[p])}${PAGES[p]}</button>`).join('')}</nav>`:''}`;}
 function projectView(){let items=newestRecords(findText(s.data.projects,s.query,['name']));if(s.section)items=items.filter(x=>s.section==='__none__'?!x.section_id:x.section_id===s.section);return `<div class="toolbar">${search()}${select('project-section','分区',options(s.data.sections,s.section,'全部分区')+`<option value="__none__" ${s.section==='__none__'?'selected':''}>无分区</option>`)}${listCount(items,'个项目')}</div><div class="skill-grid">${items.map(x=>`<article class="card skill project-card" style="--project-color:${color(x.color)}"><div class="row">${entityIcon(x)}${A(s.data.sections).find(sec=>sec.id===x.section_id)?entityTag(A(s.data.sections).find(sec=>sec.id===x.section_id),false):badge('无分区')}</div><h2 style="color:${color(x.color)}">${E(x.name)}</h2><p>${x.session_count??0} 个关联会话</p><button class="soft" data-project="${E(x.id)}">查看关联会话</button></article>`).join('')||empty('当前范围没有项目')}</div>`;}
 function knowledgeView(){const items=A(s.data.knowledge);return `<div class="toolbar">${select('knowledge-scope','知识范围',A(s.data.scopes).map(x=>`<option value="${E(x.id)}" ${x.id===s.scope?'selected':''}>${E(x.name)}</option>`).join(''))}${search()}${listCount(items,'条知识')}</div><div class="knowledge-list">${items.map((x,i)=>`<article class="card knowledge-card" data-tone="${CARD_THEMES[knowledgeTheme(x)][1]}"><div class="row">${cardSymbol(knowledgeTheme(x))}<div class="grow"><h2 title="${E(x.title)}">${E(chineseTitle(x.title,'知识'))}</h2><p class="muted">${E(x.summary)}</p><span>${A(x.tags).map(tagBadge).join(' ')}</span></div>${badge('已审核','green')}<button class="soft" data-knowledge="${i}">阅读详情</button></div></article>`).join('')||empty('当前知识范围暂无匹配内容')}</div>${s.data.limit_reached?'<p class="muted">已达到单次结果上限，可通过查询缩小范围。</p>':''}`;}
 function servicesView(){let items=newestRecords(findText(s.data.services,s.query,['name','kind','endpoint']));if(s.kind)items=items.filter(x=>x.reference_kind===s.kind);return `<div class="toolbar">${search()}${select('kind','来源',options([{id:'model',name:'模型目录'},{id:'credential',name:'密钥保险库'}],s.kind,'全部来源'))}${listCount(items,'项服务')}</div><div class="knowledge-list">${items.map(x=>`<article class="card"><div class="row">${symbol(x.reference_kind==='model'?'cloud':'server')}<div class="grow"><h2 title="${E(x.name)}">${E(chineseTitle(x.name,'服务'))}</h2><p class="muted">${x.source==='model_configuration'?'模型服务 · 密钥保存在保险库':'连接配置 · 密钥保险库'}</p>${A(x.tags).map(tagBadge).join(' ')}</div><span class="badge module-badge">${E(x.kind)}</span>${A(x.models).map(m=>`<button class="model-link" data-tone="${category(m.model_type)[1]}" data-model="${E(m.id)}">${I(category(m.model_type)[0])}${E(m.name)}</button>`).join('')}<button class="soft" data-service="${E(x.id)}">查看关联配置</button></div></article>`).join('')||empty('暂无可识别的服务配置引用')}</div>`;}
@@ -530,12 +532,12 @@ function queueListSearch(event){
 }
 function pendingSnapshot(){const snapshot=s.data.status?.snapshot;return !snapshot?.updated_at&&['pending','error'].includes(snapshot?.state);}
 function clearSnapshotPoll(){clearTimeout(snapshotPollTimer);snapshotPollTimer=null;snapshotPollAttempts=0;}
-function scheduleSnapshotPoll(page){const snapshot=s.data.status?.snapshot;if(!snapshot||(!snapshot.refreshing&&snapshot.state!=='pending')||document.hidden||s.detail||s.page!==page||snapshotPollAttempts>=30)return;clearTimeout(snapshotPollTimer);snapshotPollTimer=setTimeout(()=>{if(!document.hidden&&s.page===page&&!s.detail){snapshotPollAttempts++;load({poll:true});}},2000);}
+function scheduleSnapshotPoll(page){const snapshot=s.data.status?.snapshot,planningRunning=page==='planning'&&A(s.data.tasks).some(t=>t.status==='running');if((!planningRunning&&(!snapshot||(!snapshot.refreshing&&snapshot.state!=='pending')||snapshotPollAttempts>=30))||document.hidden||s.detail||s.page!==page)return;clearTimeout(snapshotPollTimer);snapshotPollTimer=setTimeout(()=>{if(!document.hidden&&s.page===page&&!s.detail){snapshotPollAttempts++;load({poll:true});}},planningRunning?5000:2000);}
 function render(){
  const focused=document.activeElement?.id,selection=document.activeElement?.selectionStart;
  const scrolls=[...document.querySelectorAll('.directories')].map(x=>[x.scrollTop,x.scrollLeft]);
  const pageDetail=Boolean(s.detail);
- root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,agents:skillsView,models:modelsView,config:configView,projects:projectView,knowledge:knowledgeView,services:servicesView,connections:connectionsView}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite"></div>`;
+ root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,agents:skillsView,models:modelsView,config:configView,projects:projectView,knowledge:knowledgeView,services:servicesView,connections:connectionsView,planning:()=>planningUI?.render('planning',s.data)||empty('工作计划尚未加载')}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite"></div>`;
  bind();document.querySelectorAll('.directories').forEach((x,i)=>{if(scrolls[i]){x.scrollTop=scrolls[i][0];x.scrollLeft=scrolls[i][1];}});
  if(focused&&focused!=='query')document.getElementById(focused)?.focus({preventScroll:true});
  if(focused==='query'){const q=document.getElementById('query');q?.focus();try{q?.setSelectionRange(selection,selection);}catch{}}
@@ -545,7 +547,12 @@ function render(){
 function defaultAccountButton(account){
  if(account.is_default)return '';
  const busy=s.accountSaving===account.id,disabled=account.is_default||account.login_status!=='ready'||s.accountSaving!==null;
- return `<button id="account-default-${E(account.id)}" class="soft" data-account-default="${E(account.id)}" aria-label="${E(accountTitle(account))}：${account.is_default?'默认账户':'设为默认账户'}" ${disabled?'disabled':''} ${busy?'aria-busy="true"':''} title="${account.login_status==='ready'?'所有会话下一次请求使用此账户':'账户未登录或身份尚未确认'}">${I('star')}${busy?'设置中…':account.is_default?'默认账户':'设为默认'}</button>`;
+ return `<button id="account-default-${E(account.id)}" class="soft" data-account-default="${E(account.id)}" aria-label="${E(accountTitle(account))}：${account.is_default?'默认账户':'设为默认账户'}" ${disabled?'disabled':''} ${busy?'aria-busy="true"':''} title="${account.login_status==='ready'?'切换后，所有会话跟随当前默认账户':'账户未登录或身份尚未确认'}">${I('star')}${busy?'设置中…':account.is_default?'默认账户':'设为默认'}</button>`;
+}
+function defaultAccountMessage(result){
+ return result?.applies_to==='all_sessions_current_default'&&result?.routing_ready===true
+  ?'默认账户已切换，所有会话跟随当前默认账户'
+  :'默认账户已保存；账户路由未就绪，尚未在 Codex 中生效';
 }
 /** 仅在服务端确认保存后更新标记；错误保持原选择，过期读取不得覆盖结果。 */
 async function setDefaultAccount(id){
@@ -553,13 +560,13 @@ async function setDefaultAccount(id){
  if(s.page!=='accounts'||s.accountSaving!==null||!account||account.is_default||account.login_status!=='ready')return;
  const expected=A(s.data.accounts).find(a=>a.is_default)?.id??null;
  s.accountSaving=id;s.error='';s.seq++;abort?.abort();s.syncing=false;s.loading=false;render();
- let saved=false;
+ let saved=false,notice='';
  try{
   const result=await bridge.tool('account_default',{id,expected_default_id:expected});
   if(result.default_account_id!==id)throw Error('默认账户保存结果无法确认，请刷新后查看');
   viewCache.delete(canonicalKey({view:'accounts'}));
   if(s.page==='accounts')s.data={...s.data,accounts:A(s.data.accounts).map(a=>({...a,is_default:a.id===result.default_account_id}))};
-  saved=true;
+  saved=true;notice=defaultAccountMessage(result);
  }catch(error){
   if(s.page==='accounts')s.error=error.message;
  }finally{
@@ -567,7 +574,7 @@ async function setDefaultAccount(id){
   if(s.page==='accounts'){
    if(!A(s.data.accounts).length){load({refresh:true});return;}
    render();document.getElementById((saved?'account-title-':'account-default-')+id)?.focus({preventScroll:true});
-   if(saved)message('默认账户已更新，所有会话下一次请求将使用此账户');
+   if(saved)message(notice);
   }
  }
 }
@@ -624,10 +631,11 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   clearSecrets();render();
  }finally{if(seq===s.seq){s.loading=false;s.syncing=false;s.usageRefreshing=false;}}
 }
-function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.detail=null;s.data={};s.query='';s.section='';s.project='';s.folder='';s.kind='';s.accountProvider='';s.session='';s.scope='global';clearSecrets();load();}
+function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;planningUI?.leave();s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.detail=null;s.data={};s.query='';s.section='';s.project='';s.folder='';s.kind='';s.accountProvider='';s.session='';s.scope='global';clearSecrets();load();}
 async function detail(kind,id,detailScope){clearSecrets();const epoch=s.detailSeq;s.error='';try{let value,entry,title;if(kind==='skill'){value=await bridge.tool('skill_detail',{id});title=skillTitle(value.skill);}else if(kind==='model'){value=await bridge.tool('model_detail',{id});entry=value.credential;title=chineseTitle(value.model.name,'模型');}else if(kind==='project'){value=await bridge.tool('project_detail',{id});title=value.project.name;}else if(kind==='knowledge'){value=await bridge.tool('knowledge_detail',{scope:detailScope||s.scope,key:id});title=chineseTitle(value.knowledge.title,'知识');}else{entry=A(s.data.entries).find(x=>x.id===id);if(!entry){const catalog=await bridge.tool('credential_list');entry=A(catalog.entries).find(x=>x.id===id);}if(!entry)throw Error('配置条目已变化');value={};title=entryTitle(entry);if(entry.model_id){value=await bridge.tool('model_detail',{id:entry.model_id});kind='model';entry=value.credential;}}if(epoch!==s.detailSeq)return;s.detail={kind,value,entry,title,fields:[],trigger:id};render();document.getElementById('back')?.focus();if(entry&&!document.hidden)await readSecret('fields');}catch(e){if(epoch===s.detailSeq){s.error=e.message;render();}}}
 async function readSecret(action,index){const d=s.detail,entry=d?.entry||d?.value?.credential;if(!entry||s.fieldBusy)return;const epoch=s.detailSeq;s.fieldBusy=true;s.error='';if(action==='fields'){s.revealed.clear();d.fields=[];d.fieldsState='loading';}render();let request,payload;try{request=await ConfigurationCrypto.prepare(entry);const envelope=await bridge.tool('credential_details',request.arguments);payload=await ConfigurationCrypto.decrypt(request,envelope);if(epoch!==s.detailSeq||d!==s.detail||document.hidden)return;const data=payloadRoot(payload);if(action==='fields'){d.fields=fieldPaths(data);s.revealed.clear();for(const [i,f] of d.fields.entries()){const raw=f.path.reduce((v,k)=>v?.[k],data);f.autoVisible=d.kind==='config'||automaticField(f,raw);if(f.autoVisible)s.revealed.set(i,d.kind!=='config'&&typeof raw==='boolean'?(raw?'是':'否'):fieldValue(data,f.path));}d.fieldsState='ready';}else{const f=d.fields[index];if(!f)throw Error('字段不存在');const value=fieldValue(data,f.path);if(action==='copy'){if(!navigator.clipboard?.writeText)throw Error('当前环境不支持复制');await navigator.clipboard.writeText(value);if(epoch===s.detailSeq)message('已复制');}else s.revealed.set(index,value);}}catch(e){if(epoch===s.detailSeq){s.error=e.message;if(action==='fields')d.fieldsState='error';}}finally{payload=null;if(request)request.privateKey=null;if(epoch===s.detailSeq){s.fieldBusy=false;render();if(action==='copy'&&!s.error)message('已复制');}}}
 function bind(){
+ if(s.page==='planning')planningUI?.bind(root,s.page,s.data);
  document.getElementById('skill-scope')?.addEventListener('change',e=>{s.kind=e.target.value;render();});
  document.getElementById('refresh-usage')?.addEventListener('click',()=>load({refresh:true}));
  document.getElementById('account-create')?.addEventListener('click',()=>createAccount());
@@ -637,7 +645,7 @@ function bind(){
  document.getElementById('model-provider')?.addEventListener('change',e=>{s.modelProvider=e.target.value;load();});
  document.getElementById('protocol-source')?.addEventListener('click',()=>{const url=s.detail?.value?.api_contract?.source_url;if(typeof url==='string'&&url.startsWith('https://developers.openai.com/api/reference/'))bridge.openDocumentation(url).catch(e=>message(e.message));});
 document.querySelectorAll('[data-group]').forEach(b=>b.onclick=()=>{const g=GROUPS.find(x=>x.name===b.dataset.group);if(g&&!g.pages.includes(s.page))pageChange(g.pages[0]);});
-document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>pageChange(b.dataset.page));
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{if(b.dataset.workbenchHome)planningUI?.home();if(b.dataset.page===s.page)render();else pageChange(b.dataset.page);});
 document.getElementById('retry')?.addEventListener('click',()=>{s.detail=null;load({refresh:true});});
 const query=document.getElementById('query');
 query?.addEventListener('compositionstart',()=>{clearTimeout(listSearchTimer);if(s.page==='knowledge'){s.seq++;abort?.abort();clearSnapshotPoll();}});
@@ -657,7 +665,7 @@ document.querySelectorAll('[data-knowledge]').forEach(b=>b.onclick=()=>{const it
 document.querySelectorAll('[data-service]').forEach(b=>b.onclick=async()=>{try{const r=await bridge.tool('service_detail',{id:b.dataset.service});await detail(r.service.credential_id?'config':r.service.reference_kind==='model'?'model':'config',r.service.credential_id||r.service.reference_id);}catch(e){s.error=e.message;render();}});
 document.getElementById('back')?.addEventListener('click',()=>{const trigger=s.detail?.trigger;clearSecrets();s.detail=null;s.error='';render();(document.getElementById('config-entry-'+trigger)||[...document.querySelectorAll('[data-config]')].find(b=>b.dataset.config===trigger))?.focus({preventScroll:true});});
 document.getElementById('open-native')?.addEventListener('click',()=>bridge.open(s.detail.value.native_url).catch(e=>{s.error=e.message;render();}));document.getElementById('fields')?.addEventListener('click',()=>readSecret('fields'));document.querySelectorAll('[data-reveal]').forEach(b=>b.onclick=()=>{const n=Number(b.dataset.reveal);if(s.revealed.has(n)){s.revealed.delete(n);render();}else readSecret('view',n);});document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>readSecret('copy',Number(b.dataset.copy)));}
-window.__workbenchReadonlyTest={providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,skillTitle,accountTitle,avatarMarkup,accountView,resetAnalysisView,setQuery:value=>{s.query=String(value??'');},skillsView,entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot};
+window.__workbenchReadonlyTest={providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,skillTitle,accountTitle,avatarMarkup,accountView,resetAnalysisView,setQuery:value=>{s.query=String(value??'');},skillsView,entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot,defaultAccountMessage};
 // 隐藏时只清理秘密，公共目录读取继续收尾；避免取消后永远停在忙状态。
 window.addEventListener('pagehide',()=>{clearSnapshotPoll();s.seq++;abort?.abort();s.loading=false;s.syncing=false;clearSecrets();render();});
 window.addEventListener('pageshow',event=>{if(event.persisted&&!s.detail&&!s.syncing)load();});

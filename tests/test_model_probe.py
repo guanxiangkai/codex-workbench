@@ -12,9 +12,9 @@ import unittest
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
-from codex_workbench.model_probe import probe_model
+from codex_workbench.model_probe import probe_model, _post
 from media_fixtures import MP3, wav_bytes
 
 
@@ -38,6 +38,18 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args) -> None:  # noqa: A003
         pass
+
+
+class ReasoningDeadlineTest(unittest.TestCase):
+    def test_header_wait_honors_reasoning_budget_but_probes_remain_short(self):
+        opener = Mock()
+        with patch('codex_workbench.model_probe.time.monotonic', return_value=100), \
+             patch('codex_workbench.model_probe._opener_for', return_value=opener), \
+             patch('codex_workbench.model_probe._read_response', return_value=(b'{}', None)):
+            for configured, expected in ((None, 15), (120, 90), (60, 60)):
+                args = {} if configured is None else {'response_timeout':configured}
+                _post('https://example.com', b'{}', 'application/json', None, None, 190, **args)
+                self.assertEqual(expected, opener.open.call_args.kwargs['timeout'])
 
 
 class ModelProbeTest(unittest.TestCase):

@@ -12,15 +12,44 @@ import socketserver
 import stat
 import subprocess
 import sys
+import sqlite3
 import threading
 import time
+import re
 from pathlib import Path
 
 from .service import Workbench
+from .analyzer_worker import ResetAnalysisWorker
+from .reset_analysis import RegisteredModelClient, ResetAnalyzer
 
 
 MAX_MESSAGE = 2 * 1024 * 1024
 PREVIEW_DESCRIPTOR = "preview.json"
+
+
+def _build_reset_analyzer(service):
+    """只绑定已登记且最近核验通过的 GLM/MiniMax 推理模型。"""
+    try:
+        models = []
+        for model in service._models():
+            provider = str(model.get('provider_id') or '').casefold()
+            if (model.get('model_type') == 'reasoning'
+                    and provider in {'bigmodel', 'minimax'}
+                    and model.get('credential_id')
+                    and model.get('validation_status') == 'verified'):
+                models.append(model)
+        # 各供应商选登记并验证的最高版本，避免用更新时间把旧版排到新版前。
+        def version(item):
+            return tuple(int(part) for part in re.findall(r'\d+', str(item.get('model') or '')))
+        selected = []
+        for provider in ('minimax', 'bigmodel'):
+            candidates = [item for item in models if item.get('provider_id') == provider]
+            if candidates:
+                selected.append(max(candidates, key=lambda item: (version(item), 'highspeed' not in str(item.get('model', '')).lower())))
+        client = RegisteredModelClient(selected) if selected else None
+        return ResetAnalysisWorker(ResetAnalyzer(client), cache_path=service.data_dir / 'manual-reset-analysis.json')
+    except (OSError, ValueError, sqlite3.Error):
+        return ResetAnalysisWorker(ResetAnalyzer())
 
 
 def default_data_dir() -> Path:
@@ -247,6 +276,7 @@ def serve(data_dir: Path, resources_dir: Path, codex: str, preview_port_override
             if (directory / name).is_symlink():
                 raise ValueError("数据文件不能是符号链接")
         service = Workbench(directory, resources_dir, codex, lease_fd=lock.fileno())
+        service.reset_analyzer = _build_reset_analyzer(service)
         endpoint = directory / "runtime.sock"
         server = None
         preview = None

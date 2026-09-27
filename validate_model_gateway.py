@@ -53,14 +53,13 @@ async def probe(cli: Path) -> dict:
                 # 重建路由库对象模拟进程内缓存丢失，归属只能由 SQLite 恢复。
                 gateway.routes = RouteStore(route_dir)
                 checks['existing_turn_completed'] = await rpc.turn(first) == 'completed'
-                checks['existing_account_preserved'] = model_a.calls == 2 and model_b.calls == 0
+                checks['existing_uses_current_default'] = model_a.calls == 1 and model_b.calls == 1
                 second = (await rpc.call('thread/start', {'cwd': str(root), 'model': 'routing-probe'}))['thread']['id']
                 checks['new_turn_completed'] = await rpc.turn(second) == 'completed'
-                checks['new_default_account_only'] = model_a.calls == 2 and model_b.calls == 1
-                checks['same_account_context_received'] = model_a.saw_previous
-                checks['no_cross_account_context'] = not model_b.saw_previous
+                checks['new_default_account_only'] = model_a.calls == 1 and model_b.calls == 2
+                checks['switched_account_context_received'] = model_b.saw_previous
                 checks['thread_metadata_matches_routes'] = (
-                    gateway.routes.lookup(first)['account_id'] == 'a' and gateway.routes.lookup(second)['account_id'] == 'b')
+                    gateway.routes.lookup(first)['account_id'] == 'b' and gateway.routes.lookup(second)['account_id'] == 'b')
                 checks['no_upstream_auth_material'] = not model_a.saw_auth and not model_b.saw_auth
                 checks['no_tools_executed'] = rpc.rejected_tools == 0
             return {'schema_version': 1, 'cli_sha256': file_digest(cli), 'checks': checks,

@@ -103,14 +103,14 @@ class GatewayTests(unittest.TestCase):
     def error_code(self, result):
         return json.loads(result[1])['error']['code']
 
-    def test_default_change_and_restart_preserve_binding(self):
+    def test_default_change_and_restart_use_current_default(self):
         first = self.body()
         self.assertEqual(self.request(first)[0], 200)
         self.default = 'b'
         self.server.routes = RouteStore(self.root / 'gateway')
         self.assertEqual(self.request(first)[0], 200)
         self.assertEqual(self.request(self.body())[0], 200)
-        self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-a', 'Bearer upstream-b'])
+        self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-b', 'Bearer upstream-b'])
 
     def test_prewarms_do_not_bind_or_infer(self):
         body = self.body(generate=False)
@@ -118,20 +118,20 @@ class GatewayTests(unittest.TestCase):
         self.assertIsNone(self.routes.lookup(body['client_metadata']['thread_id']))
         self.assertEqual(self.seen, [])
 
-    def test_child_inherits_root_not_new_default(self):
+    def test_child_uses_current_default(self):
         root = self.body(); self.request(root)
         self.default = 'b'
         self.assertEqual(self.request(self.body(root=root['client_metadata']['thread_id']))[0], 200)
-        self.assertEqual(self.seen[-1][2], 'Bearer upstream-a')
+        self.assertEqual(self.seen[-1][2], 'Bearer upstream-b')
 
-    def test_orphan_child_rejected(self):
-        self.assertEqual(self.error_code(self.request(self.body(root=str(uuid4())))), 'parent_route_missing')
-        self.assertEqual(self.seen, [])
+    def test_resumed_child_uses_default_without_parent_route(self):
+        self.assertEqual(self.request(self.body(root=str(uuid4())))[0], 200)
+        self.assertEqual(self.seen[-1][2], 'Bearer upstream-a')
 
     def test_identity_change_rejected(self):
         body = self.body(); self.request(body)
         self.subjects['a'] = 'different-person'
-        self.assertEqual(self.error_code(self.request(body)), 'account_identity_changed')
+        self.assertEqual(self.error_code(self.request(body)), 'upstream_identity_mismatch')
         self.assertEqual(len(self.seen), 1)
 
     def test_upstream_subject_must_match(self):
@@ -161,6 +161,34 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(len(self.seen), 1)
         self.assertEqual(self.seen[0][2], 'Bearer upstream-a')
 
+    def test_quota_failure_then_default_switch_continues_same_thread(self):
+        body = self.body()
+        self.reply_status = 429
+        self.assertEqual(self.request(body)[0], 429)
+        self.default = 'b'
+        self.reply_status = 200
+        del self.subjects['a']
+        del self.server.upstreams['a']
+        self.assertEqual(self.request(body)[0], 200)
+        self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-b'])
+
+    def test_inflight_request_keeps_snapshot_next_request_switches(self):
+        body = self.body(); result = []; self.slow = True
+        thread = threading.Thread(target=lambda: result.append(self.request(body)))
+        thread.start()
+        self.assertTrue(self.stream_started.wait(2))
+        self.default = 'b'; self.stream_finish.set(); thread.join(6)
+        self.assertEqual(result[0][0], 200)
+        self.assertEqual(self.request(body)[0], 200)
+        self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-b'])
+
+    def test_cross_account_server_response_reference_requires_full_context(self):
+        body = self.body(); self.request(body); self.default = 'b'
+        self.assertEqual(self.error_code(self.request({**body, 'previous_response_id': 'old-response'})),
+                         'account_context_required')
+        self.assertEqual(len(self.seen), 1)
+        self.assertEqual(self.request(body)[0], 200)
+
     def test_full_protocol_fields_preserved_and_auth_replaced(self):
         body = self.body(tools=[{'type': 'function', 'name': 'test', 'parameters': {'type': 'object'}}],
             reasoning={'effort': 'ultra'}, include=['reasoning.encrypted_content'], service_tier='priority')
@@ -173,9 +201,9 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.seen[0][2], 'Bearer upstream-a')
 
     def test_unbound_previous_response_and_compact_rejected(self):
-        self.assertEqual(self.error_code(self.request(self.body(previous_response_id='synthetic-response'))), 'existing_thread_unbound')
-        self.assertEqual(self.error_code(self.request(self.body(), path='/v1/responses/compact')), 'existing_thread_unbound')
+        self.assertEqual(self.error_code(self.request(self.body(previous_response_id='synthetic-response'))), 'account_context_required')
         self.assertEqual(self.seen, [])
+        self.assertEqual(self.request(self.body(), path='/v1/responses/compact')[0], 200)
 
     def test_bound_compact_and_previous_response_forwarded(self):
         body = self.body(); self.request(body)

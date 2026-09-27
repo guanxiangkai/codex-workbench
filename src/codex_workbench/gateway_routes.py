@@ -1,4 +1,4 @@
-"""本地模型网关的持久会话归属；不存储请求、响应或认证材料。"""
+"""本地模型网关的请求账户记录；不存储请求、响应或认证材料。"""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -67,7 +67,7 @@ def thread_key(value) -> str:
 
 
 class RouteStore:
-    """SQLite 事务保证首次绑定唯一；默认变化、服务重启均不能改变已有归属。"""
+    """每次请求读取当前默认账户；SQLite 只记录最近使用账户及会话根标识。"""
 
     def __init__(self, directory: Path):
         self.directory = secure_directory(directory)
@@ -99,7 +99,7 @@ class RouteStore:
             return dict(row) if row else None
 
     def bind(self, body: dict, accounts: Callable, verify: Callable, *, compact=False) -> AccountTarget:
-        """仅首次真实推理可以绑定；子代理沿用根会话，压缩/已有响应不得触发新绑定。"""
+        """每次推理及压缩使用当前默认账户；已发出的请求保持其认证快照。"""
         metadata = body.get('client_metadata')
         if not isinstance(metadata, dict):
             raise GatewayError('thread_metadata_required', '请求缺少会话元数据', 409)
@@ -110,27 +110,19 @@ class RouteStore:
         with self._db() as db:
             db.execute('BEGIN IMMEDIATE')
             own = db.execute('SELECT * FROM routes WHERE thread_id=?', (thread_id,)).fetchone()
-            root = db.execute('SELECT * FROM routes WHERE thread_id=?', (root_id,)).fetchone()
-            if own:
-                if own['root_id'] != root_id:
-                    raise GatewayError('thread_owner_mismatch', '会话根标识与已有绑定不一致', 409)
-                chosen = accounts(own['account_id'])
-                if chosen.subject_id != own['subject_id']:
-                    raise GatewayError('account_identity_changed', '绑定账户的登录身份已改变', 409)
-            else:
-                if compact or body.get('previous_response_id'):
-                    raise GatewayError('existing_thread_unbound', '已有上下文必须先确认执行账户', 409)
-                if root_id != thread_id and not root:
-                    raise GatewayError('parent_route_missing', '子代理的主会话尚未绑定账户', 409)
-                chosen = accounts(root['account_id'] if root else None)
-                if root and chosen.subject_id != root['subject_id']:
-                    raise GatewayError('account_identity_changed', '主会话绑定账户的身份已改变', 409)
-            # 验证器必须返回真实上游身份；异常发生在任何持久写入之前。
+            if own and own['root_id'] != root_id:
+                raise GatewayError('thread_owner_mismatch', '会话根标识与已有记录不一致', 409)
+            chosen = accounts()
+            # 服务器响应引用属于原账户，不能借切换默认账户静默丢弃上下文。
+            if body.get('previous_response_id') and (not own or
+                    (own['account_id'], own['subject_id']) != (chosen.account_id, chosen.subject_id)):
+                raise GatewayError('account_context_required', '账户已切换，请使用完整会话上下文重试', 409)
             if verify(chosen) != chosen.subject_id:
-                raise GatewayError('upstream_identity_mismatch', '上游执行身份与绑定账户不符', 409)
-            if not own:
-                db.execute('INSERT INTO routes VALUES(?,?,?,?,?)',
-                           (thread_id, root_id, chosen.account_id, chosen.subject_id, time.time()))
+                raise GatewayError('upstream_identity_mismatch', '上游执行身份与当前默认账户不符', 409)
+            db.execute('INSERT INTO routes VALUES(?,?,?,?,?) '
+                       'ON CONFLICT(thread_id) DO UPDATE SET account_id=excluded.account_id, '
+                       'subject_id=excluded.subject_id',
+                       (thread_id, root_id, chosen.account_id, chosen.subject_id, time.time()))
         return chosen
 
     @contextmanager

@@ -30,14 +30,18 @@ def definition(name,title,description,properties=None,required=None):
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]},
                            "openai/ui": {"entrypoints": [{"type": "global"}]}}
-    if name in ('credential_details','knowledge_detail','account_default'):result["_meta"]={"ui":{"visibility":["app"]}}
-    if name=='account_default':result['annotations']['readOnlyHint']=False
+    if name in ('credential_details','knowledge_detail','account_create','account_login','account_status','account_default'):result["_meta"]={"ui":{"visibility":["app"]}}
+    if name in ('account_create','account_login','account_status','account_default'):result['annotations']['readOnlyHint']=False
+    if name in ('account_create','account_login'):result['annotations']['idempotentHint']=False
     return result
 
 FILTERS={'query':text(300),'kind':text(100),'provider':text(200),'tag':text(200),'folder':text(200)}
 
 TOOLS=[
- definition('account_default','设置默认账户','设置已登记且身份核验通过的新会话默认账户；不改变已有会话或官方登录。',{'id':ID,'expected_default_id':text(255,True)},['id','expected_default_id']),
+ definition('account_create','添加 Codex 账户','准备临时官方登录目录；成功核验后才登记账户，不自动设为默认。',{'name':text(160)},['name']),
+ definition('account_login','登录 Codex 账户','打开官方 OpenAI 登录页面，登录完成后自动核验账户状态。',{'id':ID},['id']),
+ definition('account_status','核验 Codex 账户','读取官方登录状态和额度，并登记已确认的账户主体。',{'id':ID},['id']),
+ definition('account_default','设置默认账户','设置已登记且身份核验通过的默认账户；所有会话下一次请求使用该账户。',{'id':ID,'expected_default_id':text(255,True)},['id','expected_default_id']),
  definition('open_workbench','工作台','打开只读工作台，不创建、修改或执行业务对象。'),
  definition('workbench_state','读取工作台','按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。',{'view':{'type':'string','enum':sorted(UI_VIEWS)},**FILTERS}),
  definition('skill_detail','读取技能详情','只读展示官方已发现技能的能力信息。',{'id':ID},['id']),
@@ -61,6 +65,7 @@ TOOLS.extend([
 
 # 输出声明与模块边界一致；动态来源字段仅在各读取适配器中投影。
 _OUTPUT_KEYS={
+ 'account_create':['account'], 'account_login':['login'], 'account_status':['account','login'],
  'account_default':['default_account_id','applies_to'],
  'workbench_sync':['context','revision','base_revision','unchanged'],
  'open_workbench':['view','read_only','status'],'workbench_state':['view','read_only','status'],

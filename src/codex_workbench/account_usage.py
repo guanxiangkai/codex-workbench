@@ -97,6 +97,7 @@ class AccountUsage:
                     while len(self.snapshots) > 64:
                         self.snapshots.popitem(last=False)
                     result = {**snapshot, 'usage_refresh': {'state': 'ok', 'observed_at': checked}}
+                    self.snapshots[binding] = deepcopy(result)
                 else:
                     previous = self.snapshots.get(binding, {})
                     # 人工登记的更新数据优先于进程里更早的成功快照。
@@ -108,6 +109,8 @@ class AccountUsage:
                         'message': MESSAGES.get(code, MESSAGES['provider_unavailable'])}}
                     if code == 'auth_rejected':
                         result['api_auth'] = {'status': 'rejected', 'source': BIGMODEL_ENDPOINT if provider=='bigmodel' else ENDPOINT, 'observed_at': checked}
+                    result['usage_refresh']['code'] = code or 'provider_unavailable'
+                    self.snapshots[binding] = deepcopy(result)
             future.set_result(deepcopy(result))
             return result
         except Exception:

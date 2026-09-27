@@ -108,7 +108,7 @@ class Workbench:
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
-        self.account_usage=account_usage or AccountUsage()
+        self.account_usage=account_usage or AccountUsage(data_dir=self.data_dir)
         # 仅注入已登记的 GLM/MiniMax 受控分析器；缺省不发起外部抓取。
         self.reset_analyzer=reset_analyzer
         self.model_observations=ModelObservations(self.data_dir)

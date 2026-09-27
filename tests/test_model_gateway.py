@@ -1,5 +1,6 @@
 """模型网关契约验收：全部使用合成身份和本机假模型，不访问真实认证或远端模型。"""
 import gzip
+from contextlib import contextmanager
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -10,6 +11,7 @@ import tempfile
 import threading
 import unittest
 from uuid import uuid4
+from unittest.mock import patch
 
 from codex_workbench.gateway_routes import AccountTarget, GatewayError, RouteStore, WorkbenchAccounts
 from codex_workbench.model_gateway import Authorization, ModelGateway, Upstream, decode_body
@@ -133,6 +135,35 @@ class GatewayTests(unittest.TestCase):
         self.subjects['a'] = 'different-person'
         self.assertEqual(self.error_code(self.request(body)), 'upstream_identity_mismatch')
         self.assertEqual(len(self.seen), 1)
+
+    def test_response_completion_waits_for_upstream_cleanup_and_releases_session(self):
+        cleanup_entered, allow_cleanup, completed = (threading.Event() for _ in range(3))
+        original = Upstream.request
+        @contextmanager
+        def delayed_cleanup(upstream, *args, **kwargs):
+            with original(upstream, *args, **kwargs) as response:
+                yield response
+            cleanup_entered.set()
+            allow_cleanup.wait(3)
+        body = self.body()
+        results = []
+        def request():
+            results.append(self.request(body))
+            completed.set()
+        with patch.object(Upstream, 'request', delayed_cleanup):
+            worker = threading.Thread(target=request)
+            worker.start()
+            try:
+                self.assertTrue(cleanup_entered.wait(2))
+                self.assertFalse(completed.wait(.05), 'HTTP 完成前必须清理上游并释放会话')
+            finally:
+                allow_cleanup.set()
+                worker.join(6)
+        self.assertTrue(completed.is_set())
+        self.assertEqual(results[0][0], 200)
+        self.default = 'b'
+        self.assertEqual(self.request(body)[0], 200)
+        self.assertEqual([item[2] for item in self.seen], ['Bearer upstream-a', 'Bearer upstream-b'])
 
     def test_upstream_subject_must_match(self):
         self.subjects['a'] = 'different-person'

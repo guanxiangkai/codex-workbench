@@ -82,5 +82,7 @@ const accountHtml=h.accountView(resetData);assert.equal((accountHtml.match(/clas
  h.setQuery(' a ');const searched=h.accountView(resetData);assert.doesNotMatch(searched,/class="reset-analysis"/);h.setQuery('   ');const whitespace=h.accountView(resetData);assert.match(whitespace,/class="reset-analysis"/);h.setQuery('');
 console.log('账户重置分析：单实例宽卡片、全量账户搜索隔离、信号状态、时间范围与双口径计数通过');
 
-const stale=h.resetAnalysisView({signal:"none",stale:true});assert.match(stale,/待更新/);assert.doesNotMatch(stale,/人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测/);
+const stale=h.resetAnalysisView({signal:"none",stale:true});assert.match(stale,/预计重置时间|置信度未提供|更新时间未提供/);assert.doesNotMatch(stale,/分析摘要|待更新|人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测/);
+const pendingSummary=h.resetAnalysisView({signal:'present',summary:' 待更新 ',confidence:.65,observed_at:'2026-09-27T09:00:00+08:00'});assert.match(pendingSummary,/模型置信度 65%|预计重置时间|更新时间/);assert.doesNotMatch(pendingSummary,/分析摘要|待更新/);
+assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置已全部生效。'}),/分析摘要[\s\S]*本轮额度重置已全部生效。/);
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);

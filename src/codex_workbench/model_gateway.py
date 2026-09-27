@@ -24,7 +24,8 @@ from .gateway_routes import AccountTarget, GatewayError, RouteStore, thread_key
 
 MAX_BODY = 32 * 1024 * 1024
 PATHS = {'/v1/responses': '/responses', '/v1/responses/compact': '/responses/compact'}
-REQUEST_HEADERS = {'openai-beta', 'x-codex-turn-state', 'x-codex-turn-metadata',
+# HTTP 请求携带完整上下文，不向新默认账户转发旧账户的服务器亲和状态。
+REQUEST_HEADERS = {'openai-beta', 'x-codex-turn-metadata',
                    'x-codex-beta-features', 'x-codex-version', 'session_id', 'conversation_id'}
 RESPONSE_HEADERS = {'content-type', 'content-encoding', 'x-request-id', 'retry-after',
                     'x-codex-turn-state', 'openai-processing-ms'}
@@ -208,12 +209,13 @@ class ModelGateway(ThreadingHTTPServer):
     allow_reuse_address = False
 
     def __init__(self, routes: RouteStore, accounts: Callable, upstreams: dict[str, Upstream],
-                 token: str, *, port=0, authenticate=None):
+                 token: str, *, port=0, authenticate=None, resolve_upstream=None):
         if not isinstance(token, str) or len(token) < 32 or not token.isascii() or not token.isprintable():
             raise ValueError('网关必须使用独立且足够长的本机访问令牌')
         self.routes, self.accounts, self.upstreams = routes, accounts, dict(upstreams)
         self._token = token
         self.authenticate = authenticate
+        self.resolve_upstream = resolve_upstream
         self.slots = threading.BoundedSemaphore(32)
         super().__init__(('127.0.0.1', port), GatewayHandler)
 
@@ -224,7 +226,8 @@ class ModelGateway(ThreadingHTTPServer):
 
     def target(self, account: AccountTarget) -> tuple[Upstream, Authorization]:
         """只允许明确登记的认证上游；缺失时禁止借用主账户。"""
-        upstream = self.upstreams.get(account.account_id)
+        upstream = (self.resolve_upstream(account) if self.resolve_upstream is not None
+                    else self.upstreams.get(account.account_id))
         if upstream is None:
             raise GatewayError('account_transport_unavailable', '所选账户尚未接入模型认证通道', 503)
         authorization = upstream.authorize()

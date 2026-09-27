@@ -14,24 +14,60 @@ ENDPOINT = 'https://open.bigmodel.cn/api/monitor/usage/quota/limit'
 
 
 def normalize_usage(data, observed_at):
-    if not isinstance(data, dict) or data.get('success') is not True or data.get('code') != 200:
+    """保留 Coding Plan 积分和周期；未知枚举不推断，缺少重置值不造时间。"""
+    # 不同 Coding Plan 网关版本可能省略 success，或把 code 序列化为字符串。
+    # 只在字段存在时校验，真正的结构仍由 limits 严格校验，避免放宽到任意响应。
+    if not isinstance(data, dict):
         raise ValueError('provider_rejected')
-    limits = data.get('data', {}).get('limits')
+    if 'success' in data and data.get('success') is not True:
+        raise ValueError('provider_rejected')
+    if 'code' in data and data.get('code') not in (200, '200'):
+        raise ValueError('provider_rejected')
+    payload = data.get('data')
+    if isinstance(payload, dict) and isinstance(payload.get('data'), dict):
+        payload = payload['data']
+    limits = payload.get('limits') if isinstance(payload, dict) else None
     if not isinstance(limits, list) or not 1 <= len(limits) <= 16:
         raise ValueError('invalid_response')
     windows = []
+    identifiers = set()
     for index, row in enumerate(limits):
+        if not isinstance(row, dict):
+            raise ValueError('invalid_response')
         percentage = row.get('percentage')
         if type(percentage) not in (int, float) or not math.isfinite(percentage) or not 0 <= percentage <= 100:
             raise ValueError('invalid_response')
         reset = row.get('nextResetTime')
         if reset is not None and (type(reset) is not int or not 0 < reset < 100_000_000_000_000):
             raise ValueError('invalid_response')
-        # 官方只提供数字窗口枚举，不猜测其含义或重置时间。
-        windows.append({'id': f'quota-{index + 1}', 'label': f'套餐额度 · 窗口 {index + 1}',
-            'usage': {'used': percentage, 'limit': 100, 'remaining': 100 - percentage, 'unit': '%',
-                      'source': ENDPOINT, 'observed_at': observed_at},
+        # 经官方套餐页与同账户配额接口对照：unit=3/number=5 为五小时，6/1 为周。
+        # 不按数组顺序推断周期；其他类型和枚举保持未知窗口。
+        identifier, label = f'quota-{index + 1}', f'套餐额度 · 未识别窗口 {index + 1}'
+        if row.get('type') == 'CREDIT_LIMIT' and type(row.get('unit')) is int and type(row.get('number')) is int:
+            known = {(3, 5): ('coding-five-hour', 'Coding Plan · 5 小时'),
+                     (6, 1): ('coding-week', 'Coding Plan · 本周')}
+            identifier, label = known.get((row['unit'], row['number']), (identifier, label))
+        if identifier in identifiers:
+            raise ValueError('invalid_response')
+        identifiers.add(identifier)
+        usage = {'used': percentage, 'limit': 100, 'remaining': 100 - percentage, 'unit': '%'}
+        # usage 在此接口是积分上限，currentValue 才是已用量；不要将百分比当积分。
+        credit_fields = ('currentValue', 'usage', 'remaining')
+        if row.get('type') == 'CREDIT_LIMIT' and any(field in row for field in credit_fields):
+            used, limit, remaining = (row.get(field) for field in credit_fields)
+            if any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
+                   for value in (used, limit, remaining)):
+                raise ValueError('invalid_response')
+            # 官方积分整数分别取整时可能相差 1；保留原值，不造出修正后的余额。
+            if used > limit or remaining > limit or not math.isclose(used + remaining, limit, rel_tol=0, abs_tol=1):
+                raise ValueError('invalid_response')
+            usage = {'used': used, 'limit': limit, 'remaining': remaining, 'unit': '积分'}
+            if used + remaining != limit:
+                usage['rounding_difference'] = limit - used - remaining
+        usage.update({'source': ENDPOINT, 'observed_at': observed_at})
+        windows.append({'id': identifier, 'label': label, 'usage': usage,
             'resets_at': datetime.fromtimestamp(reset / 1000, timezone.utc).isoformat() if reset else None})
+    windows.sort(key=lambda window: {'coding-five-hour': 0, 'coding-week': 1}.get(window['id'], 2))
     return {'usage': windows[0]['usage'], 'resets_at': windows[0]['resets_at'],
             'usage_windows': windows, 'updated_at': observed_at,
             'api_auth': {'status': 'accepted', 'source': ENDPOINT, 'observed_at': observed_at}}

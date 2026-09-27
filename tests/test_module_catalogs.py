@@ -24,7 +24,8 @@ class ModuleCatalogTests(unittest.TestCase):
         self.assertEqual({'agents','knowledge','models','accounts','other_accounts','config'},{m['id'] for m in MODULES})
         self.assertFalse({'成果中心','运行诊断','验收记录'}&{m['name'] for m in MODULES})
         self.assertIn('技能助手',{m['name'] for m in MODULES})
-        self.assertEqual(18,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name']!='account_default') for t in TOOLS))
+        writable={'account_create','account_login','account_status','account_default'}
+        self.assertEqual(21,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writable) for t in TOOLS))
     def test_knowledge_list_scope_and_body_exclusion(self):
         runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
         result=catalog.listing('project:a','查询')

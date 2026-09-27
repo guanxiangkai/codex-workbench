@@ -19,7 +19,7 @@ class FakeNative:
     def snapshot(self):
         self.calls.append('snapshot')
         return {'sessions':[] if self.missing else [dict(SESSION)],'projects':[],'sections':[],'status':{'state':'ok'}}
-    def accounts(self):self.calls.append('accounts');return []
+    def accounts(self,*,cached_only=False):self.calls.append('accounts');return []
     def skills(self):self.calls.append('skills');return [{'id':'skill1','name':'Example','description':'说明'}]
 class FakeCredentials:
     def __init__(self):self.calls=0
@@ -41,8 +41,9 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
-    def test_all_advertised_tools_read_only_and_old_writes_rejected(self):
-        self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name']!='account_default') for t in TOOLS))
+    def test_only_account_onboarding_and_default_selection_can_write(self):
+        writes={'account_create','account_login','account_status','account_default'}
+        self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,{})
         self.assertEqual([],self.native.calls)

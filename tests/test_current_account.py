@@ -70,8 +70,8 @@ class CurrentAccountTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary);database=root/'accounts.sqlite'
             with sqlite3.connect(database) as db:
-                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT)')
-                db.executemany('INSERT INTO execution_accounts VALUES(?,?)',[('current','Current'),('other','Other')])
+                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,subject_id TEXT)')
+                db.executemany('INSERT INTO execution_accounts VALUES(?,?,?)',[('current','Current','subject-a'),('other','Other','subject-a')])
                 db.execute('CREATE TABLE preferences(singleton INTEGER,default_execution_account_id TEXT)')
                 db.execute("INSERT INTO preferences VALUES(1,'other')")
             before=database.read_bytes()
@@ -81,3 +81,15 @@ class CurrentAccountTests(unittest.TestCase):
                 self.assertFalse(result[0]['is_default']);self.assertTrue(result[0]['is_current'])
                 self.assertTrue(result[1]['is_default']);self.assertFalse(result[1]['is_current'])
             self.assertEqual(before,database.read_bytes())
+
+    def test_unconfirmed_legacy_account_is_not_listed(self):
+        import sqlite3
+        from codex_workbench.readonly_sources import NativeRead
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);database=root/'accounts.sqlite'
+            with sqlite3.connect(database) as db:
+                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,codex_home TEXT,subject_id TEXT)')
+                db.execute('INSERT INTO execution_accounts VALUES(?,?,?,NULL)',('other','Other',str(root)))
+            with patch('codex_workbench.readonly_sources.validate_account_home',return_value=str(root)),patch.object(NativeRead,'rpc',return_value=FakeRpc(current=True)):
+                accounts=NativeRead(database,'unused',catalog=object()).accounts()
+            self.assertEqual(['current'], [account['id'] for account in accounts])

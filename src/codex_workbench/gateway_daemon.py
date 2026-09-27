@@ -17,10 +17,11 @@ import threading
 from .gateway_auth import OfficialAuth, UPSTREAM
 from .account_runtime import validate_account_home
 from .readonly_sources import connection
-from .gateway_routes import GatewayError, RouteStore, WorkbenchAccounts
+from .gateway_routes import AccountTarget, GatewayError, RouteStore, WorkbenchAccounts
 from .model_gateway import ModelGateway, Upstream
 from .native_compatibility import file_digest
 from .runtime import secure_directory
+from .codex_cli import resolve_gateway_cli
 
 
 _ACCOUNT_ID = re.compile(r'[A-Za-z0-9_.:@-]{1,160}\Z')
@@ -61,7 +62,7 @@ class RegisteredUpstreams:
         self.lock = threading.Lock()
         self.cache = {}
 
-    def __call__(self, target):
+    def _broker(self, target):
         with connection(self.db) as db:
             row = db.execute('SELECT id,codex_home,subject_id FROM execution_accounts WHERE id=?',
                              (target.account_id,)).fetchone()
@@ -89,8 +90,28 @@ class RegisteredUpstreams:
                 self.cache = {k: v for k, v in self.cache.items() if k[0] != target.account_id}
                 if len(self.cache) >= 64:
                     self.cache.pop(next(iter(self.cache)))
-                self.cache[key] = Upstream(UPSTREAM, broker.authorize)
+                self.cache[key] = (broker, Upstream(UPSTREAM, broker.authorize))
             return self.cache[key]
+
+    def __call__(self, target):
+        return self._broker(target)[1]
+
+    def accepts(self, header):
+        """会话可留在原官方目录；入口身份不固定该会话的模型出口账户。"""
+        if not isinstance(header, str) or not header.startswith('Bearer ') or len(header) > 32768:
+            return False
+        with connection(self.db) as db:
+            registered = db.execute('SELECT id,subject_id FROM execution_accounts WHERE subject_id IS NOT NULL '
+                                    'ORDER BY CASE WHEN id="current" THEN 0 ELSE 1 END').fetchall()
+        for row in registered:
+            try:
+                broker, _ = self._broker(AccountTarget(row['id'], row['subject_id']))
+                if broker.accepts(header):
+                    return True
+            except (GatewayError, ValueError, OSError):
+                # 失效的旧目录不能阻断其他已核验客户端，也不能扩大到未登记目录。
+                continue
+        return False
 
 
 def atomic_json(path: Path, value: dict):
@@ -147,7 +168,7 @@ def serve(root: Path):
     try: fcntl.flock(lease,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError: raise SystemExit('gateway_already_running')
     settings = json.loads((root/'settings.json').read_text())
-    cli = Path(settings['cli'])
+    cli = resolve_gateway_cli(settings['cli'])
     accounts = WorkbenchAccounts(root.parent/'workbench.sqlite3')
     authorized = _authorized_accounts(settings)
     policy = settings.get('account_policy', 'fixed')
@@ -160,6 +181,8 @@ def serve(root: Path):
     resolver = RegisteredUpstreams(root.parent/'workbench.sqlite3', cli, authorized) if policy == 'registered_accounts' else None
     def authenticate(header):
         checker()
+        if resolver is not None:
+            return resolver.accepts(header)
         return brokers['current'].accepts(header)
     server=ModelGateway(RouteStore(root),accounts,{key:Upstream(UPSTREAM,broker.authorize) for key,broker in brokers.items()},
                         secrets.token_urlsafe(32),port=settings['port'],authenticate=authenticate,resolve_upstream=resolver)

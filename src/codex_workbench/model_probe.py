@@ -116,7 +116,7 @@ def _read_response(response, cancel_event: Any, deadline: float) -> tuple[bytes 
 
 
 def _post(url: str, body: bytes, content_type: str, token: str | None, cancel_event: Any, deadline: float,
-          accept: str = "application/json"):
+          accept: str = "application/json", response_timeout: float = 15):
     if _cancelled(cancel_event):
         return None, None, _result(False, "cancelled", "探测已取消")
     remaining = deadline - time.monotonic()
@@ -127,7 +127,7 @@ def _post(url: str, body: bytes, content_type: str, token: str | None, cancel_ev
         headers["Authorization"] = "Bearer " + token
     request = Request(url, data=body, headers=headers, method="POST")
     try:
-        response = _opener_for(url).open(request, timeout=min(remaining, 15))
+        response = _opener_for(url).open(request, timeout=min(remaining, response_timeout))
     except HTTPError as error:
         try:
             status = error.code

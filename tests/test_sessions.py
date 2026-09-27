@@ -65,6 +65,19 @@ class SessionRegistryTests(unittest.TestCase):
                          (native["source"], native["native_thread_id"], native["sandbox"], native["concurrency"], native["approval_policy"]))
         self.error("conflict", self.registry.ensure_native, thread, "project-1", "section-1", self.temp.name, "current", "other-subject")
 
+    def test_configure_defaults_allows_account_switch_without_rewriting_thread_owner(self):
+        session = self.create()
+        thread = str(uuid.uuid4())
+        self.registry.attach_thread(session["id"], thread, account_id="account-1", account_subject="subject-1")
+        self.registry.configure_defaults(session["id"], model="gpt-6-sol", effort="medium",
+                                         account_id="account-2", account_subject="subject-2")
+        self.registry.configure_defaults(session["id"], model="gpt-6-sol", effort="high",
+                                         account_id="account-1", account_subject="subject-1")
+        changed = self.registry.get(session["id"])
+        self.assertEqual(("account-1", "subject-1"), (changed["execution_account_id"], changed["account_subject"]))
+        self.assertEqual((thread, "account-1", "subject-1"),
+                         (changed["native_thread_id"], changed["thread_account_id"], changed["thread_account_subject"]))
+
     def test_native_import_reuses_bound_workbench_session_and_updates_section_only(self):
         session = self.create(section_id="old-section")
         thread = str(uuid.uuid4())

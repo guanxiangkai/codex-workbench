@@ -1,4 +1,4 @@
-"""只读工作台服务；不初始化执行器、验证器、业务数据库或资源目录。"""
+"""工作台目录与本机计划服务；仅计划功能按需初始化执行与资料存储。"""
 from __future__ import annotations
 import os
 import json
@@ -29,6 +29,8 @@ from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
 from .account_profiles import apply_profiles
+
+LOCAL_PLANNING_VIEWS=frozenset(('planning',))
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
@@ -92,7 +94,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
 
 
 class Workbench:
-    """MCP 和 HTTP 共用同一只读白名单，错误时不返回另一主体的缓存。"""
+    """MCP 和 HTTP 共用工具白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
                  native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
@@ -116,7 +118,22 @@ class Workbench:
         self.snapshot_scheduler=None
         self.snapshot_errors={}
         self._scheduled_accounts = None
+        self._planning=None
         self._closing=False;self.lock=threading.RLock()
+
+    def _planning_service(self):
+        """计划与资料仅在首次使用时打开本机业务库。"""
+        with self.lock:
+            if self._planning is None:
+                from .planning import Planning
+                from .executor import CodexExecutor
+                self._planning=Planning(self.data_dir,executor=CodexExecutor((self.codex,),lease_fd=self.lease_fd),knowledge_reader=self.knowledge.detail)
+            return self._planning
+
+    def _planning_state(self,view):
+        data=self._planning_service().snapshot(view=view)
+        if not isinstance(data,dict):raise ValueError('本机计划状态不可用')
+        return {'view':view,'read_only':False,'status':{'state':'ok','observed_at':timestamp()},**data}
 
     def manifest(self,page,known_revision=None):
         """读取 UI/工具发布快照，不访问账户和业务对象。"""
@@ -126,12 +143,13 @@ class Workbench:
         """把公开缓存带入首屏；发布文件本身不保存任何运行数据或临时许可。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         if self._closing:raise ValueError('工作台正在关闭')
-        epoch=self.source_versions.context()
+        local_view=view in LOCAL_PLANNING_VIEWS
+        epoch='local-planning' if local_view else self.source_versions.context()
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
-        if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
+        if not local_view and epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        snapshot=self._snapshot_state(view)
-        if snapshot['status']['snapshot']['state'] != 'pending':
+        snapshot=self._planning_state(view) if local_view else self._snapshot_state(view)
+        if local_view or snapshot['status']['snapshot']['state'] != 'pending':
             value={'args':{'view':view},'revision':self._snapshot_revision(snapshot),'data':snapshot}
             length=len(json.dumps(value,ensure_ascii=False).encode())
             if length <= 700_000:
@@ -145,11 +163,12 @@ class Workbench:
         return {'html':html.replace('__WORKBENCH_RESOURCE_URI__',manifest['resource_uri']),'csp':csp}
 
     def close(self):
-        """清理进程内读取状态；没有业务运行需要取消或补偿。"""
+        """关闭后台采集、账户操作和计划执行器。"""
         with self.lock:
-            self._closing=True;self.view_cache.clear()
+            self._closing=True;self.view_cache.clear();planning=self._planning
         if self.snapshot_scheduler is not None:self.snapshot_scheduler.close()
         if self._account_service is not None:self._account_service.close()
+        if planning is not None:planning.close()
 
     def start_snapshots(self):
         """仅由 runtime 启动后台采集，测试构造服务不创建线程。"""
@@ -210,6 +229,7 @@ class Workbench:
         return {'provider': provider, 'refreshed': refreshed}
 
     def has_snapshot(self,view):
+        if view in LOCAL_PLANNING_VIEWS:return False
         return self.snapshots.get(self.source_versions.context(),view) is not None
 
     def _snapshot_revision(self,value):
@@ -365,6 +385,7 @@ class Workbench:
 
     def _collect_state(self,view):
         """仅供后台采集调用；页面请求不得经过此方法。"""
+        if view in LOCAL_PLANNING_VIEWS:raise ValueError('本机计划视图不参与快照采集')
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
         if view=='accounts':
@@ -417,6 +438,9 @@ class Workbench:
     def state(self,view=DEFAULT_VIEW,*,snapshot_context=None,**filters):
         """页面状态只投影本机快照；首次读取排入后台采集。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
+        if view in LOCAL_PLANNING_VIEWS:
+            if filters:raise ValueError('当前视图不接受这些筛选参数')
+            return self._planning_state(view)
         result=self._snapshot_state(view,snapshot_context)
         return _page_view(result,**filters)
 
@@ -425,6 +449,13 @@ class Workbench:
         allowed={'query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
+        if view in LOCAL_PLANNING_VIEWS:
+            if filters:raise ValueError('当前视图不接受这些筛选参数')
+            value=self.state(view)
+            current=self._snapshot_revision(value)
+            result={'context':'local-planning','revision':current,'base_revision':revision,'unchanged':revision==current,'checked_at_age_seconds':0}
+            if not result['unchanged']:result.update(reset=True,data=value)
+            return result
         context=self.source_versions.context()
         requested_provider = filters.get('provider') if refresh else None
         if requested_provider is not None:
@@ -462,6 +493,28 @@ class Workbench:
             if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch('accounts',refresh=True)
             return result
+        if name=='planning_create':return {'item':self._planning_service().create(**args)}
+        if name=='planning_update':return {'item':self._planning_service().update(**args)}
+        if name=='planning_start':return {'item':self._planning_service().start(**args)}
+        if name=='planning_stop':return {'item':self._planning_service().stop(**args)}
+        if name=='planning_archive':return {'item':self._planning_service().archive(**args)}
+        if name=='planning_delete':return {'item':self._planning_service().remove(**args)}
+        if name=='planning_followup':return {'item':self._planning_service().followup(**args)}
+        if name=='planning_intake':return {'draft':self._planning_service().intake(models_provider=self._models, **args)}
+        if name=='planning_intake_save':return self._planning_service().intake_save(**args)
+        if name=='planning_knowledge_link':return {'item':self._planning_service().link_knowledge(**args)}
+        if name=='planning_export':return {'item':self._planning_service().export(**args)}
+        if name=='planning_detail':return {'item':self._planning_service().detail(**args)}
+        if name=='planning_draft':
+            from .planning_draft import PlanningDraft
+            return {'draft':PlanningDraft(self._models).generate(args['text'])}
+        if name=='library_upload':return {'item':self._planning_service().upload(**args)}
+        if name=='library_upload_begin':return {'item':self._planning_service().upload_begin(**args)}
+        if name=='library_upload_chunk':return {'item':self._planning_service().upload_chunk(**args)}
+        if name=='library_upload_commit':return {'item':self._planning_service().upload_commit(**args)}
+        if name=='library_link':return {'item':self._planning_service().link(**args)}
+        if name=='library_list':return {'item':self._planning_service().library_list(**args)}
+        if name=='library_content':return {'item':self._planning_service().asset_content(**args)}
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)

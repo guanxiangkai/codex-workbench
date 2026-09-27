@@ -52,7 +52,7 @@ class UiReleaseTests(unittest.TestCase):
     def test_source_mode_rebuilds_when_primitives_change(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in ("ui/app.html", "ui/readonly.js", "ui/readonly-primitives.js", "ui/readonly.css", "ui/configuration-crypto.js", "ui/assets/readonly-icons.json", "ui/icons/board.svg"):
+            for relative in ("ui/app.html", "ui/readonly.js", "ui/readonly-primitives.js", "ui/readonly.css", "ui/planning.js", "ui/planning.css", "ui/configuration-crypto.js", "ui/assets/readonly-icons.json", "ui/icons/board.svg"):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("initial", encoding="utf-8")

@@ -19,6 +19,8 @@ class AccountSnapshotTest(unittest.TestCase):
         self.cache=AccountSnapshot(self.root)
         self.item={'email':'a@example.invalid','name':'Alice','name_source':'official','plan':'pro','remaining_percent':80,'reset_cards':2,'resets_at':2000000000,'observed_at':'2026-01-01T00:00:00+00:00'}
         self.cache.save_profile(self.account,self.item);self.cache.save_usage(self.account,self.item)
+        self.current_home=patch('codex_workbench.readonly_sources.current_account_home',return_value=str(self.root))
+        self.current_home.start();self.addCleanup(self.current_home.stop)
         self.reader=NativeRead(self.db,'unused',catalog=object())
 
     def test_offline_start_and_failed_refresh_preserve_initial_data(self):

@@ -19,7 +19,7 @@ class FakeNative:
     def snapshot(self):
         self.calls.append('snapshot')
         return {'sessions':[] if self.missing else [dict(SESSION)],'projects':[],'sections':[],'status':{'state':'ok'}}
-    def accounts(self):self.calls.append('accounts');return []
+    def accounts(self,*,cached_only=False):self.calls.append('accounts');return []
     def skills(self):self.calls.append('skills');return [{'id':'skill1','name':'Example','description':'说明'}]
 class FakeCredentials:
     def __init__(self):self.calls=0

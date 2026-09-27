@@ -22,6 +22,9 @@ from .model_observations import ModelObservations
 from .other_accounts import other_accounts
 from .account_usage import AccountUsage
 from .account_preferences import set_default_account
+from .account_onboarding import AccountRegistry
+from .account_service import AccountService
+from .account_runtime import current_account_home
 from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
@@ -91,8 +94,11 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
 class Workbench:
     """MCP 和 HTTP 共用同一只读白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
-                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None):
+                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
+        self.codex=codex;self.lease_fd=lease_fd
+        # 登录服务只在用户发起账户操作时构造。这样打开只读页面不会创建或迁移业务库。
+        self._account_service=None
         self.db=self.data_dir/'workbench.sqlite3'
         self.ui_release=UiRelease(source_mode=ui_source_mode)
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
@@ -103,10 +109,13 @@ class Workbench:
         self.view_cache=view_cache or ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
         self.account_usage=account_usage or AccountUsage()
+        # 仅注入已登记的 GLM/MiniMax 受控分析器；缺省不发起外部抓取。
+        self.reset_analyzer=reset_analyzer
         self.model_observations=ModelObservations(self.data_dir)
         self.snapshots=snapshot_store or SnapshotStore(self.data_dir)
         self.snapshot_scheduler=None
         self.snapshot_errors={}
+        self._scheduled_accounts = None
         self._closing=False;self.lock=threading.RLock()
 
     def manifest(self,page,known_revision=None):
@@ -140,6 +149,7 @@ class Workbench:
         with self.lock:
             self._closing=True;self.view_cache.clear()
         if self.snapshot_scheduler is not None:self.snapshot_scheduler.close()
+        if self._account_service is not None:self._account_service.close()
 
     def start_snapshots(self):
         """仅由 runtime 启动后台采集，测试构造服务不创建线程。"""
@@ -150,6 +160,54 @@ class Workbench:
                 self.snapshot_scheduler=SnapshotScheduler(self, configured if configured.exists() else packaged)
             scheduler=self.snapshot_scheduler
         scheduler.start()
+
+    def refresh_provider_usage(self, provider):
+        """Scheduler callback: refresh each registered account for one provider once.
+
+        The page projection only reads AccountUsage's cache afterwards, so this
+        path is the sole periodic network entry and does not trigger a second
+        refresh while collecting ``other_accounts``.
+        """
+        if provider not in {'bigmodel', 'minimax', 'codex', 'manual_reset'} or self._closing:
+            return {'provider': provider, 'refreshed': 0}
+        if provider == 'manual_reset':
+            # Manual reset is an explicit public-source/model job. It must use
+            # the cached account projection and never call the official quota RPC.
+            cached_accounts = self.native.accounts(cached_only=True)
+            if self.reset_analyzer is None:
+                raise ValueError('manual_reset_analysis_unavailable')
+            seed = cached_accounts[0] if cached_accounts else {}
+            analysis = self.reset_analyzer.force_refresh(seed)
+            self._scheduled_accounts = [dict(account, reset_analysis=analysis) for account in cached_accounts]
+            published = self.collect_snapshot('accounts')
+            state = 'error' if analysis.get('error') and not analysis.get('last_success_at') else ('stale' if analysis.get('error') else 'ready')
+            if analysis.get('error') or not published:
+                raise ValueError('manual_reset_analysis_unavailable')
+            return {'provider': provider, 'state': state, 'refreshed': len(cached_accounts), 'error': analysis.get('error')}
+        if provider == 'codex':
+            # NativeRead is the only owner of the official Codex RPC and its
+            # account snapshot persistence. Refresh once, then publish the
+            # resulting accounts view for the scheduled page/API readers.
+            accounts = self.native.accounts()
+            self._scheduled_accounts = accounts
+            published = self.collect_snapshot('accounts')
+            if not published or not accounts or any(a.get('usage_refresh', {}).get('state') != 'ready' for a in accounts):
+                raise ValueError('provider_usage_unavailable')
+            return {'provider': provider, 'refreshed': len(accounts)}
+        directory = other_accounts(self.resources_dir/'accounts/catalog.json')
+        refreshed = 0
+        failures = 0
+        for account in directory.get('accounts', []):
+            if account.get('provider_id') != provider:
+                continue
+            usage = self.account_usage.refresh(account)
+            failures += int(usage.get('usage_refresh', {}).get('state') == 'failed')
+            refreshed += 1
+        if refreshed:
+            self.collect_snapshot('other_accounts')
+        if failures:raise ValueError('provider_usage_unavailable')
+        if not refreshed:raise ValueError('provider_account_unavailable')
+        return {'provider': provider, 'refreshed': refreshed}
 
     def has_snapshot(self,view):
         return self.snapshots.get(self.source_versions.context(),view) is not None
@@ -162,6 +220,11 @@ class Workbench:
     def _snapshot_state(self,view,context=None):
         context=context if context is not None else self.source_versions.context()
         entry=self.snapshots.get(context,view)
+        if view=='accounts' and isinstance(self.native,NativeRead):
+            cached=self.native.accounts(cached_only=True)
+            if any(a.get('email') for a in cached) and (entry is None or not any(a.get('email') for a in entry.get('data',{}).get('accounts',[]))):
+                value=apply_profiles({'view':view,'read_only':True,'accounts':cached,'status':{'state':'ok'}},view,self.data_dir/'account-profiles.json')
+                entry={'data':value,'updated_at':max((a.get('observed_at') or '' for a in cached),default='') or None}
         refreshing=False
         if self.snapshot_scheduler is not None:
             with self.snapshot_scheduler.lock:
@@ -175,7 +238,8 @@ class Workbench:
                     'snapshot':snapshot}}
         value=entry['data']
         error=self.snapshot_errors.get((context,view))
-        state='stale' if error else 'ready'
+        account_failure=view=='accounts' and any(a.get('usage_refresh',{}).get('state') in ('failed','cached') for a in value.get('accounts',[]))
+        state='stale' if error or account_failure else 'ready'
         snapshot={'state':state,'updated_at':entry.get('updated_at'),'refreshing':refreshing}
         if error:snapshot['error']=error
         status={**value.get('status',{}),'snapshot':snapshot}
@@ -194,7 +258,8 @@ class Workbench:
             return value
         old={self._account_identity(view,item):item for item in previous.get('accounts',[]) if isinstance(item,dict) and self._account_identity(view,item)}
         preserved=('display_name','avatar','avatar_url','image','avatar_data_uri','profile_observed_at',
-                   'remaining_percent','reset_cards','usage','usage_windows','resets_at','expires_at')
+                   'remaining_percent','reset_cards','usage','usage_windows','resets_at','expires_at',
+                   'reset_analysis')
         merged=[]
         for item in value.get('accounts',[]):
             if not isinstance(item,dict):
@@ -302,10 +367,33 @@ class Workbench:
         """仅供后台采集调用；页面请求不得经过此方法。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
-        if view=='accounts':result['accounts']=self.native.accounts()
+        if view=='accounts':
+            if self._scheduled_accounts is not None:
+                result['accounts'] = self._scheduled_accounts
+            else:
+                cached_accounts = self.native.accounts(cached_only=True)
+                result['accounts'] = cached_accounts
+                previous = self.snapshots.get(self.source_versions.context(), 'accounts')
+                known = {self._account_identity('accounts', a): a for a in (previous or {}).get('data', {}).get('accounts', [])}
+                for account in result['accounts']:
+                    identity = self._account_identity('accounts', account)
+                    prior = known.get(identity) if identity else None
+                    if prior and account.get('usage_refresh', {}).get('state') == 'cached':
+                        # A cache projection is not a new authentication/usage attempt.
+                        # Preserve the last result only for the same bound identity.
+                        account['login_status'] = prior.get('login_status', account.get('login_status'))
+                        account['usage_refresh'] = prior.get('usage_refresh', account['usage_refresh'])
+            self._scheduled_accounts = None
+            if self.reset_analyzer is not None:
+                analysis = self.reset_analyzer.cached()
+                for account in result['accounts']:
+                    if isinstance(analysis, dict) and analysis.get('scope') == 'official_manual_reset':
+                        account['reset_analysis'] = dict(analysis)
+                    else:
+                        account.pop('reset_analysis', None)
         elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
-        elif view=='other_accounts':result.update(self._other_accounts(refresh=True))
+        elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
         elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='config':
             catalog=self.credentials.list();result.update(catalog);result['status']={**catalog['status'],'state':'ok','observed_at':timestamp()}
@@ -316,6 +404,15 @@ class Workbench:
         else:raise ValueError('页面不存在')
         # 官网首次确认的公开资料仅补齐当前来源未提供的字段，身份键由适配器严格校验。
         return apply_profiles(result,view,self.data_dir/'account-profiles.json')
+
+    def _accounts(self):
+        """按需启用新增账户登记与官方登录，不复用 Store 的全库迁移。"""
+        with self.lock:
+            if self._account_service is None:
+                registry=AccountRegistry(self.db)
+                self._account_service=AccountService(registry,self.data_dir/'accounts',self.codex,
+                                                     Path(current_account_home()),self.lease_fd)
+            return self._account_service
 
     def state(self,view=DEFAULT_VIEW,*,snapshot_context=None,**filters):
         """页面状态只投影本机快照；首次读取排入后台采集。"""
@@ -329,23 +426,41 @@ class Workbench:
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()
-        if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view,refresh=refresh)
+        requested_provider = filters.get('provider') if refresh else None
+        if requested_provider is not None:
+            expected = 'accounts' if requested_provider in {'codex', 'manual_reset'} else 'other_accounts'
+            if requested_provider not in {'codex', 'bigmodel', 'minimax', 'manual_reset'} or view != expected:
+                raise ValueError('额度刷新视图与供应商不匹配')
+            if self.snapshot_scheduler is not None:self.snapshot_scheduler.request_provider(requested_provider)
+        if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view,refresh=refresh and requested_provider is None)
         value=self.state(view,snapshot_context=context,**filters)
         if self.source_versions.context()!=context:raise ValueError('账户环境已变化，请重新读取')
         current=self._snapshot_revision(value)
         result={'context':context,'revision':current,'base_revision':revision,'unchanged':revision==current,'checked_at_age_seconds':0}
+        if requested_provider:result['provider_refresh']={'provider':requested_provider,'queued':True}
+        if self.snapshot_scheduler is not None:
+            result['provider_tasks'] = self.snapshot_scheduler.provider_tasks()
         if not result['unchanged']:
             result.update(reset=True,data=value)
         return result
 
     def call(self,name,arguments):
-        """先验证固定工具与字段，再进入只读处理；不存在可转发的写入通道。"""
+        """先验证固定工具与字段；仅账户新增、官方登录、核验和默认选择允许写入。"""
         args=validate(name,arguments)
         with self.lock:
             if self._closing:raise ValueError('工作台正在关闭')
         if name=='account_default':
             result=set_default_account(self.db,self.native,args['id'],args['expected_default_id'])
             if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch('accounts',refresh=True)
+            return result
+        if name=='account_create':
+            return {'account':self._accounts().create(args['name'])}
+        if name=='account_login':
+            return {'login':self._accounts().login(args['id'])}
+        if name=='account_status':
+            result=self._accounts().status(args['id'],refresh=True)
+            if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
+                self.snapshot_scheduler.touch('accounts',refresh=True)
             return result
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':

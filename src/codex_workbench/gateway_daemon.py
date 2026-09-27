@@ -15,6 +15,8 @@ import sys
 import threading
 
 from .gateway_auth import OfficialAuth, UPSTREAM
+from .account_runtime import validate_account_home
+from .readonly_sources import connection
 from .gateway_routes import GatewayError, RouteStore, WorkbenchAccounts
 from .model_gateway import ModelGateway, Upstream
 from .native_compatibility import file_digest
@@ -48,6 +50,47 @@ def _authorized_accounts(settings: dict) -> list[dict]:
     if set(by_id)!=set(account_ids):
         raise ValueError('网关授权账户配置无效')
     return [by_id[account_id] for account_id in account_ids]
+
+
+class RegisteredUpstreams:
+    """显式启用后，按工作台已确认登记动态获取账户，不缓存默认选择或认证头。"""
+
+    def __init__(self, db, cli, authorized, *, broker_factory=OfficialAuth):
+        self.db, self.cli, self.factory = Path(db), str(cli), broker_factory
+        self.authorized = {a['id']: a for a in authorized}
+        self.lock = threading.Lock()
+        self.cache = {}
+
+    def __call__(self, target):
+        with connection(self.db) as db:
+            row = db.execute('SELECT id,codex_home,subject_id FROM execution_accounts WHERE id=?',
+                             (target.account_id,)).fetchone()
+        if row is None or row['subject_id'] != target.subject_id:
+            raise GatewayError('account_identity_changed', '所选账户登记已变化，请重试', 409)
+        declared = self.authorized.get(target.account_id)
+        if target.account_id == 'current':
+            if not declared or declared['subject_id'] != target.subject_id:
+                raise GatewayError('account_identity_changed', '主账户登录身份已变化', 409)
+            home = declared['home']
+        else:
+            try:
+                home = validate_account_home(row['codex_home'])
+                managed_root = (self.db.parent/'accounts').resolve()
+                explicit = declared and Path(declared['home']).resolve() == Path(home) and declared['subject_id'] == target.subject_id
+                if not explicit and Path(home).parent != managed_root:
+                    raise ValueError('账户不在工作台管理目录')
+            except ValueError:
+                raise GatewayError('account_home_invalid', '所选账户登录目录不可用', 409) from None
+        key = (target.account_id, home, target.subject_id)
+        with self.lock:
+            if key not in self.cache:
+                broker = self.factory(Path(home), target.subject_id, self.cli, current=target.account_id == 'current')
+                # 每次调用 authorize 都重新验证官方登录；这里只缓存有界的适配器。
+                self.cache = {k: v for k, v in self.cache.items() if k[0] != target.account_id}
+                if len(self.cache) >= 64:
+                    self.cache.pop(next(iter(self.cache)))
+                self.cache[key] = Upstream(UPSTREAM, broker.authorize)
+            return self.cache[key]
 
 
 def atomic_json(path: Path, value: dict):
@@ -98,7 +141,7 @@ class UpgradeCheck:
 
 
 def serve(root: Path):
-    """固定授权清单、官方上游和单实例端口；不从任意默认账户扩展授权范围。"""
+    """使用明确配置的账户策略、官方上游和单实例端口。"""
     root = secure_directory(root)
     lease = (root/'gateway.lock').open('a+')
     try: fcntl.flock(lease,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -107,17 +150,21 @@ def serve(root: Path):
     cli = Path(settings['cli'])
     accounts = WorkbenchAccounts(root.parent/'workbench.sqlite3')
     authorized = _authorized_accounts(settings)
-    brokers={a['id']:OfficialAuth(Path(a['home']),a['subject_id'],str(cli),current=a['id']=='current') for a in authorized}
+    policy = settings.get('account_policy', 'fixed')
+    if policy not in ('fixed', 'registered_accounts'):
+        raise ValueError('网关账户策略无效')
+    brokers={a['id']:OfficialAuth(Path(a['home']),a['subject_id'],str(cli),current=a['id']=='current')
+             for a in authorized if policy == 'fixed' or a['id'] == 'current'}
     checker=UpgradeCheck(root,cli,Path(settings['probe']))
     checker()
-    for broker in brokers.values(): broker.authorize()
+    resolver = RegisteredUpstreams(root.parent/'workbench.sqlite3', cli, authorized) if policy == 'registered_accounts' else None
     def authenticate(header):
         checker()
         return brokers['current'].accepts(header)
     server=ModelGateway(RouteStore(root),accounts,{key:Upstream(UPSTREAM,broker.authorize) for key,broker in brokers.items()},
-                        secrets.token_urlsafe(32),port=settings['port'],authenticate=authenticate)
+                        secrets.token_urlsafe(32),port=settings['port'],authenticate=authenticate,resolve_upstream=resolver)
     atomic_json(root/'status.json',{'ready':True,'pid':os.getpid(),'port':server.server_port,'authorized_accounts':list(brokers),
-                                  'provider':'workbench_gateway','transport':'http_sse','native_ui_verified':False})
+                                  'account_policy':policy,'provider':'workbench_gateway','transport':'http_sse','native_ui_verified':False})
     def stop(signum,frame): threading.Thread(target=server.shutdown,daemon=True).start()
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
     try: server.serve_forever()

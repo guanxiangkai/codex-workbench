@@ -1,12 +1,49 @@
 {
   "version": 1,
   "active_window_seconds": 900,
+  "provider_tasks": {
+    "codex": {
+      "interval_seconds": 900,
+      "phase_seconds": 0
+    },
+    "bigmodel": {
+      "interval_seconds": 900,
+      "phase_seconds": 300
+    },
+    "minimax": {
+      "interval_seconds": 900,
+      "phase_seconds": 600
+    },
+    "manual_reset": {
+      "interval_seconds": 3600,
+      "phase_seconds": 720
+    }
+  },
   "views": {
-    "accounts": {"active_seconds": 60, "idle_seconds": 300},
-    "other_accounts": {"active_seconds": 300, "idle_seconds": 1800},
-    "config": {"active_seconds": 300, "idle_seconds": 1800},
-    "models": {"active_seconds": 600, "idle_seconds": 3600},
-    "agents": {"active_seconds": 1800, "idle_seconds": 21600},
-    "knowledge": {"active_seconds": 600, "idle_seconds": 3600}
+    "accounts": {
+      "active_seconds": 60,
+      "idle_seconds": 300,
+      "profile_seconds": 86400
+    },
+    "other_accounts": {
+      "active_seconds": 300,
+      "idle_seconds": 1800
+    },
+    "config": {
+      "active_seconds": 300,
+      "idle_seconds": 1800
+    },
+    "models": {
+      "active_seconds": 600,
+      "idle_seconds": 3600
+    },
+    "agents": {
+      "active_seconds": 1800,
+      "idle_seconds": 21600
+    },
+    "knowledge": {
+      "active_seconds": 600,
+      "idle_seconds": 3600
+    }
   }
 }

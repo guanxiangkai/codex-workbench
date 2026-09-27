@@ -135,6 +135,25 @@ sys.stdin.read()
         self.assertIn('approval_policy="never"', args)
         self.assertNotIn("--approve-for-me", args)
 
+    def test_gateway_is_explicitly_configured_after_isolated_account_options(self):
+        args = CodexExecutor().argv(Request(
+            self.cwd, "测试", "", account_home=self.cwd,
+            gateway_url="http://127.0.0.1:43123/v1",
+        ))
+        self.assertLess(args.index('model_provider="openai"'), args.index('model_provider="workbench_gateway"'))
+        self.assertIn('model_providers.workbench_gateway.base_url="http://127.0.0.1:43123/v1"', args)
+        self.assertIn('model_providers.workbench_gateway.wire_api="responses"', args)
+        self.assertIn("model_providers.workbench_gateway.requires_openai_auth=true", args)
+        self.assertIn("model_providers.workbench_gateway.supports_websockets=false", args)
+
+    def test_gateway_url_rejects_non_loopback_or_malformed_endpoint(self):
+        executor = CodexExecutor()
+        for value in ("http://localhost:43123/v1", "https://127.0.0.1:43123/v1",
+                      "http://127.0.0.1:0/v1", "http://127.0.0.1:65536/v1",
+                      "http://127.0.0.1:43123/v1/extra"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "网关地址"):
+                executor.argv(Request(self.cwd, "测试", "", account_home=self.cwd, gateway_url=value))
+
     def test_current_account_omits_isolated_file_auth_and_requires_official_home(self):
         request = Request(self.cwd, "测试", "", account_home=self.cwd, use_current_account=True)
         args = CodexExecutor().argv(request)

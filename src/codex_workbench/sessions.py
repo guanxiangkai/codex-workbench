@@ -26,7 +26,7 @@ class SessionError(ValueError):
 
 
 class SessionRegistry:
-    """保存业务会话的固定项目、账户和执行策略，原生线程只是受控引用。"""
+    """保存业务会话的项目与本机线程归属；原生线程只是受控引用。"""
 
     def __init__(self, db_path: str | os.PathLike[str]) -> None:
         self.path = os.fspath(db_path)
@@ -66,7 +66,7 @@ class SessionRegistry:
 
     def configure_defaults(self, session_id: str, *, model: str | None, effort: str | None, account_id: str,
                            account_subject: str, connection: sqlite3.Connection | None = None) -> None:
-        """在任务保存事务内回写三项默认值；不改变已有执行线程的账户归属。"""
+        """在任务保存事务内回写默认值；线程归属继续保留为历史记录。"""
         if model is not None and (not isinstance(model,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}",model)):
             raise SessionError("validation", "模型标识无效")
         if effort not in {None,"none","minimal","low","medium","high","xhigh","max","ultra"}:
@@ -74,8 +74,6 @@ class SessionRegistry:
         self._text(account_id,"账户标识",128);self._text(account_subject,"账户主体",255)
         def apply(conn):
             row=self._require(conn,session_id)
-            if row["native_thread_id"] and (row["thread_account_id"] != account_id or row["thread_account_subject"] != account_subject):
-                raise SessionError("session_account_history", "此会话已有其他账户的执行历史，请为新账户新建会话")
             conn.execute("UPDATE conversation_sessions SET model=?,effort=?,execution_account_id=?,account_subject=?,version=version+1,updated_at=? WHERE id=?",
                          (model,effort,account_id,account_subject,self._now(),session_id))
         if connection is not None:apply(connection)

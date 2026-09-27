@@ -43,18 +43,19 @@ class Store:
         self.sessions = SessionRegistry(self.path)
         self._initialize()
 
-    def create_section(self, name: str, color: str | None = None, icon: dict[str, str] | None = None) -> dict[str, Any]:
+    def create_section(self, name: str, color: str | None = None, icon: dict[str, str] | None = None,
+                       *, connection: sqlite3.Connection | None = None) -> dict[str, Any]:
         """创建工作台自有分区；分区的外观只接受受限 emoji 或 SVG。"""
         self._text(name, "分区名称", 80)
         color, icon = self._appearance(color, icon)
         section_id, now = self._id(), self._now()
-        with self._connection() as conn:
+        with nullcontext(connection) if connection is not None else self._connection() as conn:
             try:
                 conn.execute("INSERT INTO sections(id, name, color, icon, created_at) VALUES (?, ?, ?, ?, ?)",
                              (section_id, name, color, icon, now))
             except sqlite3.IntegrityError as exc:
                 raise StoreError("conflict", "分区名称已存在") from exc
-        return self._section_dict(section_id)
+            return self._appearance_dict(dict(self._require(conn, "sections", section_id, "分区")))
 
     def list_sections(self) -> list[dict[str, Any]]:
         """按创建时间列出工作台自有分区。"""
@@ -64,7 +65,7 @@ class Store:
     def create_project(
         self, name: str, cwd: str, section_name: str | None = None, *, section_id: str | None = None,
         color: str | None = None, icon: dict[str, str] | None = None, native_id: str | None = None,
-        is_workspace: bool = False,
+        is_workspace: bool = False, connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
         """创建项目；``cwd`` 必须是当前存在的绝对目录，创建后不可在此接口修改。"""
         self._text(name, "项目名称", 160)
@@ -74,7 +75,7 @@ class Store:
         self._native_id(native_id)
         project_id = self._id()
         now = self._now()
-        with self._connection() as conn:
+        with nullcontext(connection) if connection is not None else self._connection() as conn:
             try:
                 self._validate_section_id(conn, section_id)
                 conn.execute(
@@ -84,7 +85,7 @@ class Store:
                 )
             except sqlite3.IntegrityError as exc:
                 raise StoreError("conflict", "项目名称或工作目录已存在") from exc
-        return self._project_dict(project_id)
+            return self._appearance_dict(dict(self._require(conn, "projects", project_id, "项目")))
 
     def list_projects(self, include_workspace: bool = False) -> list[dict[str, Any]]:
         """按创建时间返回全部项目。"""
@@ -201,7 +202,7 @@ class Store:
         return self._execution_account_dict(account_id)
 
     def set_default_execution_account(self, account_id: str) -> dict[str, Any]:
-        """持久化新任务的默认执行账户；既有任务和运行快照不会随之改变。"""
+        """切换后续领取使用的默认执行账户；运行快照不会随之改变。"""
         with self._connection(immediate=True) as conn:
             account = self._require(conn, "execution_accounts", account_id, "执行账户")
             conn.execute(
@@ -263,8 +264,9 @@ class Store:
         sandbox: str = "read-only",
         session_id: str | None = None,
         sync_session_defaults: bool = False,
+        connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
-        """创建任务并固定当时默认执行账户；不指定代理的人工任务不能被领取执行。"""
+        """创建任务；执行账户在领取时从当前默认值解析。"""
         self._text(title, "任务标题", 300)
         self._text(prompt, "任务提示", 100_000, allow_empty=True)
         encoded_resources = self._resource_paths(resource_paths or [])
@@ -272,7 +274,7 @@ class Store:
         self._execution_settings(model, effort, concurrency, sandbox)
         task_id = self._id()
         now = self._now()
-        with self._connection() as conn:
+        with nullcontext(connection) if connection is not None else self._connection() as conn:
             self._require(conn, "projects", project_id, "项目")
             if session_id is not None:
                 session = self._require(conn, "conversation_sessions", session_id, "会话")
@@ -281,24 +283,25 @@ class Store:
             self._validate_section_id(conn, section_id)
             if agent_id is not None:
                 self._require(conn, "agents", agent_id, "代理")
-            selected_account_id = execution_account_id
-            if selected_account_id is None:
-                selected_account_id = self._default_execution_account_id(conn)
-            else:
-                self._require(conn, "execution_accounts", selected_account_id, "执行账户")
-            if sync_session_defaults and session_id:
-                self.sessions.configure_defaults(session_id,model=model,effort=effort,account_id=selected_account_id,
-                                                account_subject=self._account_subject(conn,selected_account_id),connection=conn)
+            if execution_account_id is not None:
+                # Keep accepting the former field so old callers get validation, but it
+                # cannot pin a task away from the current default.
+                self._require(conn, "execution_accounts", execution_account_id, "执行账户")
+            selected_account_id = self._default_execution_account_id(conn)
+            if sync_session_defaults and session_id and selected_account_id is not None:
+                self.sessions.configure_defaults(session_id, model=model, effort=effort, account_id=selected_account_id,
+                                                 account_subject=self._account_subject(conn, selected_account_id), connection=conn)
             conn.execute(
                 """INSERT INTO tasks(
                     id, project_id, title, prompt, agent_id, execution_account_id, execution_account_subject, resource_paths, section_name, section_id,
                     model, effort, concurrency, sandbox, session_id, state, version, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'backlog', 1, ?, ?)""",
-                (task_id, project_id, title, prompt, agent_id, selected_account_id,
-                 self._account_subject(conn, selected_account_id), encoded_resources, section_name, section_id,
+                (task_id, project_id, title, prompt, agent_id, None,
+                 None, encoded_resources, section_name, section_id,
                  model, effort, concurrency, sandbox, session_id, now, now),
             )
-        return self.get_task(task_id)
+            return self._task_dict(self._require(conn, "tasks", task_id, "任务"), selected_account_id,
+                                   self._account_subject(conn, selected_account_id))
 
     def list_tasks(self, project_id: str | None = None) -> list[dict[str, Any]]:
         """返回任务；指定 ``project_id`` 时仅返回该项目任务。"""
@@ -308,7 +311,9 @@ class Store:
                 rows = conn.execute("SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at, id", (project_id,))
             else:
                 rows = conn.execute("SELECT * FROM tasks ORDER BY created_at, id")
-            return [self._task_dict(row) for row in rows]
+            account_id = self._default_execution_account_id(conn)
+            subject = self._account_subject(conn, account_id)
+            return [self._task_dict(row, account_id, subject) for row in rows]
 
     def task_run_summaries(self, task_id: str | None = None) -> dict[str, dict[str, Any]]:
         """批量读取每项任务的最后一次运行摘要，列表不加载长正文和资源快照。"""
@@ -317,14 +322,39 @@ class Store:
             rows=conn.execute("SELECT id,task_id,state,duration_ms,input_tokens,output_tokens,cached_input_tokens,finished_at,thread_id FROM (SELECT id,task_id,state,duration_ms,input_tokens,output_tokens,cached_input_tokens,finished_at,thread_id,ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at DESC,id DESC) AS position FROM runs "+where+") WHERE position=1",(task_id,) if task_id else ()).fetchall()
             return {r['task_id']:dict(r) for r in rows}
 
+    def task_run_history(self, task_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        """批量投影任务运行历史，供列表统计使用且不读取运行内容。"""
+        task_ids = list(dict.fromkeys(task_ids))
+        history = {task_id: [] for task_id in task_ids}
+        if not task_ids:
+            return history
+        with self._connection() as conn:
+            # SQLite binds at most 999 parameters. Chunking keeps this a bounded
+            # batch read even when a planning board has many tasks.
+            for offset in range(0, len(task_ids), 999):
+                batch = task_ids[offset:offset + 999]
+                placeholders = ','.join('?' for _ in batch)
+                rows = conn.execute(
+                    f'''SELECT id, task_id, state, created_at, finished_at
+                        FROM runs WHERE task_id IN ({placeholders})
+                        ORDER BY task_id, created_at, id''',
+                    batch,
+                )
+                for row in rows:
+                    run = dict(row)
+                    history[run.pop('task_id')].append(run)
+        return history
+
     def get_task(self, task_id: str) -> dict[str, Any]:
         """读取一个任务，不存在时抛出 ``StoreError(code='not_found')``。"""
         with self._connection() as conn:
             row = self._require(conn, "tasks", task_id, "任务")
-            return self._task_dict(row)
+            account_id = self._default_execution_account_id(conn)
+            return self._task_dict(row, account_id, self._account_subject(conn, account_id))
 
     def update_task(self, task_id: str, version: int, **fields: Any) -> dict[str, Any]:
         """乐观更新任务；状态转移区分人工任务和必须经运行完成的 AI 任务。"""
+        connection = fields.pop("_connection", None)
         sync_session_defaults = fields.pop("_sync_session_defaults", False)
         allowed = {"title", "prompt", "agent_id", "execution_account_id", "resource_paths", "section_name", "section_id", "model", "effort", "concurrency", "sandbox", "state", "session_id"}
         if not fields or set(fields) - allowed:
@@ -341,7 +371,7 @@ class Store:
             fields["section_name"] = self._section_name(fields["section_name"])
         if any(key in fields for key in ("model", "effort", "concurrency", "sandbox")):
             self._execution_settings(fields.get("model"), fields.get("effort"), fields.get("concurrency", 1), fields.get("sandbox", "read-only"))
-        with self._connection() as conn:
+        with nullcontext(connection) if connection is not None else self._connection() as conn:
             task = self._require(conn, "tasks", task_id, "任务")
             if task["state"] == "running" and set(fields) != {"title"}:
                 raise StoreError("conflict", "运行中的任务不能编辑")
@@ -350,8 +380,6 @@ class Store:
             if "state" in fields:
                 self._validate_task_transition(task["state"], fields["state"], fields.get("agent_id", task["agent_id"]) is None)
             effective_state = fields.get("state", task["state"])
-            if "execution_account_id" in fields and effective_state not in {"backlog", "ready"}:
-                raise StoreError("conflict", "修改已执行任务的执行账户时，必须退回待规划或待执行")
             content_changed = any(
                 key in fields and fields[key] != task[key]
                 for key in ("prompt", "agent_id", "resource_paths", "model", "effort", "concurrency", "sandbox", "session_id")
@@ -366,17 +394,20 @@ class Store:
                 session = self._require(conn, "conversation_sessions", fields["session_id"], "会话")
                 if session["project_id"] != task["project_id"]:
                     raise StoreError("validation", "会话不属于任务项目")
-            if "execution_account_id" in fields and fields["execution_account_id"] is not None:
-                self._require(conn, "execution_accounts", fields["execution_account_id"], "执行账户")
-                fields["execution_account_subject"] = self._account_subject(conn, fields["execution_account_id"])
-            elif "execution_account_id" in fields:
-                fields["execution_account_subject"] = None
+            if "execution_account_id" in fields:
+                if fields["execution_account_id"] is not None:
+                    self._require(conn, "execution_accounts", fields["execution_account_id"], "执行账户")
+                # Compatibility input only: task routing always follows the current default.
+                fields.pop("execution_account_id")
             if sync_session_defaults:
                 session_identity=fields.get("session_id",task["session_id"])
-                account_identity=fields.get("execution_account_id",task["execution_account_id"])
-                if session_identity:
+                account_identity=self._default_execution_account_id(conn)
+                if session_identity and account_identity is not None:
                     self.sessions.configure_defaults(session_identity,model=fields.get("model",task["model"]),effort=fields.get("effort",task["effort"]),
                                                     account_id=account_identity,account_subject=self._account_subject(conn,account_identity),connection=conn)
+            if not fields:
+                account_id = self._default_execution_account_id(conn)
+                return self._task_dict(task, account_id, self._account_subject(conn, account_id))
             assignments = [f"{column} = ?" for column in fields]
             values = [fields[column] for column in fields]
             assignments.extend(["version = version + 1", "updated_at = ?"])
@@ -386,21 +417,35 @@ class Store:
             )
             if cursor.rowcount != 1:
                 raise StoreError("version_conflict", "任务已被其他操作更新")
-        return self.get_task(task_id)
+            account_id = self._default_execution_account_id(conn)
+            return self._task_dict(self._require(conn, "tasks", task_id, "任务"), account_id,
+                                   self._account_subject(conn, account_id))
 
-    def claim(self, task_id: str) -> dict[str, Any]:
-        """原子领取 ready 任务，并固定任务执行设置与专业助手规则。"""
+    def claim(self, task_id: str, *, prompt_override: str | None = None, message_id: str | None = None) -> dict[str, Any]:
+        """原子领取 ready 任务，并快照领取时的默认执行账户。"""
         with self._connection(immediate=True) as conn:
             task = self._require(conn, "tasks", task_id, "任务")
             if task["state"] != "ready":
                 raise StoreError("conflict", "只有 ready 任务可以领取")
-            if task["execution_account_id"] is None:
-                raise StoreError("account_required", "请先为任务配置独立执行账户，不会使用桌面账户代替")
+            execution_account_id = self._default_execution_account_id(conn)
+            if execution_account_id is None:
+                raise StoreError("account_required", "请先设置默认执行账户")
+            execution_account = self._require(conn, "execution_accounts", execution_account_id, "执行账户")
+            execution_account_subject = execution_account["subject_id"]
             session = None
+            session_storage_account = execution_account
             if task["session_id"]:
                 session = self._require(conn, "conversation_sessions", task["session_id"], "会话")
-                if session["project_id"] != task["project_id"] or (session["native_thread_id"] and (session["thread_account_id"] != task["execution_account_id"] or session["thread_account_subject"] != task["execution_account_subject"])):
+                if session["project_id"] != task["project_id"]:
                     raise StoreError("session_boundary", "任务与会话的项目或账户绑定不一致")
+                if session["native_thread_id"]:
+                    storage_account_id = session["thread_account_id"]
+                    storage_subject = session["thread_account_subject"]
+                    if storage_account_id is None or storage_subject is None:
+                        raise StoreError("session_boundary", "原生会话缺少账户存储归属")
+                    session_storage_account = self._require(conn, "execution_accounts", storage_account_id, "执行账户")
+                    if session_storage_account["subject_id"] != storage_subject:
+                        raise StoreError("session_boundary", "原生会话账户主体与登记账户不一致")
                 if conn.execute("SELECT 1 FROM tasks WHERE session_id=? AND state='running'", (session["id"],)).fetchone():
                     raise StoreError("session_busy", "该会话正在执行另一项任务")
             agent = None if task["agent_id"] is None else conn.execute("SELECT * FROM agents WHERE id = ?", (task["agent_id"],)).fetchone()
@@ -416,21 +461,22 @@ class Store:
             if cursor.rowcount != 1:
                 raise StoreError("conflict", "任务已被其他执行者领取")
             project = self._require(conn, "projects", task["project_id"], "项目")
-            execution_account = None
-            if task["execution_account_id"] is not None:
-                execution_account = self._require(conn, "execution_accounts", task["execution_account_id"], "执行账户")
+            if prompt_override is not None:
+                self._text(prompt_override, "运行输入", 100000, allow_empty=True)
+            task_prompt = task["prompt"] if prompt_override is None else prompt_override
+            if message_id is not None:
+                self._text(message_id, "消息标识", 255)
             conn.execute(
                 """INSERT INTO runs(
                     id, task_id, project_id, agent_id, state, task_title, task_prompt, project_name, project_cwd,
                     agent_name, agent_instructions, execution_model, execution_effort, execution_concurrency, execution_sandbox,
-                    execution_account_id, execution_account_name, execution_account_home, execution_account_kind, execution_account_subject, session_id, created_at
-                ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, task_id, project["id"], agent_id, task["title"], task["prompt"], project["name"],
+                    execution_account_id, execution_account_name, execution_account_home, execution_account_kind, execution_account_subject, session_id, message_id, created_at
+                ) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (run_id, task_id, project["id"], agent_id, task["title"], task_prompt, project["name"],
                  session["cwd"] if session else project["cwd"], agent_name, agent_instructions, task["model"], task["effort"], task["concurrency"], task["sandbox"],
-                 execution_account["id"] if execution_account else None,
-                 (execution_account["display_name"] or execution_account["name"]) if execution_account else None,
-                 execution_account["codex_home"] if execution_account else None,
-                 execution_account["kind"] if execution_account else None, task["execution_account_subject"], task["session_id"], now),
+                 execution_account["id"], execution_account["display_name"] or execution_account["name"],
+                 execution_account["codex_home"], execution_account["kind"], execution_account_subject,
+                 task["session_id"], message_id, now),
             )
             conn.execute("UPDATE runs SET location_marker=? WHERE id=?",("[工作台执行 "+run_id+"]",run_id))
             run = self._run_dict_in(conn, run_id)
@@ -455,6 +501,13 @@ class Store:
                     "codex_home": run["execution_account_home"],
                     "kind": run["execution_account_kind"],
                     "subject_id": run["execution_account_subject"],
+                },
+                "session_storage_account": {
+                    "id": session_storage_account["id"],
+                    "name": session_storage_account["display_name"] or session_storage_account["name"],
+                    "codex_home": session_storage_account["codex_home"],
+                    "kind": session_storage_account["kind"],
+                    "subject_id": session_storage_account["subject_id"],
                 },
             }
 
@@ -683,6 +736,7 @@ class Store:
                 self._ensure_column(conn, "runs", "execution_effort", "TEXT")
                 self._ensure_column(conn, "runs", "execution_concurrency", "INTEGER NOT NULL DEFAULT 1")
                 self._ensure_column(conn, "runs", "execution_sandbox", "TEXT NOT NULL DEFAULT 'read-only'")
+                self._ensure_column(conn, "runs", "message_id", "TEXT")
             except BaseException:
                 conn.rollback()
                 raise
@@ -955,9 +1009,12 @@ class Store:
         self._require(conn, "sections", section_id, "分区")
 
     @staticmethod
-    def _task_dict(row: sqlite3.Row) -> dict[str, Any]:
+    def _task_dict(row: sqlite3.Row, execution_account_id: str | None = None,
+                   execution_account_subject: str | None = None) -> dict[str, Any]:
         value = dict(row)
         value["resource_paths"] = json.loads(value.get("resource_paths", "[]"))
+        value["execution_account_id"] = execution_account_id
+        value["execution_account_subject"] = execution_account_subject
         return value
 
     @staticmethod

@@ -41,8 +41,12 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
-    def test_only_account_onboarding_and_default_selection_can_write(self):
-        writes={'account_create','account_login','account_status','account_default'}
+    def test_only_explicit_account_planning_and_library_actions_can_write(self):
+        writes={'account_create','account_login','account_status','account_default',
+                'planning_create','planning_update','planning_start','planning_stop',
+                'planning_archive','planning_delete','planning_followup','planning_knowledge_link',
+                'planning_export','planning_draft','library_upload','library_upload_begin',
+                'library_upload_chunk','library_upload_commit','library_link'}
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,{})

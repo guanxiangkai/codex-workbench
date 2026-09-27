@@ -21,11 +21,15 @@ class Runner:
 
 class ModuleCatalogTests(unittest.TestCase):
     def test_only_user_requested_modules_are_advertised(self):
-        self.assertEqual({'agents','knowledge','models','accounts','other_accounts','config'},{m['id'] for m in MODULES})
+        self.assertEqual({'agents','knowledge','models','accounts','other_accounts','config','planning'},{m['id'] for m in MODULES})
         self.assertFalse({'成果中心','运行诊断','验收记录'}&{m['name'] for m in MODULES})
         self.assertIn('技能助手',{m['name'] for m in MODULES})
-        writable={'account_create','account_login','account_status','account_default'}
-        self.assertEqual(21,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writable) for t in TOOLS))
+        writable={'account_create','account_login','account_status','account_default',
+                  'planning_create','planning_update','planning_start','planning_stop',
+                  'planning_archive','planning_delete','planning_followup','planning_knowledge_link',
+                  'planning_export','planning_draft','planning_intake','planning_intake_save','library_upload','library_upload_begin',
+                  'library_upload_chunk','library_upload_commit','library_link'}
+        self.assertEqual(41,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writable) for t in TOOLS))
     def test_knowledge_list_scope_and_body_exclusion(self):
         runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
         result=catalog.listing('project:a','查询')

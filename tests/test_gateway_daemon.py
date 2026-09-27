@@ -35,6 +35,30 @@ class GatewayAuthorizationTests(unittest.TestCase):
                     _authorized_accounts(settings)
 
 class RegisteredAccountTests(unittest.TestCase):
+    def test_old_session_ingress_can_follow_new_default_without_accepting_unknown_clients(self):
+        from pathlib import Path
+        import sqlite3
+        import tempfile
+        from unittest.mock import patch
+        from codex_workbench.gateway_daemon import RegisteredUpstreams
+        from codex_workbench.model_gateway import Authorization
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); path = root/'catalog.sqlite3'
+            with sqlite3.connect(path) as db:
+                db.execute('CREATE TABLE execution_accounts(id TEXT,codex_home TEXT,subject_id TEXT)')
+                db.execute('INSERT INTO execution_accounts VALUES(?,?,?)', ('old', str(root/'accounts/old'), 'old-subject'))
+            class Broker:
+                def __init__(self, home, subject, cli, **kwargs): self.subject = subject
+                def authorize(self): return Authorization(self.subject, {})
+                def accepts(self, header): return header == 'Bearer synthetic-' + self.subject
+            resolver = RegisteredUpstreams(path, 'synthetic-cli', [], broker_factory=Broker)
+            with patch('codex_workbench.gateway_daemon.validate_account_home', side_effect=lambda p: p):
+                self.assertTrue(resolver.accepts('Bearer synthetic-old-subject'))
+                self.assertFalse(resolver.accepts('Bearer unregistered'))
+                with sqlite3.connect(path) as db:
+                    db.execute("DELETE FROM execution_accounts")
+                self.assertFalse(resolver.accepts('Bearer synthetic-old-subject'))
+
     def test_new_registered_account_is_resolved_without_restart(self):
         from pathlib import Path
         import sqlite3

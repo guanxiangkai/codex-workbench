@@ -14,7 +14,7 @@ from codex_workbench.store import Store, StoreError
 
 
 class ExecutionAccountStoreTest(unittest.TestCase):
-    """验证默认账户只影响新任务，且目录引用始终处于本机私有边界。"""
+    """验证每次领取采用当前默认账户，且目录引用始终处于本机私有边界。"""
 
     def setUp(self) -> None:
         """建立隔离数据库、项目和代理；测试目录不含任何认证材料。"""
@@ -48,24 +48,48 @@ class ExecutionAccountStoreTest(unittest.TestCase):
             callable_(*args, **kwargs)  # type: ignore[operator]
         self.assertEqual(code, caught.exception.code)
 
-    def test_default_switch_only_changes_new_tasks_and_claim_preserves_a_snapshot(self) -> None:
-        """A 创建的任务在默认切换 B 后仍固定 A，新任务才使用 B。"""
+    def test_default_switch_retargets_existing_tasks_and_preserves_run_snapshots(self) -> None:
+        """任务每次领取都使用当前默认账户，已经开始的运行仍保持其快照。"""
         account_a = self.store.create_execution_account("账户 A", str(self.account_home("account-a")))
         account_b = self.store.create_execution_account("账户 B", str(self.account_home("account-b")))
         self.store.set_default_execution_account(account_a["id"])
         task_a = self.ready_task()
         self.store.set_default_execution_account(account_b["id"])
-        self.assertEqual(account_a["id"], self.store.get_task(task_a["id"])["execution_account_id"])
+        self.assertEqual(account_b["id"], self.store.get_task(task_a["id"])["execution_account_id"])
         run_a = self.store.claim(task_a["id"])
         self.assertEqual(
-            {"id": account_a["id"], "name": "账户 A", "codex_home": str(self.account_home("account-a")),
+            {"id": account_b["id"], "name": "账户 B", "codex_home": str(self.account_home("account-b")),
              "kind": "isolated", "subject_id": None},
             run_a["execution_account"],
         )
+        self.store.finish(run_a["id"], "review")
+        self.store.set_default_execution_account(account_a["id"])
+        self.assertEqual(account_b["id"], self.store.list_runs(task_a["id"])[0]["execution_account_id"])
         task_b = self.store.create_task(self.project["id"], "新任务", agent_id=self.agent["id"])
-        self.assertEqual(account_b["id"], task_b["execution_account_id"])
+        self.assertEqual(account_a["id"], task_b["execution_account_id"])
         accounts = self.store.list_execution_accounts()
-        self.assertEqual([False, True], [account["isDefault"] for account in accounts])
+        self.assertEqual([True, False], [account["isDefault"] for account in accounts])
+
+    def test_bound_native_session_uses_its_storage_account_after_default_switch(self) -> None:
+        account_a = self.store.create_execution_account("账户 A", str(self.account_home("account-a")))
+        account_b = self.store.create_execution_account("账户 B", str(self.account_home("account-b")))
+        self.store.record_account_subject(account_a["id"], "subject-a")
+        self.store.record_account_subject(account_b["id"], "subject-b")
+        self.store.set_default_execution_account(account_a["id"])
+        session = self.store.sessions.create(
+            self.project["id"], None, str(self.root), account_a["id"], "subject-a",
+            "read-only", 1, "never",
+        )
+        self.store.sessions.attach_thread(
+            session["id"], "12345678-1234-1234-1234-123456789abc",
+            account_id=account_a["id"], account_subject="subject-a",
+        )
+        self.store.set_default_execution_account(account_b["id"])
+        task = self.store.create_task(self.project["id"], "延续会话", agent_id=self.agent["id"], session_id=session["id"])
+        task = self.store.update_task(task["id"], task["version"], state="ready")
+        run = self.store.claim(task["id"])
+        self.assertEqual(account_b["id"], run["execution_account"]["id"])
+        self.assertEqual(account_a["id"], run["session_storage_account"]["id"])
 
     def test_explicit_unknown_account_does_not_fall_back_to_default(self) -> None:
         """显式给出未知账户必须失败，不能静默改用默认账户。"""
@@ -80,21 +104,17 @@ class ExecutionAccountStoreTest(unittest.TestCase):
             execution_account_id="missing-account",
         )
 
-    def test_execution_account_can_only_change_before_execution_or_with_rollback(self) -> None:
-        """执行账户可在 backlog/ready 修改；已执行任务需同次退回可编辑状态。"""
+    def test_explicit_task_account_is_validated_but_cannot_override_default(self) -> None:
+        """旧字段可继续传入，却不能把任务固定到非默认账户。"""
         account_a = self.store.create_execution_account("账户 A", str(self.account_home("account-a")))
         account_b = self.store.create_execution_account("账户 B", str(self.account_home("account-b")))
+        self.store.set_default_execution_account(account_a["id"])
         task = self.ready_task(account_a["id"])
         changed = self.store.update_task(task["id"], task["version"], execution_account_id=account_b["id"])
-        self.assertEqual(account_b["id"], changed["execution_account_id"])
+        self.assertEqual(account_a["id"], changed["execution_account_id"])
+        self.store.set_default_execution_account(account_b["id"])
         run = self.store.claim(changed["id"])
-        self.assert_error("conflict", self.store.update_task, changed["id"], changed["version"] + 1, execution_account_id=account_a["id"])
-        self.store.finish(run["id"], "review")
-        reviewed = self.store.get_task(changed["id"])
-        reverted = self.store.update_task(
-            reviewed["id"], reviewed["version"], state="backlog", execution_account_id=account_a["id"]
-        )
-        self.assertEqual(account_a["id"], reverted["execution_account_id"])
+        self.assertEqual(account_b["id"], run["execution_account"]["id"])
 
     def test_rejects_symlink_cloud_default_native_and_shared_paths(self) -> None:
         """符号链接、云盘、默认根目录和权限过宽目录不能登记为执行账户。"""

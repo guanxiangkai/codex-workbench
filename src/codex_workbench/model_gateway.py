@@ -362,9 +362,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     while chunk := response.read1(64 * 1024):
                         self.wfile.write(f'{len(chunk):x}\r\n'.encode() + chunk + b'\r\n')
                         self.wfile.flush()
-                    self.wfile.write(b'0\r\n\r\n')
-                    self.wfile.flush()
-                    self.close_connection = True
+            # 客户端看到 HTTP 完成时，会话必须已可续接；上游清理仍属于本次请求。
+            self.wfile.write(b'0\r\n\r\n')
+            self.wfile.flush()
+            self.close_connection = True
         except GatewayError as exc:
             self._error(exc)
         except (TimeoutError, socket.timeout):

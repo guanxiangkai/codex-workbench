@@ -1,10 +1,11 @@
-"""修改所有会话下一次请求的默认账户偏好，不初始化数据库或切换官方登录。"""
+"""所有会话共用的当前默认账户；不改动官方登录与历史执行记录。"""
 import sqlite3
 from pathlib import Path
 from urllib.parse import quote
 
 from .account_runtime import current_account_home, validate_account_home
 from .readonly_sources import connection
+from .account_routing import default_routing_status
 
 
 def set_default_account(path, native, account_id, expected_default_id):
@@ -60,4 +61,5 @@ def set_default_account(path, native, account_id, expected_default_id):
                 )
     finally:
         db.close()
-    return {"default_account_id": account_id, "applies_to": "all_sessions_next_request"}
+    return {"default_account_id": account_id, "applies_to": "all_sessions_current_default",
+            **default_routing_status(path.parent)}

@@ -75,7 +75,7 @@ python3 -m venv .venv
 
 切换接口分别返回偏好保存结果和路由就绪状态。原生配置仍为直连、网关未启动或健康检查失败时，页面明确提示尚未在 Codex 中生效。网关兼容桌面应用官方 CLI 目录迁移，自定义失效路径不会被静默替换。
 
-网关的 `registered_accounts` 策略允许新登录并登记的工作台账户动态接入，无需逐个重启网关。原有固定授权策略仍可显式保留。HTTP 模式由 Codex 携带完整上下文；跨账户的服务器 `previous_response_id` 引用无法代替上下文，网关会拒绝这种不完整请求而非静默丢失历史。
+新准备的网关默认使用 `registered_accounts` 策略，允许新登录并登记的工作台账户动态接入，无需逐个重启网关。已有策略保持不变；从旧版 `fixed` 配置升级并启用动态切换时，显式运行 `WORKBENCH_GATEWAY_ACCOUNT_POLICY=registered_accounts python gateway_control.py prepare`，再运行 `python gateway_control.py start`，并核对设置中的策略与网关健康状态。固定授权仍可通过 `WORKBENCH_GATEWAY_ACCOUNT_POLICY=fixed` 显式选择。HTTP 模式由 Codex 携带完整上下文；跨账户的服务器 `previous_response_id` 引用无法代替上下文，网关会拒绝这种不完整请求而非静默丢失历史。
 
 ### 后台快照与账户资料
 

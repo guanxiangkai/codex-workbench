@@ -1,0 +1,241 @@
+/* 工作计划复用 readonly.css 的颜色、卡片与表单令牌。 */
+.planning-page{max-width:1440px;margin:auto}.planning-toolbar{position:sticky;top:80px;z-index:2;padding:12px 0;background:var(--page)}.planning-board{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:16px;align-items:start;overflow-x:auto;padding-bottom:8px}.planning-column{min-width:240px;background:var(--weak);border:1px solid var(--line);border-radius:12px;padding:12px}.planning-column>header,.planning-card-top,.planning-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.planning-column>header{align-items:center;margin:0 0 12px}.planning-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;margin:10px 0;box-shadow:0 1px 1px #20242c08}.planning-card h3,.planning-asset h3{font-size:14px;line-height:20px;margin:0;overflow-wrap:anywhere}.planning-card p{font-size:12px;color:var(--muted);margin:4px 0}.planning-card-prompt{white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.planning-card footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.planning-card footer button{min-height:32px;padding:4px 8px}.planning-empty{font-size:12px;color:var(--muted);padding:12px}.planning-error{padding:10px 12px;color:var(--red);background:#fef0ee;border:1px solid #f4cac5;border-radius:8px}.planning-form{display:grid;gap:16px;max-width:880px}.planning-form label,.planning-form fieldset>label{display:grid;gap:6px;color:var(--muted);font-weight:500}.planning-form input,.planning-form select,.planning-form textarea{width:100%;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);padding:10px;min-height:40px}.planning-form textarea{min-height:110px;resize:vertical}.planning-form fieldset{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:16px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.planning-form legend{padding:0 6px;color:var(--muted)}.planning-draft-tasks{display:grid;gap:12px}.planning-draft-tasks fieldset{grid-template-columns:1fr}.planning-asset-picker{border-top:1px solid var(--line);padding-top:16px}.planning-assets{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}.planning-asset{min-width:0;display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:14px}.planning-file-icon{color:var(--blue);background:#edf3ff;border-radius:8px;width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px}.planning-file-icon .icon{width:20px}.planning-asset p,.planning-asset small{display:block;margin:3px 0;overflow-wrap:anywhere}.planning-asset button{min-height:32px;padding:5px 8px}.planning-check{padding:8px 0}.planning-detail-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.8fr);gap:16px}.planning-detail-main{min-height:280px}.planning-pre{white-space:pre-wrap;overflow-wrap:anywhere}.planning-detail-main dl{display:grid;grid-template-columns:130px 1fr;gap:8px 16px;border-top:1px solid var(--line);padding-top:16px}.planning-detail-main dt{color:var(--muted)}.planning-detail-main dd{margin:0;overflow-wrap:anywhere}.planning-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}.planning-run{padding:12px 0;border-bottom:1px solid var(--line)}.planning-run small{display:block}.planning-detail-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}.planning-detail-sections .card article{padding:9px 0;border-bottom:1px solid var(--line)}.planning-detail-sections .card small{display:block}.planning-preview{position:fixed;inset:8vh max(16px,calc((100vw - 760px)/2)) auto;background:var(--surface);border:1px solid var(--line);box-shadow:0 18px 60px #20242c44;border-radius:12px;padding:18px;z-index:20;max-height:84vh;overflow:auto}.planning-preview img{display:block;max-width:100%;max-height:60vh;margin:16px auto}.planning-preview footer{margin-top:16px}.planning-download{display:inline-flex;align-items:center;gap:8px;color:var(--green);text-decoration:none}.planning-knowledge{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding:14px 0}.planning-knowledge p{color:var(--muted)}@media(max-width:900px){.planning-board{grid-template-columns:repeat(4,minmax(260px,1fr))}.planning-detail-grid,.planning-detail-sections{grid-template-columns:1fr}.planning-toolbar{top:0}}@media(max-width:600px){.planning-form fieldset{grid-template-columns:1fr}.planning-page .heading{align-items:flex-start;flex-wrap:wrap}.planning-preview{inset:16px}.planning-detail-main dl{grid-template-columns:1fr;gap:3px}.planning-detail-main dd{margin-bottom:10px}}
+/* Planning has its own surfaces: account-card gradients do not apply here. */
+.planning-page{--planning-border:color-mix(in srgb,var(--line) 78%,var(--surface));max-width:1440px;padding:8px 0 28px}
+.planning-page .card{min-width:0;padding:24px;border:1px solid var(--planning-border);border-radius:14px;background:var(--surface);box-shadow:0 2px 6px #20242c03}
+.planning-page>.heading{margin:0 0 28px;align-items:flex-start}
+.planning-page .heading h1,.planning-board-heading h1{font-size:26px;font-weight:650;letter-spacing:-.7px;line-height:1.4;margin:0 0 6px}
+.planning-page .heading p{margin:0;color:var(--muted);font-size:13px}
+.planning-page button,.planning-page input,.planning-page select{transition:background .15s,border-color .15s,box-shadow .15s}
+.planning-page button:focus-visible,.planning-page input:focus-visible,.planning-page select:focus-visible,.planning-page textarea:focus-visible,.planning-page summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.planning-page .badge{font-size:11px;line-height:18px;padding:2px 8px;min-height:0;font-weight:500;white-space:nowrap}
+.top button.brand{padding:0;border:0;background:transparent;cursor:pointer;font:inherit;font-weight:600;color:var(--ink)}
+.top button.brand[aria-current="page"]{color:var(--blue)}
+.top button.brand:focus-visible{outline:2px solid var(--blue);outline-offset:6px}
+.subnav.planning-dimensions{justify-content:flex-start;gap:28px;height:52px;max-width:1440px;padding:0;margin:-8px auto 24px;border-bottom:1px solid var(--line);background:transparent}
+.planning-dimensions button{position:relative;min-width:0;height:52px;padding:0 2px;border:0;border-radius:0;background:transparent;color:var(--muted);font-weight:500}
+.planning-dimensions button:hover{color:var(--ink);background:transparent}
+.planning-dimensions button[aria-current="page"]{color:var(--green);background:transparent}
+.planning-dimensions button[aria-current="page"]:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--green)}
+.planning-search-form{display:flex;align-items:center;gap:8px;flex:1;min-width:0;max-width:440px;margin-right:auto}
+.planning-search-form .search{flex:1;min-width:0;background:var(--surface)}
+.planning-search-form input{width:100%;min-width:0}
+.planning-page>.toolbar{margin-bottom:22px}
+.planning-task-text{display:block;min-width:0;white-space:normal}
+.planning-task-text strong{display:block;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.planning-task-text small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.planning-readonly-tag{color:var(--muted);font-size:12px;white-space:nowrap}
+.planning-readonly-notice{display:flex;align-items:center;gap:8px;padding:12px 16px;border:1px solid var(--line);border-radius:8px;color:var(--muted);background:var(--weak)}
+
+/* Six quiet weekday hues. Past dates deliberately have no hue. */
+.planning-tone-0{--day-bg:#f2f7fe;--day-accent:#507bbb}
+.planning-tone-1{--day-bg:#f2f9f5;--day-accent:#55846c}
+.planning-tone-2{--day-bg:#fcf9f0;--day-accent:#9a7d43}
+.planning-tone-3{--day-bg:#f7f4fc;--day-accent:#8670aa}
+.planning-tone-4{--day-bg:#fcf4f7;--day-accent:#ab6f88}
+.planning-tone-5{--day-bg:#f1f6f7;--day-accent:#61858c}
+.planning-calendar-toolbar{gap:6px;flex-wrap:wrap;margin-bottom:20px}
+.planning-calendar-toolbar>*{order:0}
+.planning-calendar-toolbar>button{order:0;flex:0 0 auto}
+.planning-calendar-toolbar>.select{order:0;flex:0 1 auto}
+.planning-calendar-toolbar .select{min-width:180px;max-width:300px;margin-right:auto;background:var(--surface)}
+.planning-calendar-toolbar .select select{max-width:100%;text-overflow:ellipsis}
+.planning-calendar-toolbar>button{min-width:34px;min-height:34px;padding:5px 9px;background:var(--surface)}
+.planning-month-label{font-size:15px;font-weight:600;margin-left:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.planning-calendar-layout{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:22px;align-items:start}
+.planning-month-grid{min-width:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:auto}
+.planning-weekdays,.planning-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:650px}
+.planning-weekdays{border-bottom:1px solid var(--line)}
+.planning-weekdays span{padding:14px 8px;text-align:center;background:var(--day-bg);color:var(--day-accent);font-size:12px;font-weight:600}
+.planning-day{position:relative;min-width:0;min-height:132px;padding:9px 6px;background:var(--day-bg);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.planning-day:nth-child(7n){border-right:0}
+.planning-day:nth-last-child(-n+7){border-bottom:0}
+.planning-day.outside{background:color-mix(in srgb,var(--day-bg) 50%,var(--surface))}
+.planning-day.outside time{color:var(--muted)}
+.planning-day.today{box-shadow:inset 0 0 0 2px #638cba}
+.planning-day>header{display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:9px;padding:0 2px}
+.planning-day time{display:grid;place-items:center;min-width:26px;height:26px;border-radius:8px;color:var(--day-accent);font-size:12px;font-weight:550;font-variant-numeric:tabular-nums}
+.planning-day.today time{color:var(--blue);background:var(--surface);font-weight:700}
+.planning-day>header button{min-height:26px;width:26px;padding:3px;border:0;background:transparent;color:var(--day-accent);opacity:0}
+.planning-day:hover>header button,.planning-day:focus-within>header button{opacity:1}
+.planning-day>header button:hover{background:var(--surface);color:var(--blue)}
+.planning-day>header button .icon{width:14px;height:14px}
+.planning-day-readonly{display:grid;place-items:center;width:26px;height:26px;color:#a1a7af}
+.planning-day-readonly .icon{width:11px;height:11px}
+.planning-day-items{display:grid;gap:6px;min-width:0}
+.planning-calendar-item{display:block;width:100%;min-width:0;min-height:31px;max-width:100%;padding:6px 7px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:17px;color:var(--ink);background:var(--surface);border:1px solid #20242c08;border-left:3px solid var(--task-accent,var(--day-accent));border-radius:5px;box-shadow:0 1px 2px #20242c03}
+.planning-calendar-item:hover{border-color:var(--task-accent,var(--day-accent));box-shadow:0 2px 5px #20242c08}
+.planning-calendar-item .badge{margin-left:5px;padding:0 4px;font-size:9px;line-height:15px}
+.planning-day-items>details{min-width:0;font-size:11px;color:var(--muted)}
+.planning-day-items>details>summary{cursor:pointer;padding:4px 2px;border-radius:4px}
+.planning-day-items>details[open] .planning-calendar-item{margin-top:6px}
+.planning-day.past,.planning-day.past.outside{background:#f0f1f3;color:#90959d}
+.planning-day.past time,.planning-day.past .planning-day-readonly{color:#979da5}
+.planning-day.past .planning-calendar-item,.planning-day.past .badge{color:#7d8590;background:#e9ebee;border-color:#dde0e4;box-shadow:none}
+.planning-day.past .planning-calendar-item{border-left-color:#b8bec6}
+.planning-day.past .planning-calendar-item:hover{background:#e2e5e9;border-color:#b8bec6}
+.planning-unplanned{padding:20px;background:var(--surface);border:1px solid var(--planning-border);border-radius:14px;min-width:0}
+.planning-unplanned h2{font-size:14px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.planning-unplanned .count{font-size:11px;font-weight:500;color:var(--muted);padding:2px 7px;background:var(--weak);border-radius:6px;font-variant-numeric:tabular-nums}
+.planning-unplanned>article{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:15px 0;border-top:1px solid var(--planning-border);min-width:0}
+.planning-unplanned>article>div{flex:1 1 100%;min-width:0}
+.planning-unplanned strong{display:block;font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+.planning-unplanned small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.planning-unplanned article button{flex:0 0 26px;width:26px;min-height:26px;margin-left:auto;padding:4px;border:0;background:var(--weak)}
+.planning-unplanned>p{font-size:12px;line-height:1.8;margin:0;color:var(--muted)}
+
+/* Project identity stays stable across the cards, calendar and task board. */
+.planning-color-0{--task-accent:#5a7dbc;--task-soft:#edf2fb}
+.planning-color-1{--task-accent:#4b9482;--task-soft:#edf7f3}
+.planning-color-2{--task-accent:#ae874b;--task-soft:#faf4e9}
+.planning-color-3{--task-accent:#9575b9;--task-soft:#f5effa}
+.planning-color-4{--task-accent:#b7768c;--task-soft:#fcf0f4}
+.planning-color-5{--task-accent:#5e99ac;--task-soft:#edf6fa}
+.planning-color-6{--task-accent:#819153;--task-soft:#f2f6e9}
+.planning-color-7{--task-accent:#ad7a5f;--task-soft:#faf1eb}
+.planning-project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:20px}
+.planning-page .planning-project-card{display:flex;flex-direction:column;padding:24px;transition:border-color .15s,box-shadow .15s}
+.planning-project-card:hover{border-color:color-mix(in srgb,var(--task-accent) 30%,var(--line));box-shadow:0 5px 18px #20242c07}
+.planning-project-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.planning-project-title{display:flex;align-items:center;gap:11px;min-width:0}
+.planning-project-icon{display:grid;place-items:center;flex:0 0 36px;height:36px;border-radius:10px;background:var(--task-soft);color:var(--task-accent)}
+.planning-project-icon .icon{width:18px;height:18px}
+.planning-project-card h2{font-size:15px;font-weight:600;line-height:1.6;letter-spacing:-.1px;margin:0;overflow-wrap:anywhere}
+.planning-project-heading>.badge{flex:0 0 auto;margin-top:7px}
+.planning-project-description{font-size:12px;color:var(--muted);margin:16px 0 26px}
+.planning-project-progress{display:flex;align-items:baseline;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;margin-bottom:10px}
+.planning-project-progress strong{font-size:28px;font-weight:600;letter-spacing:-1px;color:var(--ink);font-variant-numeric:tabular-nums}
+.planning-project-card progress{display:block;width:100%;height:5px;accent-color:var(--task-accent);margin:0 0 24px;border:0;border-radius:99px;overflow:hidden;background:var(--weak)}
+.planning-project-card progress::-webkit-progress-bar{background:var(--weak);border-radius:99px}
+.planning-project-card progress::-webkit-progress-value{background:var(--task-accent);border-radius:99px}
+.planning-project-card progress::-moz-progress-bar{background:var(--task-accent);border-radius:99px}
+.planning-project-counts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.planning-project-counts>span{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-size:10px;line-height:1.7;white-space:normal}
+.planning-project-counts strong{font-size:16px;font-weight:600;color:var(--status-color,var(--ink));font-variant-numeric:tabular-nums}
+.planning-project-card footer{display:flex;margin-top:22px;padding-top:16px;border-top:1px solid var(--planning-border)}
+.planning-project-card footer button{justify-content:space-between;width:100%;padding:0;min-height:28px;border:0;background:transparent;font-size:12px;color:var(--muted)}
+.planning-project-card footer button:hover{color:var(--task-accent)}
+.planning-project-card footer .icon{width:15px;height:15px}
+
+/* Reset native button layout: a task is a vertical, wrapping card. */
+.planning-board-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}
+.planning-board-heading p{margin:6px 0 0;font-size:12px}
+.planning-board-heading button{padding:0;min-height:28px;margin-bottom:16px;border:0;background:transparent;color:var(--muted);font-size:12px}
+.planning-board-heading button:hover{color:var(--blue)}
+.planning-board-summary{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:16px 0;color:var(--muted);font-size:11px}
+.planning-board-scroll{overflow-x:auto;padding:0 0 12px;scrollbar-width:thin}
+.planning-kanban{display:grid;grid-template-columns:repeat(5,minmax(225px,1fr));gap:14px;min-width:1180px;align-items:stretch}
+.planning-kanban-column{min-width:0;padding:14px 10px;background:#f0f2f5;border:1px solid var(--planning-border);border-radius:12px;--column-color:#939eae}
+.planning-kanban-column[data-status="pending"]{--column-color:#b38c50}
+.planning-kanban-column[data-status="running"]{--column-color:#628ac7}
+.planning-kanban-column[data-status="completed"]{--column-color:#60a28b}
+.planning-kanban-column[data-status="attention"]{--column-color:#bb7f76}
+.planning-kanban-column>header{display:flex;align-items:center;gap:8px;padding:2px 4px 16px}
+.planning-kanban-column h2{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;font-weight:600}
+.planning-kanban-column h2:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--column-color)}
+.planning-kanban-column .count{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto}
+.planning-kanban-cards{display:grid;gap:12px;align-content:start;min-height:290px}
+.planning-kanban-task{display:block;position:relative;width:100%;min-width:0;min-height:0;padding:16px;text-align:left;white-space:normal;border:1px solid var(--planning-border);border-left:3px solid var(--task-accent);border-radius:9px;background:var(--surface);color:var(--ink);box-shadow:0 2px 3px #20242c03}
+.planning-kanban-task:hover{background:var(--surface);border-color:color-mix(in srgb,var(--task-accent) 45%,var(--line));border-left-color:var(--task-accent);box-shadow:0 4px 12px #20242c09}
+.planning-task-card-top{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;color:var(--muted);margin-bottom:12px}
+.planning-kanban-task>strong{display:block;font-size:13px;line-height:1.7;font-weight:600;overflow-wrap:anywhere}
+.planning-kanban-task>p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:8px 0 16px;line-height:1.7;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.planning-task-card-meta{display:grid;gap:5px;color:var(--muted);font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+.planning-task-card-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:11px;border-top:1px solid var(--planning-border);font-size:10px;color:var(--muted)}
+.planning-task-card-foot .icon{width:13px;height:13px}
+.planning-column-empty{margin:0;padding:32px 10px;text-align:center;font-size:11px;color:#929aa6;border:1px dashed #d8dde5;border-radius:8px}
+
+/* Four primary metrics, then four compact status metrics. */
+.planning-stat-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 24px}
+.planning-period-tabs{display:flex;gap:2px;padding:3px;margin-right:12px;border:1px solid var(--line);border-radius:9px;background:var(--weak)}
+.planning-period-tabs button{min-width:44px;min-height:30px;padding:5px 12px;border:0;border-radius:6px;color:var(--muted);background:transparent;font-size:12px}
+.planning-period-tabs button[aria-pressed="true"]{background:var(--surface);box-shadow:0 1px 3px #20242c12;color:var(--ink);font-weight:600}
+.planning-stat-controls>label{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.planning-stat-controls input{min-height:34px;padding:5px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}
+.planning-stat-controls>button{min-height:34px;padding:5px 8px;background:var(--surface)}
+.planning-stat-controls>strong{font-size:13px;font-weight:600;margin-left:6px}
+.planning-stat-controls>.select{margin-left:auto;min-width:160px;max-width:280px;background:var(--surface)}
+.planning-stat-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:24px}
+.planning-metric-card{display:grid;grid-template-columns:1fr;justify-items:start;align-content:start;justify-content:stretch;gap:10px;min-width:0;padding:20px 22px;white-space:normal;text-align:left;border:1px solid color-mix(in srgb,var(--metric-color) 15%,var(--surface));border-radius:12px;background:color-mix(in srgb,var(--metric-color) 5%,var(--surface));color:var(--ink);box-shadow:none}
+.metric-violet{--metric-color:#8770ad}.metric-blue{--metric-color:#597ebe}.metric-cyan{--metric-color:#548b9b}.metric-teal{--metric-color:#418c83}.metric-green{--metric-color:#5f9473}.metric-amber{--metric-color:#a5834f}.metric-slate{--metric-color:#76869d}.metric-rose{--metric-color:#ae747b}
+.planning-metric-card>span{font-size:12px;font-weight:500;color:var(--muted)}
+.planning-metric-card>strong{font-size:34px;line-height:1.15;font-weight:600;letter-spacing:-1px;color:var(--metric-color);font-variant-numeric:tabular-nums}
+.planning-metric-card>small{font-size:11px;line-height:1.5;color:var(--muted)}
+.planning-metric-card:hover{background:color-mix(in srgb,var(--metric-color) 8%,var(--surface));border-color:color-mix(in srgb,var(--metric-color) 40%,var(--line))}
+.planning-metric-card[aria-pressed="true"]{border-color:var(--metric-color);box-shadow:inset 0 0 0 1px var(--metric-color)}
+.planning-metric-secondary{grid-template-columns:1fr auto;align-items:center;gap:6px 12px;padding:16px 20px;background:var(--surface);border-color:var(--planning-border)}
+.planning-metric-secondary>strong{grid-row:1 / 3;grid-column:2;font-size:25px}
+.planning-metric-secondary>small{grid-column:1}
+.planning-insights-grid{display:grid;grid-template-columns:minmax(0,2.25fr) minmax(260px,1fr);gap:20px;align-items:stretch}
+.planning-trend-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:22px}
+.planning-trend-heading h2,.planning-status-panel h2{font-size:15px;font-weight:600;margin:0;line-height:1.5}
+.planning-trend-heading p,.planning-status-panel>p{font-size:11px;color:var(--muted);margin:6px 0 0;line-height:1.6}
+.planning-trend-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:10px;color:var(--muted);padding-top:4px}
+.planning-trend-legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.planning-trend-legend span:before{content:"";width:13px;border-top:2px solid}
+.planning-trend-legend .planned:before{border-color:#8ba4c5}
+.planning-trend-legend .executed:before{border-color:#4d76bb;border-top-style:dashed}
+.planning-trend-legend .completed:before{border-color:#399780;border-top-style:dotted}
+.planning-trend-scroll{overflow-x:auto;margin:6px -6px 0}
+.planning-trend-svg{display:block;width:100%;min-width:460px;height:auto;min-height:235px;overflow:visible}
+.planning-trend-svg text{fill:var(--muted);font-size:11px;font-family:inherit}
+.planning-trend-grid{stroke:var(--line);stroke-dasharray:3 5;stroke-width:1}
+.planning-trend-area{fill:#8ba4c5;opacity:.08}
+.planning-series-planned{--series-color:#8ba4c5}
+.planning-series-executed{--series-color:#4d76bb}
+.planning-series-completed{--series-color:#399780}
+.planning-trend-line{fill:none;stroke:var(--series-color);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.planning-trend-line.planning-series-executed{stroke-dasharray:7 4}
+.planning-trend-line.planning-series-completed{stroke-dasharray:2 5}
+.planning-trend-dot{fill:var(--series-color);stroke:var(--surface);stroke-width:1.5}
+.planning-trend-empty{display:grid;place-items:center;text-align:center;min-height:255px;color:var(--muted);font-size:12px;border-radius:10px;background:var(--page)}
+.planning-stat-note{margin:16px 0 0;font-size:10px;color:var(--muted);line-height:1.8}
+.planning-stat-data{font-size:11px;color:var(--muted);margin-top:12px}
+.planning-stat-data summary{cursor:pointer;width:fit-content;padding:4px 0}
+.planning-stat-data>div{max-height:230px;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:8px}
+.planning-stat-data table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}
+.planning-stat-data th,.planning-stat-data td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line)}
+.planning-stat-data th:first-child{text-align:left}
+.planning-stat-data thead th{position:sticky;top:0;background:var(--weak);font-weight:500}
+.planning-stat-definition{padding:4px 2px;margin-top:18px}
+.planning-status-panel h3{font-size:12px;font-weight:600;margin:24px 0 14px;padding-top:20px;border-top:1px solid var(--planning-border)}
+.planning-status-panel .planning-project-counts{grid-template-columns:repeat(4,minmax(0,1fr))}
+.planning-status-list{display:grid;gap:15px;margin-top:22px}
+.planning-status-row{display:grid;grid-template-columns:1fr auto;justify-content:stretch;gap:7px 10px;min-width:0;min-height:0;padding:0;text-align:left;white-space:normal;border:0;border-radius:4px;background:transparent;color:var(--ink);font-size:11px}
+.planning-status-row:hover{background:var(--page)}
+.planning-status-row>strong{font-weight:550;font-variant-numeric:tabular-nums}
+.planning-distribution-track{grid-column:1 / -1;height:4px;background:var(--weak);border-radius:99px;overflow:hidden}
+.planning-status-fill{display:block;height:100%;background:var(--status-color,var(--blue));border-radius:inherit}
+.status-unassigned{--status-color:#919cad}.status-pending{--status-color:#ab8d57}.status-running{--status-color:#6384bc}.status-completed{--status-color:#5f9b82}.status-attention{--status-color:#b77b74}
+.planning-insights-bottom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:20px;align-items:start}
+.planning-compare-row{display:grid;grid-template-columns:minmax(90px,.8fr) minmax(150px,1.2fr);align-items:center;gap:20px;padding:20px 0;border-bottom:1px solid var(--planning-border)}
+.planning-compare-row:last-child{border-bottom:0;padding-bottom:0}
+.planning-compare-name{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0;padding:0;border:0;background:transparent;text-align:left;white-space:normal;color:var(--ink)}
+.planning-compare-name:hover{background:transparent;color:var(--blue)}
+.planning-compare-name strong{font-size:12px;font-weight:550;overflow-wrap:anywhere}
+.planning-compare-bars{display:grid;gap:8px}
+.planning-compare-series{display:grid;grid-template-columns:26px minmax(30px,1fr) 24px;align-items:center;gap:8px;font-size:10px;color:var(--muted)}
+.planning-compare-series strong{text-align:right;font-weight:500;font-variant-numeric:tabular-nums}
+.planning-compare-track{height:5px;background:var(--weak);border-radius:99px;overflow:hidden}
+.planning-compare-track i{display:block;height:100%;border-radius:inherit}
+.series-planned{background:#8ba4c5}.series-executed{background:#4d76bb}.series-completed{background:#399780}
+.planning-detail-list{display:grid;max-height:380px;overflow:auto}
+.planning-detail-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;width:100%;padding:15px 0;white-space:normal;text-align:left;background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--planning-border)}
+.planning-detail-row:hover{background:var(--page)}
+.planning-detail-row:last-child{border-bottom:0}
+.planning-detail-row .badge{flex:0 0 auto}
+
+@media(hover:none){.planning-day>header button{opacity:1}}
+@media(prefers-reduced-motion:reduce){.planning-page button,.planning-page input,.planning-page select,.planning-project-card{transition:none}}
+@media(max-width:1150px){.planning-calendar-layout{grid-template-columns:minmax(0,1fr)}.planning-unplanned>article{display:inline-flex;vertical-align:top;width:calc(50% - 12px);margin-right:12px;padding:16px 0}.planning-insights-grid{grid-template-columns:minmax(0,1.7fr) minmax(250px,1fr)}.planning-insights-bottom{grid-template-columns:1fr}.planning-trend-heading{flex-wrap:wrap}.planning-project-grid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}}
+@media(max-width:850px){.planning-insights-grid{grid-template-columns:1fr}.planning-status-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 24px}.planning-metric-card{padding:18px 16px}.planning-metric-card>strong{font-size:29px}.planning-metric-secondary{padding:14px}.planning-metric-secondary>strong{font-size:23px}.planning-stat-controls>.select{margin-left:0}.planning-trend-heading{flex-wrap:nowrap}}
+@media(max-width:650px){.planning-page{padding-top:4px}.planning-page>.heading{margin-bottom:22px}.planning-page .heading h1,.planning-board-heading h1{font-size:23px}.planning-page .card{padding:20px}.subnav.planning-dimensions{padding:0 20px;gap:24px}.planning-calendar-toolbar .select{flex:1 1 100%;max-width:none;margin:0 0 6px}.planning-month-label{margin-left:auto;font-size:14px}.planning-day{min-height:118px}.planning-weekdays span{padding:12px 5px}.planning-unplanned>article{display:flex;width:100%;margin:0}.planning-project-grid{grid-template-columns:1fr}.planning-stat-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.planning-metric-card{padding:18px}.planning-metric-secondary{padding:14px}.planning-period-tabs{margin-right:4px}.planning-period-tabs button{min-width:36px;padding:5px 9px}.planning-stat-controls>strong{flex:1 1 100%;order:3;margin:6px 0 0}.planning-stat-controls>label{font-size:11px}.planning-stat-controls>label:first-of-type{flex:1}.planning-stat-controls>.select{flex:1}.planning-trend-heading{flex-wrap:wrap;gap:10px}.planning-kanban{gap:12px;min-width:1160px}.planning-board-heading{align-items:flex-start}.planning-board-heading>.badge{margin-top:45px}.planning-compare-row{gap:12px}.planning-compare-name strong{font-size:11px}}
+
+/* Intake and task detail reuse the readonly dialog surfaces instead of resetting cards to white. */
+.planning-page .card:not(.planning-metric-card){border-top:3px solid color-mix(in srgb,var(--green) 48%,var(--line));background:linear-gradient(135deg,#f1faf5 0%,var(--surface) 44%);box-shadow:0 1px 2px #20242c08}
+.planning-composer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;margin:0 0 18px;padding:16px 18px;border:1px solid var(--planning-border);border-top:3px solid #7fb69f;border-radius:12px;background:linear-gradient(135deg,#edf8f3,var(--surface) 48%)}
+.planning-composer label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.planning-composer textarea{min-height:48px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;resize:vertical}.planning-composer button{min-height:42px}
+.planning-dialog-shell{position:fixed;z-index:18;inset:0;display:grid;place-items:center;padding:24px;background:#15251d55}.planning-dialog{width:min(1040px,100%);max-height:calc(100dvh - 48px);overflow:auto;padding:24px;border:1px solid var(--line);border-radius:16px;background:var(--surface);box-shadow:0 20px 60px #20242c44}.planning-dialog>header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px}.planning-dialog h1{font-size:24px;margin:2px 0}.planning-dialog h2{font-size:15px}.planning-dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.planning-modal-background{pointer-events:none;user-select:none;filter:saturate(.75) opacity(.55)}.planning-intake-form{max-width:none}.planning-intake-source textarea{min-height:84px}.planning-intake-submit{display:flex;gap:8px}.planning-intake-workspace{display:grid;grid-template-columns:minmax(190px,.7fr) minmax(0,1.7fr);min-height:360px;border:1px solid var(--planning-border);border-radius:10px;overflow:hidden}.planning-intake-workspace>aside{padding:14px;border-right:1px solid var(--planning-border);background:var(--weak)}.planning-intake-workspace>aside h2{margin:0 0 10px}.planning-intake-result{display:grid;width:100%;gap:3px;padding:12px;text-align:left;white-space:normal;background:transparent;border:0;border-radius:7px;color:var(--ink)}.planning-intake-result.active{background:var(--surface);box-shadow:0 1px 3px #20242c18}.planning-intake-result small{color:var(--muted)}.planning-intake-editor{padding:18px}.planning-intake-editor fieldset{display:grid;grid-template-columns:1fr;gap:12px;padding:0;border:0}.planning-intake-editor label{display:grid;gap:6px;color:var(--muted)}.planning-intake-editor input,.planning-intake-editor select,.planning-intake-editor textarea{width:100%;min-height:38px;padding:8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}.planning-intake-editor textarea{min-height:96px;resize:vertical}.planning-intake-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.planning-detail-tabs{display:flex;gap:4px;margin:0 -24px 18px;padding:0 24px;border-bottom:1px solid var(--planning-border)}.planning-detail-tabs button{border:0;border-radius:7px 7px 0 0;background:transparent;color:var(--muted)}.planning-detail-tabs button[aria-current="page"]{color:var(--green);box-shadow:inset 0 -2px var(--green)}.planning-detail-dialog .planning-detail-main,.planning-detail-dialog .planning-detail-list{padding:4px}.planning-message{padding:14px 0;border-bottom:1px solid var(--planning-border)}.planning-message small{display:block;color:var(--muted);margin-top:4px}.planning-message p{white-space:pre-wrap}.planning-detail-dialog .planning-actions{padding-top:14px;border-top:1px solid var(--planning-border)}
+@media(max-width:700px){.planning-composer{grid-template-columns:1fr}.planning-dialog-shell{padding:10px}.planning-dialog{padding:18px;max-height:calc(100dvh - 20px)}.planning-intake-workspace{grid-template-columns:1fr}.planning-intake-workspace>aside{border-right:0;border-bottom:1px solid var(--planning-border)}.planning-intake-result{display:inline-grid;width:auto;margin-right:6px}.planning-intake-dates{grid-template-columns:1fr}.planning-detail-tabs{margin:0 -18px 14px;padding:0 18px;overflow:auto}}

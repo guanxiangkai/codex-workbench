@@ -22,13 +22,13 @@ sys.path.insert(0,str(SOURCE/'src'))
 from codex_workbench.gateway_daemon import atomic_json
 from codex_workbench.gateway_routes import RouteStore
 from codex_workbench.runtime import secure_directory
+from codex_workbench.codex_cli import resolve_gateway_cli
 
 DATA=Path.home()/'Library/Application Support/CodexWorkbench'
 ROOT=DATA/'model-gateway'
 CONFIG=Path.home()/'.codex/config.toml'
 LABEL='org.codexworkbench.model-gateway'
 PLIST=Path.home()/'Library/LaunchAgents'/f'{LABEL}.plist'
-CLI='/Applications/ChatGPT.app/Contents/Resources/codex'
 _ACCOUNT_ID = re.compile(r'[A-Za-z0-9_.:@-]{1,160}\Z')
 
 
@@ -44,7 +44,7 @@ def _authorized_account_ids() -> tuple[str, ...]:
 
 ALLOWED=_authorized_account_ids()
 _existing_settings=json.loads((ROOT/'settings.json').read_text()) if (ROOT/'settings.json').exists() else {}
-ACCOUNT_POLICY=os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_POLICY', _existing_settings.get('account_policy', 'fixed'))
+ACCOUNT_POLICY=os.environ.get('WORKBENCH_GATEWAY_ACCOUNT_POLICY', _existing_settings.get('account_policy', 'registered_accounts'))
 if ACCOUNT_POLICY not in ('fixed', 'registered_accounts'):
     raise ValueError('网关账户策略无效')
 TOP='# BEGIN CODEX WORKBENCH GATEWAY\nmodel_provider = "workbench_gateway"\n# END CODEX WORKBENCH GATEWAY\n'
@@ -65,6 +65,7 @@ stream_idle_timeout_ms = 300000
 def prepare():
     """复制无秘密源码为独立制品；仅持久化显式授权的账户清单。"""
     secure_directory(ROOT)
+    cli = str(resolve_gateway_cli())
     files=sorted((SOURCE/'src/codex_workbench').glob('*.py'))
     included=files+[SOURCE/'validate_model_gateway.py',SOURCE/'tests/native_protocol_probe.py']
     digest=hashlib.sha256(b''.join(p.name.encode()+p.read_bytes() for p in included)).hexdigest()
@@ -81,7 +82,7 @@ def prepare():
         accounts=[{'id':r['id'],'home':str(Path.home()/'.codex') if r['id']=='current' else r['codex_home'],
                    'subject_id':r['subject_id']} for r in db.execute('SELECT id,codex_home,subject_id FROM execution_accounts') if r['id'] in ALLOWED]
     if {a['id'] for a in accounts}!=set(ALLOWED) or any(not a['subject_id'] for a in accounts):raise ValueError('授权账户未完整登记')
-    atomic_json(ROOT/'settings.json',{'account_policy':ACCOUNT_POLICY,'authorized_account_ids':list(ALLOWED),'accounts':accounts,'cli':CLI,'port':18742,'release':str(release),'probe':str(release/'validate_model_gateway.py')})
+    atomic_json(ROOT/'settings.json',{'account_policy':ACCOUNT_POLICY,'authorized_account_ids':list(ALLOWED),'accounts':accounts,'cli':cli,'port':18742,'release':str(release),'probe':str(release/'validate_model_gateway.py')})
     RouteStore(ROOT)
     payload={'Label':LABEL,'ProgramArguments':[sys.executable,str(release/'run.py'),'--root',str(ROOT)],
              'RunAtLoad':True,'KeepAlive':{'SuccessfulExit':False},'ThrottleInterval':30,
@@ -135,6 +136,19 @@ def activate():
     before=CONFIG.read_bytes();parsed=tomllib.loads(before.decode())
     if parsed.get('model_provider')=='workbench_gateway':
         print(json.dumps({'already_active':True}));return
+    disabled_top=TOP.replace('model_provider = "workbench_gateway"', 'model_provider = "openai"')
+    text=before.decode()
+    provider_block=re.search(r'^# BEGIN CODEX WORKBENCH PROVIDER\s*\n.*?^# END CODEX WORKBENCH PROVIDER\s*$',text,re.M|re.S)
+    expected_provider=tomllib.loads(BOTTOM)['model_providers']['workbench_gateway']
+    managed_provider=(text.count('# BEGIN CODEX WORKBENCH PROVIDER')==1
+                      and text.count('# END CODEX WORKBENCH PROVIDER')==1 and provider_block
+                      and tomllib.loads(provider_block.group()).get('model_providers',{}).get('workbench_gateway')==expected_provider
+                      and parsed.get('model_providers',{}).get('workbench_gateway')==expected_provider)
+    if parsed.get('model_provider')=='openai' and text.count(disabled_top)==1 and managed_provider:
+        # 允许官方写入器调整空白；受管 provider 的所有值仍须精确匹配。
+        replace_config(before,text.replace(disabled_top,TOP,1).encode())
+        atomic_json(ROOT/'activation.json',{'enabled':True,'reactivated':True,'native_ui_verified':False})
+        print(json.dumps({'enabled':True,'reactivated':True,'native_ui_verified':False}));return
     if parsed.get('model_provider') or 'workbench_gateway' in parsed.get('model_providers',{}):raise ValueError('已有其他 provider，未覆盖')
     store=RouteStore(ROOT)
     with sqlite3.connect('file:'+str(Path.home()/'.codex/state_5.sqlite')+'?mode=ro',uri=True) as native:

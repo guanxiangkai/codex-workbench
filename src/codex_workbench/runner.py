@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from .executor import CodexExecutor, Request
 from .store import Store
@@ -24,7 +25,7 @@ class Active:
 class Runner:
     """显式执行与取消入口，限制总并发；不在初始化时自动派发任务。"""
 
-    def __init__(self, store: Store, executor: CodexExecutor | None = None, concurrency: int = 2, prepare=None, native_attached=None):
+    def __init__(self, store: Store, executor: CodexExecutor | None = None, concurrency: int = 2, prepare=None, native_attached=None, completed=None):
         if not 1 <= concurrency <= 8:
             raise ValueError("总并发必须为 1 至 8")
         self.store = store
@@ -35,15 +36,21 @@ class Runner:
         self._closed = False
         self.prepare = prepare
         self.native_attached = native_attached
+        self.completed = completed
 
-    def start(self, task_id: str) -> dict:
+    def start(self, task_id: str, *, prompt_override: str | None = None, message_id: str | None = None) -> dict:
         """原子领取待执行任务；同任务或同角色并发冲突由数据库拒绝。"""
         with self._lock:
             if self._closed:
                 raise ValueError("工作台正在关闭")
             if len(self._active) >= self.concurrency:
                 raise ValueError("已达到工作台总并发上限")
-            run = self.store.claim(task_id)
+            gateway_url = None
+            if isinstance(self.executor, CodexExecutor):
+                from .account_routing import gateway_endpoint
+                gateway_url = gateway_endpoint(Path(self.store.path).parent)
+            run = self.store.claim(task_id, prompt_override=prompt_override, message_id=message_id)
+            run["gateway_url"] = gateway_url
             if self.prepare is not None:
                 try:
                     self.prepare(run)
@@ -89,13 +96,15 @@ class Runner:
         run_id = run["id"]
         task, project, agent = run["task"], run["project"], run["agent"]
         account = run.get("execution_account")
+        storage_account = run.get("session_storage_account") or account
         execution = run["execution"]
         request = Request(cwd=project["cwd"], title=task["title"], prompt=task["prompt"],
                           instructions=agent["instructions"], model=execution["model"],
                           effort=execution["effort"], sandbox=execution["sandbox"], concurrency=execution["concurrency"],
-                          account_home=account["codex_home"] if account else None,
-                          use_current_account=bool(account and account.get("kind") == "current"),
-                          resume_thread_id=run.get("session", {}).get("native_thread_id"), run_id=run_id, capability_manifest=run.get("capability_manifest"))
+                          account_home=storage_account["codex_home"] if storage_account else None,
+                          use_current_account=bool(storage_account and storage_account.get("kind") == "current"),
+                          resume_thread_id=run.get("session", {}).get("native_thread_id"), run_id=run_id,
+                          capability_manifest=run.get("capability_manifest"), gateway_url=run.get("gateway_url"))
         event_count = 0
         def on_event(kind: str, message: str) -> None:
             nonlocal event_count
@@ -140,6 +149,16 @@ class Runner:
             self.store.finish(run_id, "cancelled" if cancelled else "failed",
                               error="" if cancelled else "执行协调失败，请检查运行环境后重试")
         finally:
+            # Completion consumers run after the authoritative terminal write. Their
+            # failure cannot turn a successful Codex execution into a failed one.
+            if self.completed is not None:
+                try:
+                    self.completed(run)
+                except Exception:
+                    try:
+                        self.store.append_event(run_id, "notice", "结果归档未完成，可在任务详情重试")
+                    except Exception:
+                        pass
             try:
                 if run.get("capability_manifest"):
                     revoke_capability_manifest(run["capability_manifest"])

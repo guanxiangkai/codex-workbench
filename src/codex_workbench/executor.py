@@ -50,6 +50,7 @@ class Request:
     resume_thread_id: str | None = None
     run_id: str | None = None
     capability_manifest: str | None = None
+    gateway_url: str | None = None
 
 
 class CodexExecutor:
@@ -101,6 +102,7 @@ class CodexExecutor:
                 raise ValueError("专业能力清单无效")
         else:
             manifest = None
+        gateway_url = self._gateway_url(request.gateway_url)
         args = [*self.command, "exec", "--json", "--color", "never", "--skip-git-repo-check",
                 "--sandbox", request.sandbox, "-C", request.cwd]
         if request.model:
@@ -114,6 +116,13 @@ class CodexExecutor:
             # 执行子任务不再调用派发器自身，避免重复派发或改动全局任务账户。
             for server in ("codex-workbench", "codex-workbench-assistants", "codex-workbench-accounts"):
                 args += ["-c", f"mcp_servers.{server}.enabled=false"]
+        if gateway_url is not None:
+            args += ["-c", 'model_provider="workbench_gateway"',
+                     "-c", 'model_providers.workbench_gateway.name="Workbench Gateway"',
+                     "-c", "model_providers.workbench_gateway.base_url=" + json.dumps(gateway_url),
+                     "-c", 'model_providers.workbench_gateway.wire_api="responses"',
+                     "-c", "model_providers.workbench_gateway.requires_openai_auth=true",
+                     "-c", "model_providers.workbench_gateway.supports_websockets=false"]
         if manifest is not None:
             # 每个运行仅挂载其不可变清单对应的 stdio MCP，不复用工作台通用入口。
             for server in ("codex-workbench", "codex-workbench-assistants", "codex-workbench-accounts"):
@@ -133,6 +142,17 @@ class CodexExecutor:
             # 父级 exec 参数已由本机 --help 验证可与 resume 组合；禁止 --last/--all。
             args += ["resume", resume_id, "-"]
         return args
+
+    @staticmethod
+    def _gateway_url(value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("工作台网关地址无效")
+        match = re.fullmatch(r"http://127\.0\.0\.1:([1-9][0-9]{0,4})/v1", value)
+        if match is None or int(match.group(1)) > 65535:
+            raise ValueError("工作台网关地址无效")
+        return value
 
     def execute(self, request: Request, cancel: threading.Event,
                 on_event: Callable[[str, str], None]) -> Execution:

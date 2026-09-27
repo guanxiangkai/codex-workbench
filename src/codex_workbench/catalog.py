@@ -1,4 +1,4 @@
-"""单一只读工作台 MCP 契约；客户端声明不能绕过服务端白名单。"""
+"""工作台 MCP 契约；客户端声明不能绕过服务端工具白名单。"""
 from __future__ import annotations
 from typing import Any
 
@@ -11,6 +11,7 @@ MODULES=[
  {'id':'config','name':'配置中心','group':'账户与配置'},
  {'id':'agents','name':'技能助手','group':'能力与知识'},
  {'id':'knowledge','name':'知识中心','group':'能力与知识'},{'id':'models','name':'模型目录','group':'能力与知识'},
+ {'id':'planning','name':'工作计划','group':'工作台'},
 ]
 # 默认入口与导航第一项保持一致。
 DEFAULT_VIEW = MODULES[0]["id"]
@@ -22,11 +23,11 @@ def text(maximum=300, nullable=False):
 
 ID=text(255)
 
-def definition(name,title,description,properties=None,required=None):
-    """所有公开工具仅允许读取；秘密详情仅对 App 可见。"""
+def definition(name,title,description,properties=None,required=None,*,read_only=True,idempotent=True):
+    """声明公开工具的输入、写入语义和可见范围。"""
     result={"name":name,"title":title,"description":description,
         "inputSchema":{"type":"object","properties":properties or {},"required":required or [],"additionalProperties":False},
-        "annotations":{"readOnlyHint":True,"destructiveHint":False,"idempotentHint":True,"openWorldHint":name in ('workbench_state','workbench_sync')}}
+        "annotations":{"readOnlyHint":read_only,"destructiveHint":False,"idempotentHint":idempotent,"openWorldHint":name in ('workbench_state','workbench_sync')}}
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]},
                            "openai/ui": {"entrypoints": [{"type": "global"}]}}
@@ -61,6 +62,40 @@ TOOLS.extend([
  definition('service_detail','读取服务引用','读取服务来源和其关联配置引用。',{'id':ID},['id']),
  definition('connection_list','读取工具连接','读取 MCP 配置及本地已安装插件，不进行探测、登录或安装。'),
  definition('global_search','搜索工作台','搜索公开元数据与用户指定范围的知识摘要，不搜索秘密值。',{'query':text(200),'scope':text(200)},['query']),
+ definition('planning_create','创建计划任务','在本机计划库创建任务；不会提交、推送或创建远端任务。',{
+     'title':text(300),'prompt':text(12000),'project_id':text(255,True),'project_name':text(160,True),
+     'section_id':text(255,True),'section_name':text(80,True),'period':text(80,True),
+     'start_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},
+     'due_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},
+     'asset_ids':{'type':'array','items':ID,'maxItems':40},'execution_account_id':text(255,True),
+     'model':text(120,True),'effort':{'type':['string','null'],'enum':['none','minimal','low','medium','high','xhigh','max','ultra',None]},
+     'sandbox':{'type':'string','enum':['read-only','workspace-write']}},['title'],read_only=False,idempotent=False),
+ definition('planning_update','更新计划任务','用版本号比较并更新本机任务。',{
+     'task_id':ID,'expected_version':{'type':'integer','minimum':1},'patch':{'type':'object','properties':{
+         'title':text(300),'prompt':text(12000),'period':text(80,True),
+         'start_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},
+         'due_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},
+         'execution_account_id':text(255,True),
+         'model':text(120,True),'effort':{'type':['string','null'],'enum':['none','minimal','low','medium','high','xhigh','max','ultra',None]},
+         'sandbox':{'type':'string','enum':['read-only','workspace-write']}},'additionalProperties':False}},['task_id','expected_version','patch'],read_only=False,idempotent=False),
+ definition('planning_start','启动计划任务','用版本号确认后启动本机任务；message_id 仅执行保存的问答消息。',{'task_id':ID,'expected_version':{'type':'integer','minimum':1},'message_id':text(255,True)},['task_id','expected_version'],read_only=False,idempotent=False),
+ definition('planning_stop','停止计划任务','停止本机正在运行的任务。',{'task_id':ID},['task_id'],read_only=False,idempotent=False),
+ definition('planning_archive','归档计划任务','归档已结束的本机任务；重试不会再次执行 Codex。',{'task_id':ID},['task_id'],read_only=False,idempotent=True),
+ definition('planning_delete','删除计划任务','用版本号确认后软删除本机任务，保留资料和执行历史。',{'task_id':ID,'expected_version':{'type':'integer','minimum':1}},['task_id','expected_version'],read_only=False,idempotent=False),
+ definition('planning_followup','记录任务追问','只记录追问，不自动启动或执行任务。',{'task_id':ID,'expected_version':{'type':'integer','minimum':1},'prompt':text(12000)},['task_id','expected_version','prompt'],read_only=False,idempotent=False),
+ definition('planning_knowledge_link','关联已审核知识','将用户明确选取的已审核知识条目关联到本机任务。',{'task_id':ID,'scope':text(200),'key':text(200)},['task_id','scope','key'],read_only=False,idempotent=False),
+ definition('planning_export','导出计划笔记','生成本机 Obsidian Markdown 投影，不改写权威知识。',{'task_id':ID},['task_id'],read_only=False,idempotent=False),
+ definition('planning_detail','读取计划任务','读取本机任务及其运行和追问记录。',{'task_id':ID},['task_id']),
+ definition('planning_draft','生成计划草案','使用已验证的本机模型目录生成草案；失败时返回手工草案。',{'text':text(12000)},['text'],read_only=False,idempotent=False),
+ definition('planning_intake','识别文字任务录入','把文字拆为待确认的新任务、补充或问答草案；不保存或执行。',{'text':text(12000),'project_id':text(255,True),'task_id':text(255,True),'start_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'due_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'period':text(80,True)},['text'],read_only=False,idempotent=False),
+ definition('planning_intake_save','保存文字任务录入','原子保存经确认的工作项，不会启动 Codex。',{'operation_id':text(255),'items':{'type':'array','minItems':1,'maxItems':12,'items':{'type':'object','properties':{'intent':{'type':'string','enum':['create_task','supplement','question']},'target_task_id':text(255,True),'expected_version':{'type':['integer','null'],'minimum':1},'title':text(300),'prompt':text(12000),'project_id':text(255,True),'project_name':text(160,True),'section_id':text(255,True),'section_name':text(80,True),'start_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'due_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'period':text(80,True),'tags':{'type':'array','items':text(80),'maxItems':6},'execution_account_id':text(255,True),'model':text(120,True),'effort':{'type':['string','null'],'enum':['none','minimal','low','medium','high','xhigh','max','ultra',None]},'sandbox':{'type':['string','null'],'enum':['read-only','workspace-write',None]}},'required':['intent','title','prompt'],'additionalProperties':False}}},['operation_id','items'],read_only=False,idempotent=True),
+ definition('library_upload','上传资料','将不超过 256 KiB 的 Base64 资料写入本机资料库。',{'name':text(255),'content_base64':text(349528),'mime':text(150,True),'task_id':text(255,True)},['name','content_base64'],read_only=False,idempotent=False),
+ definition('library_upload_begin','开始分块上传','为最大 32 MiB 的本机资料创建分块上传。',{'name':text(255),'mime':text(150,True),'task_id':text(255,True),'size':{'type':'integer','minimum':0,'maximum':33554432}},['name','size'],read_only=False,idempotent=False),
+ definition('library_upload_chunk','上传资料分块','写入单个 Base64 分块；偏移必须与当前上传位置一致。',{'upload_id':ID,'offset':{'type':'integer','minimum':0},'content_base64':text(349528)},['upload_id','offset','content_base64'],read_only=False,idempotent=False),
+ definition('library_upload_commit','完成分块上传','校验总大小后将已上传资料写入本机资料库。',{'upload_id':ID},['upload_id'],read_only=False,idempotent=False),
+ definition('library_link','关联资料','把已存在资料关联到本机任务。',{'asset_id':ID,'task_id':ID},['asset_id','task_id'],read_only=False,idempotent=False),
+ definition('library_list','读取资料列表','读取本机资料元数据，不返回资料内容。',{'task_id':text(255,True),'query':text(300),'offset':{'type':'integer','minimum':0},'limit':{'type':'integer','minimum':1,'maximum':500}}),
+ definition('library_content','读取资料分块','读取本机资料的 Base64 分块。',{'asset_id':ID,'offset':{'type':'integer','minimum':0},'length':{'type':'integer','minimum':1,'maximum':262144}},['asset_id']),
 ])
 
 # 输出声明与模块边界一致；动态来源字段仅在各读取适配器中投影。
@@ -76,6 +111,11 @@ _OUTPUT_KEYS={
  'knowledge_list':['scopes','knowledge','selected_scope'],
  'knowledge_detail':['knowledge'],'service_list':['services'],'service_detail':['service'],
  'connection_list':['connections','source_errors'],'global_search':['results','source_errors'],
+ 'planning_create':['item'],'planning_update':['item'],'planning_start':['item'],'planning_stop':['item'],'planning_archive':['item'],
+ 'planning_delete':['item'],'planning_followup':['item'],'planning_knowledge_link':['item'],'planning_export':['item'],
+ 'planning_detail':['item'],'planning_draft':['draft'],'planning_intake':['draft'],'planning_intake_save':['items','tasks'],
+ 'library_upload':['item'],'library_upload_begin':['item'],'library_upload_chunk':['item'],'library_upload_commit':['item'],
+ 'library_link':['item'],'library_list':['item'],'library_content':['item'],
 }
 for _tool in TOOLS:
     _tool['outputSchema']={'type':'object','required':_OUTPUT_KEYS[_tool['name']],'additionalProperties':True}

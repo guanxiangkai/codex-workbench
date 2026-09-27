@@ -13,6 +13,7 @@ from urllib.parse import quote, urlsplit
 
 from .account_runtime import current_account_home, validate_account_home
 from .accounts import normalize_account
+from .account_snapshot import AccountSnapshot
 from .codex_rpc import AccountRpc, RpcError
 from .credentials import CredentialCatalog
 from .native_catalog import NativeCatalog
@@ -107,20 +108,34 @@ class NativeRead:
         self.rpc_factory = rpc_factory
         self.catalog = catalog or NativeCatalog(Path(current_account_home()), include_archived=True)
         self.cwd = str(Path(cwd or Path.cwd()).resolve())
+        self.account_snapshots = AccountSnapshot(self.path.parent)
+        self.profile_refresh_seconds = 86400
 
     def rpc(self, home=None, current=True):
         """固定账户引用由本机登记决定，不接受浏览器提供的目录。"""
         return self.rpc_factory(self.codex, home or current_account_home(), self.lease_fd,
                                 current=current, timeout=15)
 
+    def save_reset_analysis(self, account_id, analysis):
+        """按已登记账户绑定保存独立预测，避免把分析写进官方额度分片。"""
+        if not isinstance(account_id, str) or not isinstance(analysis, dict):
+            return
+        saved = rows(self.path, 'execution_accounts',
+                     ['id', 'codex_home', 'subject_id', 'expected_email'])
+        account = next((item for item in saved if item.get('id') == account_id), None)
+        if account is not None:
+            self.account_snapshots.save_analysis(account, analysis)
+
     def identity(self, rpc):
         """官方返回的账户身份；不读取认证文件。"""
         value = rpc.request('account/read', {'refreshToken':False}) or {}
         return value.get('account')
 
-    def accounts(self):
+    def accounts(self, *, cached_only=False):
         """读取已登记账户，并在身份变化时丢弃不匹配的额度。"""
         saved = rows(self.path,'execution_accounts', ['id','name','display_name','expected_email','codex_home','kind','subject_id'])
+        # 旧版本留下的未确认登录记录不是已登记账户，不投影为空白卡片。
+        saved = [a for a in saved if a.get('id') == 'current' or a.get('subject_id')]
         preferences=rows(self.path,'preferences',['singleton','default_execution_account_id'])
         preference=next((p for p in preferences if p.get('singleton')==1),None)
         default_id=preference.get('default_execution_account_id') if preference is not None else next((a['id'] for a in saved if a.get('id')=='current'),None)
@@ -132,22 +147,43 @@ class NativeRead:
             item={'id':a['id'],'name':'用户名未提供','name_source':'unavailable', 'is_current':is_current,'is_default':a['id']==default_id,
                   'email':None,'plan':None,'login_status':'unavailable','remaining_percent':None,
                   'resets_at':None,'reset_cards':None,'observed_at':timestamp()}
+            if not cached_only:
+                self.account_snapshots.migrate(a)
+            item.update(self.account_snapshots.cached(a))
+            if cached_only:
+                item['usage_refresh']={'state':'cached','message':'显示上次成功数据，后台更新额度'}
+                result.append(item);continue
             try:
                 home=current_account_home() if is_current else validate_account_home(a.get('codex_home'))
                 with self.rpc(home,is_current) as rpc:
-                    identity=self.identity(rpc)
+                    identity=self.account_snapshots.fresh_identity(a,self.profile_refresh_seconds)
+                    profile_due=identity is None
+                    if profile_due:identity=self.identity(rpc)
                     if not isinstance(identity,dict) or identity.get('type')!='chatgpt':
+                        self.account_snapshots.invalidate(a)
+                        item={k:v for k,v in item.items() if k not in ('email','plan','name','name_source','remaining_percent','resets_at','reset_cards','observed_at')}
                         item['login_status']='not_logged_in';result.append(item);continue
                     if a.get('expected_email') and str(identity.get('email') or '').casefold()!=a['expected_email'].casefold():
-                        item['login_status']='identity_mismatch';result.append(item);continue
+                        self.account_snapshots.invalidate(a)
+                        item={'id':a['id'],'is_current':is_current,'is_default':a['id']==default_id,'login_status':'identity_mismatch'};result.append(item);continue
+                    # 资料和额度独立更新：已绑定邮箱通过时，额度失败不撤销新资料。
+                    known_email=a.get('expected_email') or item.get('email')
+                    if profile_due and known_email and str(identity.get('email') or '').casefold()==known_email.casefold():
+                        profile_item={'email':identity.get('email'),'plan':identity.get('planType')}
+                        display=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip() and '@' not in identity[k]),None)
+                        if display:profile_item.update(name=display.strip(),name_source='official')
+                        self.account_snapshots.save_profile(a,profile_item)
+                        item.update(self.account_snapshots.cached(a))
                     usage=rpc.request('account/rateLimits/read') or {}
-                    if identity!=self.identity(rpc):
-                        item['login_status']='identity_mismatch';result.append(item);continue
+                    if profile_due and identity!=self.identity(rpc):
+                        self.account_snapshots.invalidate(a)
+                        item={'id':a['id'],'is_current':is_current,'is_default':a['id']==default_id,'login_status':'identity_mismatch'};result.append(item);continue
                     subject=usage.get('accountId')
                     if not isinstance(subject,str) or not subject:
                         raise RpcError('无法确认账户身份')
-                    if not is_current and a.get('subject_id') and subject!=a['subject_id']:
-                        item['login_status']='identity_mismatch';result.append(item);continue
+                    if a.get('subject_id') and subject!=a['subject_id']:
+                        self.account_snapshots.invalidate(a)
+                        item={'id':a['id'],'is_current':is_current,'is_default':a['id']==default_id,'login_status':'identity_mismatch'};result.append(item);continue
                     now=datetime.now(UTC); normalized=normalize_account(usage,observed_at=now,current_account_id=subject,now=now)
                     # 周窗口从官方桶中选择，只有明确 Codex 主桶时展示，不借用 Spark 的额度。
                     limits=usage.get('rateLimitsByLimitId') or {}
@@ -158,14 +194,28 @@ class NativeRead:
                             bucket=legacy
                     window=next((v for k,v in (bucket or {}).items() if k in ('primary','secondary') and isinstance(v,dict) and v.get('windowDurationMins')==10080),None)
                     percent=number(window.get('usedPercent')) if window else None
-                    item.update(email=identity.get('email'),plan=identity.get('planType'),login_status='ready',
+                    if percent is not None:item['observed_at']=timestamp()
+                    # 新隔离目录已完成官方登录但尚未由 account_status 登记主体时，
+                    # 不能显示为可设默认；保留官方资料，提示用户完成确认步骤。
+                    status = 'unconfirmed' if not is_current and not a.get('subject_id') else 'ready'
+                    item.update(email=identity.get('email'),plan=identity.get('planType'),login_status=status,
                                 remaining_percent=max(0,min(100,100-percent)) if percent is not None else None,
                                 resets_at=number(window.get('resetsAt')) if window else None,reset_cards=normalized.get('resetCredits'))
                     official=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip() and '@' not in identity[k]),None)
                     item['name']=official.strip() if official else '用户名未提供'
-                    item['name_source']='official' if official else 'unavailable'
+                    if official:
+                        item['name_source']='official'
+                    else:
+                        prior=self.account_snapshots.cached(a)
+                        item['name']=prior.get('name',item['name'])
+                        item['name_source']=prior.get('name_source','unavailable')
+                    if profile_due:self.account_snapshots.save_profile(a,item)
+                    self.account_snapshots.save_usage(a,item)
+                    item.update(self.account_snapshots.cached(a))
+                    item['usage_refresh']={'state':'ready'} if percent is not None else {'state':'failed','message':'未取得本次周额度，保留上次成功数据'}
             except (OSError,ValueError,sqlite3.Error):
                 item['login_status']='unavailable'
+                item['usage_refresh']={'state':'failed','message':'额度更新失败，保留上次成功数据'}
             result.append(item)
         return result
 

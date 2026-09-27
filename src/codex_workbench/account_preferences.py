@@ -1,4 +1,4 @@
-"""仅修改新会话的默认账户偏好，不初始化数据库或切换官方登录。"""
+"""修改所有会话下一次请求的默认账户偏好，不初始化数据库或切换官方登录。"""
 import sqlite3
 from pathlib import Path
 from urllib.parse import quote
@@ -60,4 +60,4 @@ def set_default_account(path, native, account_id, expected_default_id):
                 )
     finally:
         db.close()
-    return {"default_account_id": account_id, "applies_to": "new_sessions"}
+    return {"default_account_id": account_id, "applies_to": "all_sessions_next_request"}

@@ -54,6 +54,44 @@ class WorkbenchServiceTest(unittest.TestCase):
         self.assertEqual([],self.fixture.native.calls);self.assertEqual([],self.fixture.secret_reads)
     def test_no_executor_or_store_owned_by_view_service(self):
         for name in ['runner','executor','store','library','models']:self.assertFalse(hasattr(self.board,name))
+    def test_failed_reset_analysis_retains_shared_history_metadata(self):
+        previous={'scope':'official_manual_reset','observed_at':'2026-09-27T07:00:00Z','summary':'last success'}
+        retained=dict(previous,signal='unknown',stale=True,error='analyzer_unavailable',last_success_at=previous['observed_at'],history_summary={'reported_count':55,'tracked_count':1})
+        self.board._scheduled_accounts=[{'id':'a','remaining_percent':70,'reset_analysis':previous}]
+        self.board.reset_analyzer=Mock()
+        self.board.reset_analyzer.cached.return_value=retained
+        account=self.board._collect_state('accounts')['accounts'][0]
+        self.assertEqual(70,account['remaining_percent'])
+        self.assertEqual(retained,account['reset_analysis'])
+        self.board.reset_analyzer.force_refresh.assert_not_called()
+
+    def test_manual_reset_job_publishes_cache_and_exposes_failure_without_quota_rpc(self):
+        from codex_workbench.snapshot_store import SnapshotScheduler
+        self.board.native=Mock()
+        self.board.native.accounts.return_value=[{'id':'a','remaining_percent':70}]
+        self.board.reset_analyzer=Mock()
+        self.board.collect_snapshot=Mock(return_value=True)
+        scheduler=SnapshotScheduler(self.board)
+        self.addCleanup(scheduler.close)
+        good={'scope':'official_manual_reset','signal':'none','observed_at':'2026-09-27T08:00:00Z'}
+        failed=dict(good,error='analyzer_unavailable',stale=True,last_success_at=good['observed_at'])
+        for analysis, expected in ((good,'ready'),(failed,'error')):
+            self.board.reset_analyzer.force_refresh.return_value=analysis
+            scheduler._refresh_provider('manual_reset')
+            task=next(t for t in scheduler.provider_tasks() if t['id']=='manual_reset')
+            self.assertEqual(expected,task['state'])
+            self.assertEqual(expected=='error',bool(task['error']))
+            self.assertIsNotNone(task['last_completed_at'])
+            self.assertEqual(analysis,self.board._scheduled_accounts[0]['reset_analysis'])
+        self.assertEqual(2,self.board.collect_snapshot.call_count)
+        self.assertTrue(all(c.kwargs=={'cached_only':True} for c in self.board.native.accounts.call_args_list))
+
+    def test_sync_queues_manual_reset_without_refreshing_account_view(self):
+        self.board.snapshot_scheduler=Mock()
+        self.board.state=Mock(return_value={'accounts':[]})
+        self.board.sync('accounts',provider='manual_reset',refresh=True)
+        self.board.snapshot_scheduler.request_provider.assert_called_once_with('manual_reset')
+        self.board.snapshot_scheduler.touch.assert_called_once_with('accounts',refresh=False)
 
 
 

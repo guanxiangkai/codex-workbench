@@ -189,6 +189,19 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(len(self.seen), 1)
         self.assertEqual(self.request(body)[0], 200)
 
+    def test_same_turn_tool_continuation_uses_current_default_with_full_context(self):
+        body = self.body()
+        body['client_metadata']['turn_id'] = 'synthetic-turn'
+        self.assertEqual(self.request(body)[0], 200)
+        self.default = 'b'
+        body['input'].extend([
+            {'type': 'function_call', 'call_id': 'synthetic-call', 'name': 'test', 'arguments': '{}'},
+            {'type': 'function_call_output', 'call_id': 'synthetic-call', 'output': 'synthetic-result'},
+        ])
+        self.assertEqual(self.request(body)[0], 200)
+        self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-b'])
+        self.assertEqual(self.seen[-1][1], body)
+
     def test_full_protocol_fields_preserved_and_auth_replaced(self):
         body = self.body(tools=[{'type': 'function', 'name': 'test', 'parameters': {'type': 'object'}}],
             reasoning={'effort': 'ultra'}, include=['reasoning.encrypted_content'], service_tier='priority')

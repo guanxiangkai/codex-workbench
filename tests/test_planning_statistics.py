@@ -21,6 +21,7 @@ class PlanningStatisticsTests(unittest.TestCase):
         self.plan = Planning(Path(self.temp.name), Executor())
         self.addCleanup(self.plan.close)
         account = self.plan.store.create_execution_account('执行账户', self.temp.name)
+        self.plan.store.record_account_subject(account['id'], 'synthetic-statistics-subject')
         self.plan.store.set_default_execution_account(account['id'])
 
     def _await_runs(self, task_id, count):

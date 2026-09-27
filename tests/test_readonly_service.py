@@ -45,7 +45,7 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         writes={'account_create','account_login','account_status','account_default',
                 'planning_create','planning_update','planning_start','planning_stop',
                 'planning_archive','planning_delete','planning_followup','planning_knowledge_link',
-                'planning_export','planning_draft','library_upload','library_upload_begin',
+                'planning_export','planning_draft','planning_intake','planning_intake_save','library_upload','library_upload_begin',
                 'library_upload_chunk','library_upload_commit','library_link'}
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:

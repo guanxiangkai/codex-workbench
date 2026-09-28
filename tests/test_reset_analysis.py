@@ -9,6 +9,53 @@ from codex_workbench.reset_analysis import PublicSourceFetcher, ResetAnalyzer, S
 
 
 class ResetAnalysisTest(unittest.TestCase):
+    def test_refresh_clock_and_coarse_announcement_do_not_expand_deadline(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions
+        observed = '2026-09-28T06:00:00+00:00'
+        source = SourceEvidence('codex_resets', 'https://codex-resets.com/zh-CN', observed,
+                                text='预计在 9月30日周三 06:59 UTC 前')
+        primary = SourceEvidence('thsottiaux_post_123', 'https://x.com/thsottiaux/status/123', observed,
+                                 text='More resets coming next week 9:00 AM PT · Sep 27, 2026')
+        for hour in (6, 14, 22):
+            now = datetime(2026, 9, 28, hour, 34, 1, tzinfo=timezone.utc)
+            candidates = _validated_predictions({}, [source, primary], now)
+            point, window, *_ = _aggregate_predictions(candidates, [source, primary], {source.source, primary.source})
+            self.assertEqual('2026-09-30T06:59:00+00:00', point)
+            self.assertIsNone(window)
+            self.assertEqual(2, len(candidates))
+
+    def test_model_cannot_turn_deadline_into_refresh_to_deadline_range(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions
+        now = datetime(2026, 9, 28, 6, 34, 1, tzinfo=timezone.utc)
+        quote = 'We predict another reset before 2026-09-30 06:59 UTC'
+        source = SourceEvidence('forecast', 'https://codexradar.com/', now.isoformat(), text=quote)
+        model = {'predictions': [{'source_id': 'forecast', 'category': 'third_party_prediction',
+                 'quote': quote, 'basis': 'public deadline', 'predicted_reset_window': {
+                     'start': now.isoformat(), 'end': '2026-09-30T06:59:00+00:00', 'basis': 'before deadline'}}]}
+        candidates = _validated_predictions(model, [source], now)
+        point, window, *_ = _aggregate_predictions(candidates, [source], {'forecast'})
+        self.assertEqual('2026-09-30T06:59:00+00:00', point)
+        self.assertIsNone(window)
+        self.assertEqual('deadline', candidates[0]['time_kind'])
+
+    def test_direct_reply_and_its_transcript_are_one_announcement(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions, _prediction_summary
+        now = datetime(2026, 9, 28, tzinfo=timezone.utc)
+        link = 'https://x.com/thsottiaux/status/123'
+        primary = SourceEvidence('thsottiaux_post_123', link, now.isoformat(),
+                                 text='More resets coming next week\n9:41 PM · Sep 26, 2026')
+        transcript = SourceEvidence('codex_radar_post_123', 'https://codexradar.com/', now.isoformat(),
+                                    text='2026-09-27T05:41:35+08:00 北京时间\nMore resets coming next week', references=(link,))
+        model = {'predictions': [{'source_id': primary.source, 'category': 'official_announcement',
+                                 'quote': 'More resets coming next week', 'basis': '下周'}]}
+        candidates = _validated_predictions(model, [primary, transcript], now)
+        self.assertEqual(2, len(candidates))
+        point, window, _, breakdown, _ = _aggregate_predictions(candidates, [primary, transcript], {primary.source})
+        self.assertEqual(1, breakdown['independent_sources'])
+        summary = _prediction_summary(candidates, point, window, [primary, transcript])
+        self.assertIn('1条官方未来信号', summary)
+        self.assertNotIn('言论转录', summary)
+
     def test_explicit_feed_deadline_survives_model_omission_and_uses_beijing_summary(self):
         from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions, _prediction_summary
         now = datetime(2026, 9, 28, 6, tzinfo=timezone.utc)
@@ -16,7 +63,9 @@ class ResetAnalysisTest(unittest.TestCase):
                                 text='2天后可能重置 预计在 9月30日周三 06:59 UTC 前')
         candidates = _validated_predictions({'summary': '错误地换算为10月5日'}, [source], now)
         point, window, score, _, _ = _aggregate_predictions(candidates, [source], {'codex_resets'})
-        self.assertEqual('2026-09-30T06:59:00+00:00', window['end'])
+        self.assertEqual('2026-09-30T06:59:00+00:00', point)
+        self.assertIsNone(window)
+        self.assertEqual('deadline', candidates[0]['time_kind'])
         summary = _prediction_summary(candidates, point, window, [source])
         self.assertIn('2026/09/30 14:59', summary)
         self.assertNotIn('10月5日', summary)
@@ -45,9 +94,9 @@ class ResetAnalysisTest(unittest.TestCase):
         result = _validated_predictions({}, [source], now)
         self.assertEqual('2026-09-28T07:00:00+00:00', result[0]['start'])
         self.assertEqual('2026-10-05T06:59:59+00:00', result[0]['end'])
-        summary = _prediction_summary(result, None, result[0]['predicted_reset_window'], [source])
-        self.assertIn('2026/09/28 15:00', summary)
-        self.assertIn('2026/10/05 14:59', summary)
+        summary = _prediction_summary(result, None, None, [source])
+        self.assertIn('下周还会重置', summary)
+        self.assertIn('尚无具体预测节点', summary)
 
     def test_source_timezones_preserve_local_clock_and_us_dst(self):
         from codex_workbench.reset_analysis import _source_timezone, _matches_source_timezone
@@ -118,7 +167,74 @@ class ResetAnalysisTest(unittest.TestCase):
         self.assertEqual('none', analyzer.analyze_account({})['signal'])
         analyzer.sources += (('codex_official','https://openai.com/codex/'),)
         fetcher.fetch.side_effect = lambda name,url: source if name=='thsottiaux' else SourceEvidence(name,url,'now',error='source_unavailable')
-        self.assertEqual('unknown', analyzer.analyze_account({})['signal'])
+        # Product pages do not constitute reset sources, even in an older source configuration.
+        analyzer = ResetAnalyzer(client, fetcher=fetcher, sources=analyzer.sources)
+        self.assertEqual('none', analyzer.analyze_account({})['signal'])
+
+    def test_default_sources_include_replies_and_exclude_product_page(self):
+        from codex_workbench.reset_analysis import DEFAULT_SOURCES
+        self.assertIn(('thsottiaux', 'https://x.com/thsottiaux/with_replies'), DEFAULT_SOURCES)
+        self.assertFalse(any('openai.com/codex' in url for _, url in DEFAULT_SOURCES))
+
+    def test_unique_late_reply_is_retained_and_verified_before_shared_old_links(self):
+        from codex_workbench.reset_analysis import _next_week_window, _validated_predictions
+        now = datetime.now(timezone.utc)
+        links = [f'https://x.com/thsottiaux/status/{value}' for value in (100, 99, 9)]
+        radar = '\n'.join([
+            links[0], now.isoformat(), '直接信号', 'All resets have propagated.',
+            links[1], now.isoformat(), '无重置信号', 'unrelated text ' * 500,
+            links[2], now.isoformat(), 'UTC', '直接信号',
+            '英文原文@user More resets coming next week',
+        ])
+        observed = []
+        class Fetcher:
+            def fetch(self, name, url):
+                observed.append((name, url))
+                if name == 'codex_radar':
+                    return SourceEvidence(name, url, now.isoformat(), text=radar, references=tuple(links))
+                if name == 'codex_resets':
+                    return SourceEvidence(name, url, now.isoformat(), text='Completed reset history', references=tuple(links[:2]))
+                return SourceEvidence(name, url, now.isoformat(), error='source_unavailable')
+        client = Mock()
+        client.analyze.return_value = {
+            'status': 'reset', 'signal': 'present', 'source_ids': ['codex_radar_post_9'],
+            'last_manual_reset_at': (now - timedelta(hours=1)).isoformat(),
+            'predictions': [{'source_id': 'codex_radar_post_9', 'category': 'reported_announcement',
+                             'quote': 'More resets coming next week', 'basis': '下周的公开回复转录'}],
+        }
+        result = ResetAnalyzer(client, fetcher=Fetcher()).analyze_account({})
+        self.assertIn(('thsottiaux_post_9', links[2]), observed)
+        self.assertNotIn(('thsottiaux_post_99', links[1]), observed)
+        request = client.analyze.call_args.args[0]
+        excerpt = next(item for item in request['evidence'] if item['source'] == 'codex_radar_post_9')
+        self.assertIn('More resets coming next week', excerpt['excerpt'])
+        self.assertIn(now.isoformat(), excerpt['excerpt'])
+        self.assertEqual('third_party', excerpt['authority'])
+        self.assertEqual('present', result['signal'])
+        self.assertEqual('likely_reset', result['status'])
+        self.assertFalse(result['primary_verified'])
+        candidate = result['prediction_candidates'][0]
+        self.assertEqual(links[2], candidate['primary_post_url'])
+        item = SourceEvidence('codex_radar_post_9', 'https://codexradar.com/', now.isoformat(),
+                              text=excerpt['excerpt'], references=(links[2],))
+        self.assertEqual(_next_week_window(item, now)['end'], candidate['end'])
+        forged = dict(client.analyze.return_value['predictions'][0], category='official_announcement')
+        checked = _validated_predictions({'predictions': [forged]}, [item], now)
+        self.assertEqual(['reported_announcement'], [value['category'] for value in checked])
+        self.assertIn('原文尚待核实', result['summary'])
+
+    def test_reported_reply_calendar_uses_its_own_timestamp_and_timezone(self):
+        from codex_workbench.reset_analysis import _next_week_window
+        now = datetime(2026, 9, 28, 6, tzinfo=timezone.utc)
+        item = SourceEvidence('codex_radar_post_9', 'https://codexradar.com/', now.isoformat(),
+                              text='2026-09-27T05:41:35+08:00 北京时间\nMore resets coming next week',
+                              references=('https://x.com/thsottiaux/status/9',))
+        window = _next_week_window(item, now)
+        self.assertEqual('2026-09-27T16:00:00+00:00', window['start'])
+        self.assertEqual('2026-10-04T15:59:59+00:00', window['end'])
+        wrong = SourceEvidence(item.source, item.url, item.observed_at,
+                               text=item.text.replace('+08:00', 'Z'), references=item.references)
+        self.assertIsNone(_next_week_window(wrong, now))
 
     def test_fetcher_rejects_non_allowlisted_urls(self):
         result = PublicSourceFetcher().fetch('bad', 'https://example.com/reset')
@@ -167,8 +283,7 @@ class ResetAnalysisTest(unittest.TestCase):
     def test_multiple_candidates_show_combined_range_and_inconsistency_lowers_score(self):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         first, last = now + timedelta(days=2), now + timedelta(days=16)
-        range_end = last + timedelta(days=1)
-        quotes = {'one': f'预测日期 {first:%Y-%m-%d}', 'two': f'预测区间 {last:%Y-%m-%d} 到 {range_end:%Y-%m-%d}'}
+        quotes = {'one': f'预测日期 {first:%Y-%m-%d}', 'two': f'预测日期 {last:%Y-%m-%d}'}
         class Fetcher:
             def fetch(self, source, url):
                 return SourceEvidence(source, url, now.isoformat(), text=quotes[source])
@@ -177,12 +292,12 @@ class ResetAnalysisTest(unittest.TestCase):
                 return {'predictions': [
                     {'source_id': 'one', 'category': 'third_party_prediction', 'quote': quotes['one'], 'basis': '公开预测 UTC', 'predicted_reset_at': first.isoformat()},
                     {'source_id': 'two', 'category': 'third_party_prediction', 'quote': quotes['two'], 'basis': '公开预测 UTC',
-                     'predicted_reset_window': {'start': last.isoformat(), 'end': range_end.isoformat(), 'basis': '公开预测 UTC'}}]}
+                     'predicted_reset_at': last.isoformat()}]}
         result = ResetAnalyzer(Client(), fetcher=Fetcher(), sources=(
             ('one', 'https://codex-resets.com/one'), ('two', 'https://codexradar.com/two'))).analyze_account({})
         self.assertIsNone(result['predicted_reset_at'])
         self.assertEqual(first.isoformat(), result['predicted_reset_window']['start'])
-        self.assertEqual(range_end.isoformat(), result['predicted_reset_window']['end'])
+        self.assertEqual(last.isoformat(), result['predicted_reset_window']['end'])
         self.assertEqual(2, result['confidence_breakdown']['independent_sources'])
         self.assertLess(result['confidence'], .488)  # two agreeing point predictions would score .488
 
@@ -219,7 +334,7 @@ class ResetAnalysisTest(unittest.TestCase):
         result = ResetAnalyzer(Client(), fetcher=Fetcher(), sources=(('codex_resets', 'https://codex-resets.com/zh-CN'),)).analyze_account({})
         self.assertEqual(future.astimezone(timezone.utc).isoformat(), result['predicted_reset_at'])
 
-    def test_ongoing_window_is_kept_when_only_its_end_is_future(self):
+    def test_ongoing_window_remains_context_without_inventing_nodes(self):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         start, end = now - timedelta(hours=2), now + timedelta(days=1)
         start_text = str(start.year) + '年' + str(start.month) + '月' + str(start.day) + '日'
@@ -234,10 +349,13 @@ class ResetAnalysisTest(unittest.TestCase):
                                          'quote': quote, 'basis': '公开窗口 UTC',
                                          'predicted_reset_window': {'start': start.isoformat(), 'end': end.isoformat(), 'basis': '公开窗口 UTC'}}]}
         result = ResetAnalyzer(Client(), fetcher=Fetcher(), sources=(('codex_resets', 'https://codex-resets.com/zh-CN'),)).analyze_account({})
-        self.assertEqual(start.isoformat(), result['predicted_reset_window']['start'])
-        self.assertEqual(end.isoformat(), result['predicted_reset_window']['end'])
+        self.assertEqual('present', result['signal'])
+        self.assertIsNone(result['predicted_reset_window'])
+        self.assertIsNone(result['predicted_reset_at'])
+        self.assertEqual(start.isoformat(), result['prediction_candidates'][0]['start'])
+        self.assertEqual(end.isoformat(), result['prediction_candidates'][0]['end'])
 
-    def test_chinese_deadline_prediction_becomes_window(self):
+    def test_chinese_deadline_prediction_is_one_qualified_node(self):
         now = datetime.now(timezone.utc).replace(microsecond=0)
         deadline = now + timedelta(days=2)
         quote = '2天后可能重置，预计在 ' + str(deadline.month) + '月' + str(deadline.day) + '日周三 06:59 UTC 前'
@@ -251,9 +369,9 @@ class ResetAnalysisTest(unittest.TestCase):
                                          'quote': quote, 'basis': 'DevDay 推测，截止时间按 UTC 估计',
                                          'predicted_reset_at': deadline.isoformat()}]}
         result = ResetAnalyzer(Client(), fetcher=Fetcher(), sources=(('codex_resets', 'https://codex-resets.com/zh-CN'),)).analyze_account({})
-        self.assertIsNone(result['predicted_reset_at'])
-        self.assertEqual(deadline.isoformat(), result['predicted_reset_window']['end'])
-        self.assertIn('截止时间', result['prediction_candidates'][0]['predicted_reset_window']['basis'])
+        self.assertEqual(deadline.isoformat(), result['predicted_reset_at'])
+        self.assertIsNone(result['predicted_reset_window'])
+        self.assertEqual('deadline', result['predicted_reset_kind'])
 
     def test_past_or_uncited_prediction_is_not_a_future_candidate(self):
         past = (datetime.now(timezone.utc) - timedelta(days=1)).replace(microsecond=0)

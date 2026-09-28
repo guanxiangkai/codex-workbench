@@ -118,7 +118,74 @@ class ResetAnalysisTest(unittest.TestCase):
         self.assertEqual('none', analyzer.analyze_account({})['signal'])
         analyzer.sources += (('codex_official','https://openai.com/codex/'),)
         fetcher.fetch.side_effect = lambda name,url: source if name=='thsottiaux' else SourceEvidence(name,url,'now',error='source_unavailable')
-        self.assertEqual('unknown', analyzer.analyze_account({})['signal'])
+        # Product pages do not constitute reset sources, even in an older source configuration.
+        analyzer = ResetAnalyzer(client, fetcher=fetcher, sources=analyzer.sources)
+        self.assertEqual('none', analyzer.analyze_account({})['signal'])
+
+    def test_default_sources_include_replies_and_exclude_product_page(self):
+        from codex_workbench.reset_analysis import DEFAULT_SOURCES
+        self.assertIn(('thsottiaux', 'https://x.com/thsottiaux/with_replies'), DEFAULT_SOURCES)
+        self.assertFalse(any('openai.com/codex' in url for _, url in DEFAULT_SOURCES))
+
+    def test_unique_late_reply_is_retained_and_verified_before_shared_old_links(self):
+        from codex_workbench.reset_analysis import _next_week_window, _validated_predictions
+        now = datetime.now(timezone.utc)
+        links = [f'https://x.com/thsottiaux/status/{value}' for value in (100, 99, 9)]
+        radar = '\n'.join([
+            links[0], now.isoformat(), '直接信号', 'All resets have propagated.',
+            links[1], now.isoformat(), '无重置信号', 'unrelated text ' * 500,
+            links[2], now.isoformat(), 'UTC', '直接信号',
+            '英文原文@user More resets coming next week',
+        ])
+        observed = []
+        class Fetcher:
+            def fetch(self, name, url):
+                observed.append((name, url))
+                if name == 'codex_radar':
+                    return SourceEvidence(name, url, now.isoformat(), text=radar, references=tuple(links))
+                if name == 'codex_resets':
+                    return SourceEvidence(name, url, now.isoformat(), text='Completed reset history', references=tuple(links[:2]))
+                return SourceEvidence(name, url, now.isoformat(), error='source_unavailable')
+        client = Mock()
+        client.analyze.return_value = {
+            'status': 'reset', 'signal': 'present', 'source_ids': ['codex_radar_post_9'],
+            'last_manual_reset_at': (now - timedelta(hours=1)).isoformat(),
+            'predictions': [{'source_id': 'codex_radar_post_9', 'category': 'reported_announcement',
+                             'quote': 'More resets coming next week', 'basis': '下周的公开回复转录'}],
+        }
+        result = ResetAnalyzer(client, fetcher=Fetcher()).analyze_account({})
+        self.assertIn(('thsottiaux_post_9', links[2]), observed)
+        self.assertNotIn(('thsottiaux_post_99', links[1]), observed)
+        request = client.analyze.call_args.args[0]
+        excerpt = next(item for item in request['evidence'] if item['source'] == 'codex_radar_post_9')
+        self.assertIn('More resets coming next week', excerpt['excerpt'])
+        self.assertIn(now.isoformat(), excerpt['excerpt'])
+        self.assertEqual('third_party', excerpt['authority'])
+        self.assertEqual('present', result['signal'])
+        self.assertEqual('likely_reset', result['status'])
+        self.assertFalse(result['primary_verified'])
+        candidate = result['prediction_candidates'][0]
+        self.assertEqual(links[2], candidate['primary_post_url'])
+        item = SourceEvidence('codex_radar_post_9', 'https://codexradar.com/', now.isoformat(),
+                              text=excerpt['excerpt'], references=(links[2],))
+        self.assertEqual(_next_week_window(item, now)['end'], candidate['end'])
+        forged = dict(client.analyze.return_value['predictions'][0], category='official_announcement')
+        checked = _validated_predictions({'predictions': [forged]}, [item], now)
+        self.assertEqual(['reported_announcement'], [value['category'] for value in checked])
+        self.assertIn('原文尚待核实', result['summary'])
+
+    def test_reported_reply_calendar_uses_its_own_timestamp_and_timezone(self):
+        from codex_workbench.reset_analysis import _next_week_window
+        now = datetime(2026, 9, 28, 6, tzinfo=timezone.utc)
+        item = SourceEvidence('codex_radar_post_9', 'https://codexradar.com/', now.isoformat(),
+                              text='2026-09-27T05:41:35+08:00 北京时间\nMore resets coming next week',
+                              references=('https://x.com/thsottiaux/status/9',))
+        window = _next_week_window(item, now)
+        self.assertEqual('2026-09-27T16:00:00+00:00', window['start'])
+        self.assertEqual('2026-10-04T15:59:59+00:00', window['end'])
+        wrong = SourceEvidence(item.source, item.url, item.observed_at,
+                               text=item.text.replace('+08:00', 'Z'), references=item.references)
+        self.assertIsNone(_next_week_window(wrong, now))
 
     def test_fetcher_rejects_non_allowlisted_urls(self):
         result = PublicSourceFetcher().fetch('bad', 'https://example.com/reset')

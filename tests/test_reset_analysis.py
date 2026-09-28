@@ -9,6 +9,46 @@ from codex_workbench.reset_analysis import PublicSourceFetcher, ResetAnalyzer, S
 
 
 class ResetAnalysisTest(unittest.TestCase):
+    def test_explicit_feed_deadline_survives_model_omission_and_uses_beijing_summary(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions, _prediction_summary
+        now = datetime(2026, 9, 28, 6, tzinfo=timezone.utc)
+        source = SourceEvidence('codex_resets', 'https://codex-resets.com/zh-CN', now.isoformat(),
+                                text='2天后可能重置 预计在 9月30日周三 06:59 UTC 前')
+        candidates = _validated_predictions({'summary': '错误地换算为10月5日'}, [source], now)
+        point, window, score, _, _ = _aggregate_predictions(candidates, [source], {'codex_resets'})
+        self.assertEqual('2026-09-30T06:59:00+00:00', window['end'])
+        summary = _prediction_summary(candidates, point, window, [source])
+        self.assertIn('2026/09/30 14:59', summary)
+        self.assertNotIn('10月5日', summary)
+        self.assertNotIn('UTC', summary)
+        self.assertGreater(score, 0)
+
+    def test_direct_feed_deadlines_respect_beijing_and_new_year(self):
+        from codex_workbench.reset_analysis import _validated_predictions
+        now = datetime(2026, 12, 31, 12, tzinfo=timezone.utc)
+        source = SourceEvidence('codex_resets', 'https://codex-resets.com/zh-CN', now.isoformat(),
+                                text='预计在 1月1日周五 00:30 北京时间 前')
+        result = _validated_predictions({}, [source], now)
+        self.assertEqual('2026-12-31T16:30:00+00:00', result[0]['end'])
+        self.assertEqual('Asia/Shanghai', result[0]['source_timezone'])
+        for text in ('预计在 2026年1月1日周五 00:30 北京时间 前',
+                     '预计在 1月1日周五 00:30 UTC+99 前',
+                     '预计在 1月1日周五 00:30 前'):
+            source = SourceEvidence('codex_resets', source.url, now.isoformat(), text=text)
+            self.assertEqual([], _validated_predictions({}, [source], now))
+
+    def test_direct_dated_post_uses_next_natural_week_without_model_dates(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _prediction_summary
+        now = datetime(2026, 9, 28, tzinfo=timezone.utc)
+        source = SourceEvidence('thsottiaux_post_123', 'https://x.com/thsottiaux/status/123', now.isoformat(),
+                                text='More resets coming next week 9:00 AM PT · Sep 27, 2026')
+        result = _validated_predictions({}, [source], now)
+        self.assertEqual('2026-09-28T07:00:00+00:00', result[0]['start'])
+        self.assertEqual('2026-10-05T06:59:59+00:00', result[0]['end'])
+        summary = _prediction_summary(result, None, result[0]['predicted_reset_window'], [source])
+        self.assertIn('2026/09/28 15:00', summary)
+        self.assertIn('2026/10/05 14:59', summary)
+
     def test_source_timezones_preserve_local_clock_and_us_dst(self):
         from codex_workbench.reset_analysis import _source_timezone, _matches_source_timezone
         for text, good, bad in [

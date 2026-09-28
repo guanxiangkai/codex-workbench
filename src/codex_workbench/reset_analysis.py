@@ -448,8 +448,11 @@ def _validated_predictions(result: Mapping[str, Any], successful: list[SourceEvi
         if not isinstance(item, Mapping):
             return False
         quote = re.sub(r'\s+', ' ', str(item.get('quote') or '')).casefold()
-        return any(item.get('source_id') == value['source_id'] and
-                   re.sub(r'\s+', ' ', value['quote']).casefold() in quote for value in direct)
+        return bool(quote) and any(item.get('source_id') == value['source_id'] and
+                   (re.sub(r'\s+', ' ', value['quote']).casefold() in quote or
+                    quote in re.sub(r'\s+', ' ', value['quote']).casefold() or
+                    (re.search(r'resets? coming next week', quote) and
+                     re.search(r'resets?\s+coming\s+next\s+week', value['quote'], re.I))) for value in direct)
     raw = direct + [item for item in (raw if isinstance(raw, list) else [])
                     if not already_extracted(item)]
     by_source = {item.source: item for item in successful}
@@ -579,7 +582,12 @@ def _prediction_summary(candidates: list[dict[str, Any]], point: str | None,
     else:
         labels = {'official_announcement': '官方未来信号', 'reported_announcement': '官方言论转录', 'third_party_prediction': '第三方预测',
                   'historical_estimate': '历史规律估计'}
-        counts = {key: sum(item['category'] == key for item in candidates) for key in labels}
+        distinct = {}
+        for item in candidates:
+            key = item['independence_key']
+            if key not in distinct or item['quality'] > distinct[key]['quality']:
+                distinct[key] = item
+        counts = {key: sum(item['category'] == key for item in distinct.values()) for key in labels}
         summary = '已纳入' + '、'.join(f'{count}条{labels[key]}' for key, count in counts.items() if count) + '。'
         timing = f'{beijing(window["start"])} 至 {beijing(window["end"])}' if window else beijing(point)
         summary += f'综合预计时间为 {timing}（北京时间）。'

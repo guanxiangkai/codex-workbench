@@ -9,6 +9,24 @@ from codex_workbench.reset_analysis import PublicSourceFetcher, ResetAnalyzer, S
 
 
 class ResetAnalysisTest(unittest.TestCase):
+    def test_direct_reply_and_its_transcript_are_one_announcement(self):
+        from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions, _prediction_summary
+        now = datetime(2026, 9, 28, tzinfo=timezone.utc)
+        link = 'https://x.com/thsottiaux/status/123'
+        primary = SourceEvidence('thsottiaux_post_123', link, now.isoformat(),
+                                 text='More resets coming next week\n9:41 PM · Sep 26, 2026')
+        transcript = SourceEvidence('codex_radar_post_123', 'https://codexradar.com/', now.isoformat(),
+                                    text='2026-09-27T05:41:35+08:00 北京时间\nMore resets coming next week', references=(link,))
+        model = {'predictions': [{'source_id': primary.source, 'category': 'official_announcement',
+                                 'quote': 'More resets coming next week', 'basis': '下周'}]}
+        candidates = _validated_predictions(model, [primary, transcript], now)
+        self.assertEqual(2, len(candidates))
+        point, window, _, breakdown, _ = _aggregate_predictions(candidates, [primary, transcript], {primary.source})
+        self.assertEqual(1, breakdown['independent_sources'])
+        summary = _prediction_summary(candidates, point, window, [primary, transcript])
+        self.assertIn('1条官方未来信号', summary)
+        self.assertNotIn('言论转录', summary)
+
     def test_explicit_feed_deadline_survives_model_omission_and_uses_beijing_summary(self):
         from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions, _prediction_summary
         now = datetime(2026, 9, 28, 6, tzinfo=timezone.utc)

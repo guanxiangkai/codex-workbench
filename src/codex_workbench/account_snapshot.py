@@ -13,6 +13,7 @@ ANALYSIS = ('status', 'confidence', 'predicted_reset_at', 'reset_card_likelihood
             'confidence_kind', 'primary_verified', 'event_type', 'announced_reset_at',
             'last_manual_reset_at', 'summary', 'source_ids', 'coverage_incomplete',
             'history', 'history_summary', 'signal', 'predicted_reset_window',
+            'confidence_breakdown', 'prediction_sources', 'prediction_candidates',
             'last_success_at', 'last_attempt_at')
 
 

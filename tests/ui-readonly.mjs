@@ -75,8 +75,10 @@ assert.equal(h.filteredConfigurations(configData,'','redis','缓存')[0].id,'b')
 assert.equal(h.folderPath([{id:'x',name:'X',parent_id:'y'},{id:'y',name:'Y',parent_id:'x'}],'x'),'Y / X');
 console.log('配置中心：目录后代、循环保护、类型与搜索交集、目录搜索通过');
 
-const resetData={reset_analysis:{signal:'present',predicted_reset_window:{start:'2026-09-28T08:00:00+08:00',end:'2026-09-28T12:00:00+08:00',basis:'官方公告'},history_summary:{reported_count:4,tracked_count:2},confidence:.8,observed_at:'2026-09-27T09:00:00+08:00'},accounts:[{id:'a',email:'a@example.com',login_status:'ready',remaining_percent:80},{id:'b',email:'b@example.com',login_status:'ready',remaining_percent:60}]};
-const present=h.resetAnalysisView(resetData.reset_analysis);assert.match(present,/模型置信度 80%|预计重置时间|分析摘要|更新时间/);assert.doesNotMatch(present,/人工重置信号|近期有信号|暂无法确认|官方公告|根据当前数据无法判断|没有可用预测/);assert.match(present,/2026\/9\/28/);
+const resetData={reset_analysis:{signal:'present',predicted_reset_window:{start:'2026-09-28T08:00:00+08:00',end:'2026-09-28T12:00:00+08:00',basis:'官方公告'},history_summary:{reported_count:4,tracked_count:2},confidence:.8,confidence_kind:'evidence_score',observed_at:'2026-09-27T09:00:00+08:00'},accounts:[{id:'a',email:'a@example.com',login_status:'ready',remaining_percent:80},{id:'b',email:'b@example.com',login_status:'ready',remaining_percent:60}]};
+const present=h.resetAnalysisView(resetData.reset_analysis);assert.match(present,/置信度 80%/);assert.doesNotMatch(present,/模型置信度/);assert.match(present,/2026\/9\/28[^<]*至[^<]*2026\/9\/28/);assert.doesNotMatch(present,/人工重置信号|近期有信号|暂无法确认|官方公告|根据当前数据无法判断|没有可用预测/);assert.match(present,/2026\/9\/28/);
+const pacificTime=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-29T23:30:00-07:00',observed_at:'2026-09-29T23:00:00-07:00'});assert.match(pacificTime,/预计重置时间（北京时间）/);assert.match(pacificTime,/2026\/9\/30 14:30:00/);assert.match(pacificTime,/更新时间：2026\/9\/30 14:00:00/);
+const legacyScore=h.resetAnalysisView({signal:'unknown',confidence:.65,confidence_kind:'model_assessment'});assert.match(legacyScore,/置信度未提供/);assert.doesNotMatch(legacyScore,/65%|模型置信度/);
 const evidenceHistory=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-29T10:00:00+08:00',history_summary:{reported_count:55,tracked_count:null},evidence:[{source:'公告 A',error:'timeout'}],history:[{event_type:'manual_quota_reset'}]});assert.doesNotMatch(evidenceHistory,/来源 1\/2|覆盖不完整|本机历史|赠送重置卡|未获官方核验/);assert.match(evidenceHistory,/2026\/9\/29/);
 const none=h.resetAnalysisView({signal:'none',history_summary:{reported_count:0,tracked_count:0}});assert.match(none,/>无</);assert.doesNotMatch(none,/人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测|未确定/);
 const unknown=h.resetAnalysisView({signal:'unknown',history_summary:{reported_count:null,tracked_count:1}});assert.match(unknown,/未确定/);assert.doesNotMatch(unknown,/人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测|>无</);
@@ -85,7 +87,7 @@ const accountHtml=h.accountView(resetData);assert.equal((accountHtml.match(/clas
 console.log('账户重置分析：单实例宽卡片、全量账户搜索隔离、信号状态、时间范围与双口径计数通过');
 
 const stale=h.resetAnalysisView({signal:"none",stale:true});assert.match(stale,/预计重置时间|置信度未提供|更新时间未提供/);assert.doesNotMatch(stale,/分析摘要|待更新|人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测/);
-const pendingSummary=h.resetAnalysisView({signal:'present',summary:' 待更新 ',confidence:.65,observed_at:'2026-09-27T09:00:00+08:00'});assert.match(pendingSummary,/模型置信度 65%|预计重置时间|更新时间/);assert.doesNotMatch(pendingSummary,/分析摘要|待更新/);
+const pendingSummary=h.resetAnalysisView({signal:'present',summary:' 待更新 ',confidence:.65,confidence_kind:'evidence_score',observed_at:'2026-09-27T09:00:00+08:00'});assert.match(pendingSummary,/置信度 65%/);assert.doesNotMatch(pendingSummary,/分析摘要|待更新/);
 assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置已全部生效。'}),/分析摘要[\s\S]*本轮额度重置已全部生效。/);
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);
 

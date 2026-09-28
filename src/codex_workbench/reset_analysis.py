@@ -335,6 +335,7 @@ def _source_timezone(text: str):
         if hours <= 14 and minutes < 60:
             delta = timedelta(hours=hours, minutes=minutes) * (1 if match[1] == '+' else -1)
             return timezone(delta), match[0]
+        return None, None
     if re.search(r'\b(?:UTC|GMT)\b', text, re.I):
         return UTC, 'UTC'
     return None, None
@@ -412,8 +413,16 @@ def _date_is_mentioned(value: str, text: str) -> bool:
 def _validated_predictions(result: Mapping[str, Any], successful: list[SourceEvidence], now: datetime) -> list[dict[str, Any]]:
     """Accept only future, cited predictions extracted from the fetched full text."""
     raw = result.get('predictions')
-    if not isinstance(raw, list):
-        return []
+    direct = _direct_predictions(successful, now)
+    # Prefer explicit source clocks over model arithmetic for the same public forecast.
+    def already_extracted(item):
+        if not isinstance(item, Mapping):
+            return False
+        quote = re.sub(r'\s+', ' ', str(item.get('quote') or '')).casefold()
+        return any(item.get('source_id') == value['source_id'] and
+                   re.sub(r'\s+', ' ', value['quote']).casefold() in quote for value in direct)
+    raw = direct + [item for item in (raw if isinstance(raw, list) else [])
+                    if not already_extracted(item)]
     by_source = {item.source: item for item in successful}
     candidates = []
     for prediction in raw[:24]:
@@ -478,6 +487,75 @@ def _validated_predictions(result: Mapping[str, Any], successful: list[SourceEvi
             candidate['end'] = window['end']
         candidates.append(candidate)
     return candidates
+
+
+def _direct_predictions(evidence: list[SourceEvidence], now: datetime) -> list[dict[str, Any]]:
+    """Extract the registered feed's explicit deadline and dated X next-week statements."""
+    predictions = []
+    for item in evidence:
+        text = item.text or ''
+        if item.source == 'codex_resets':
+            match = re.search(
+                r'预计在\s*(?:(?P<year>\d{4})\s*年\s*)?(?P<month>\d{1,2})\s*月\s*'
+                r'(?P<day>\d{1,2})\s*日(?:\s*(?:周|星期)[一二三四五六日天])?\s*'
+                r'(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*'
+                r'(?P<zone>北京时间|UTC(?:\s*[+-]\d{1,2}(?::?\d{2})?)?|PDT|PST|EDT|EST|PT|ET)\s*前', text, re.I)
+            if not match:
+                continue
+            zone, _ = _source_timezone(match['zone'])
+            if zone is None:
+                continue
+            year = int(match['year']) if match['year'] else now.astimezone(zone).year
+            deadline = None
+            for candidate_year in ([year] if match['year'] else [year, year + 1]):
+                try:
+                    candidate = datetime(candidate_year, int(match['month']), int(match['day']),
+                                         int(match['hour']), int(match['minute']), tzinfo=zone)
+                except ValueError:
+                    continue
+                if timedelta(0) < candidate - now <= timedelta(days=90):
+                    deadline = candidate
+                    break
+            if deadline is None:
+                continue
+            predictions.append({'source_id': item.source, 'category': 'third_party_prediction',
+                                'quote': match[0], 'basis': '网站明确标注的预测截止时间；开始按采集时刻估计。',
+                                'predicted_reset_window': {'start': now.isoformat(), 'end': deadline.isoformat(),
+                                                           'basis': '来源只给截止时间，开始按采集时刻估计。'}})
+        else:
+            window = _next_week_window(item, now)
+            quote = re.search(r'resets?\s+coming\s+next\s+week.{0,160}?[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}', text, re.S)
+            if window and quote:
+                predictions.append({'source_id': item.source, 'category': 'official_announcement',
+                                    'quote': quote[0], 'basis': window['basis'], 'predicted_reset_window': window})
+    return predictions
+
+
+def _prediction_summary(candidates: list[dict[str, Any]], point: str | None,
+                        window: dict[str, str] | None, evidence: list[SourceEvidence]) -> str:
+    """Display only validated forecast dates, always in Beijing time, including prose."""
+    def beijing(value: str) -> str:
+        return datetime.fromisoformat(value).astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y/%m/%d %H:%M')
+
+    if not candidates:
+        summary = '当前公开证据尚不足以确定下一次人工重置的时间。'
+    else:
+        labels = {'official_announcement': '官方未来信号', 'third_party_prediction': '第三方预测',
+                  'historical_estimate': '历史规律估计'}
+        counts = {key: sum(item['category'] == key for item in candidates) for key in labels}
+        summary = '已纳入' + '、'.join(f'{count}条{labels[key]}' for key, count in counts.items() if count) + '。'
+        timing = f'{beijing(window["start"])} 至 {beijing(window["end"])}' if window else beijing(point)
+        summary += f'综合预计时间为 {timing}（北京时间）。'
+        if any('采集时刻' in str(item.get('predicted_reset_window', {}).get('basis', '')) for item in candidates):
+            summary += '仅给出截止时间的预测，其范围起点按本次采集时刻估计。'
+        if any(item['timezone_estimated'] for item in candidates):
+            summary += '部分来源未标明时区，已作粗略估计。'
+        if counts['third_party_prediction'] or counts['historical_estimate']:
+            summary += '第三方预测和历史估计不代表官方承诺。'
+        summary += '置信度综合来源质量、独立性、采集覆盖和时间精度计算。'
+    if any(item.error for item in evidence):
+        summary += '部分来源暂无法读取，证据覆盖不完整。'
+    return summary
 
 
 def _aggregate_predictions(candidates: list[dict[str, Any]], successful: list[SourceEvidence], configured_source_ids: set[str]) -> tuple[str | None, dict[str, str] | None, float | None, dict[str, Any], list[dict[str, Any]]]:
@@ -671,7 +749,7 @@ class ResetAnalyzer:
                   'signal': signal, 'predicted_reset_window': window,
                   "last_manual_reset_at": event_time,
                   "reset_card_likelihood": _clamp(result.get("reset_card_likelihood")) if source_ids else None,
-                  "summary": str(result.get("summary") or "暂无足够证据判断官方人工重置。")[:600],
+                  "summary": _prediction_summary(candidates, predicted, window, evidence),
                   "source_ids": source_ids, "evidence": [item.as_dict() for item in evidence],
                   "observed_at": now.isoformat(), "stale": False,
                   "coverage_incomplete": any(item.error for item in evidence),

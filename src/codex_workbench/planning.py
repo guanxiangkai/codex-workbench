@@ -118,6 +118,8 @@ class Planning:
                 created_at TEXT NOT NULL);
         ''')
         self.db.commit()
+        if 'content_fingerprint' not in {r['name'] for r in self.db.execute('PRAGMA table_info(planning_run_snapshots)')}:
+            self.db.execute('ALTER TABLE planning_run_snapshots ADD COLUMN content_fingerprint TEXT')
         for column in ('start_date', 'due_date'):
             try:
                 self.db.execute(f'ALTER TABLE planning_tasks ADD COLUMN {column} TEXT')
@@ -128,6 +130,8 @@ class Planning:
         self.db.commit()
         self.assets = PlanningAssets(self.root / 'library' / 'files', self.db, self.lock)
         self.delivery = PlanningDelivery(self.db, self.lock)
+        from .planning_coordination import PlanningCoordination
+        self.coordination = PlanningCoordination(self.db)
         self.context_engine = context_engine or PlanningContext()
         self.runner = Runner(self.store, executor, prepare=self._prepare, completed=self._completed)
         self._uploads = {}
@@ -213,6 +217,28 @@ class Planning:
                 self.delivery.accept_evidence(task_id, expected_version, payload.get('evidence_id'), accepted=payload.get('accepted'), **common)
             elif action == 'checkpoint':
                 self.delivery.checkpoint(task_id, expected_version, payload.get('evidence_ids'), decision=payload.get('decision'), suggestions=payload.get('suggestions'), permissions_requested=payload.get('permissions_requested', False), **common)
+            elif action == 'advice_decision':
+                task, _ = self._editable(task_id, expected_version)
+                self.coordination.decide(task_id, payload.get('packet_id'), self.delivery.content_fingerprint(task_id),
+                                         payload.get('suggestion_index'), payload.get('decision'), payload.get('reason'))
+                self._delivery_advance(task)
+            elif action == 'save_ownership':
+                task, _ = self._editable(task_id, expected_version)
+                if task['state'] == 'running':
+                    raise StoreError('conflict', '执行中的任务不能改变并行边界')
+                self.coordination.save_plan(task_id, payload.get('plan'), lambda key: self._owned(key))
+                self._delivery_advance(task)
+            elif action == 'model_evaluation':
+                task, _ = self._editable(task_id, expected_version)
+                if self.model_router is None or not hasattr(self.model_router, 'record_evaluation'):
+                    raise StoreError('unavailable', '模型评测暂不可用')
+                try:
+                    self.model_router.record_evaluation(payload.get('call_id'), task_id=task_id,
+                        quality=payload.get('quality'), adopted=payload.get('adopted'),
+                        correction_count=payload.get('correction_count'), reason=payload.get('reason'))
+                except ValueError as exc:
+                    raise StoreError('validation', '模型评测的调用、指标或理由无效') from exc
+                self._delivery_advance(task)
             else:
                 raise StoreError('validation', '不支持的交付操作')
             self._change(task_id, 'delivery_' + action, {'action': action})
@@ -306,6 +332,8 @@ class Planning:
         candidates = self.context_engine.extract_candidates(
             verified, scope=scope, source=verified_source, relation_type=relation_type, direction=direction,
             scope_exists=lambda value: value in allowed)
+        for candidate in candidates:
+            candidate['source_evidence_id'] = accepted_evidence['id']
         return self.delivery.save_knowledge_candidates(task_id, candidates)
 
     def output_filter(self, value, **kwargs):
@@ -325,8 +353,7 @@ class Planning:
             value = dict(row)
             if value['validation_state'] != 'passed' or (accepted_only and value['user_acceptance'] != 'accepted'):
                 continue
-            revision, digest = self.delivery._card_criterion(task_id, value['criterion_id'])
-            if value['card_revision'] != revision or value['card_sha256'] != digest:
+            if not self.delivery.evidence_freshness(task_id, value)['valid']:
                 continue
             source = self.delivery._source_ref(task_id, json.loads(value['source_ref']))
             result.append({'id': value['id'], 'criterion_id': value['criterion_id'], 'source_ref': source,
@@ -406,7 +433,24 @@ class Planning:
             evidence = self._current_evidence(task_id)
             if not evidence:
                 raise StoreError('validation', '评审需要当前已通过证据')
-            request = self._model_safe({'task': {'title': task['title']}, 'card': card['card'], 'evidence': evidence})
+            fingerprint = self.delivery.content_fingerprint(task_id)
+            request = self._model_safe({'schema_version': 1, 'task_id': task_id, 'fingerprint': fingerprint,
+                'task': {'title': task['title']}, 'card': card['card'], 'evidence': evidence,
+                'constraints': ['仅依据所给证据提出建议', '不能授权、不能执行，路径和命令只作为建议文本']})
+            with self.db:
+                packet = self.coordination.prepare(task_id, fingerprint, request)
+                if packet['state'] == 'received':
+                    # A replay returns the saved response, never resubmits it.
+                    detail = self.detail(task_id)
+                    detail['delivery']['review'] = {**packet['response'], 'packet_id': packet['id'], 'starts_runner': False}
+                    return detail
+                if self.db.execute('SELECT count(*) FROM planning_delivery_checkpoints WHERE task_id=?', (task_id,)).fetchone()[0] >= 2:
+                    raise StoreError('correction_limit', '最多允许两轮修订检查')
+                evidence_ids = [item['id'] for item in evidence]
+                placeholders = ','.join('?' for _ in evidence_ids)
+                if self.db.execute(f'SELECT 1 FROM planning_delivery_checkpoint_evidence WHERE evidence_id IN ({placeholders})', evidence_ids).fetchone():
+                    raise StoreError('evidence_loop', '证据已用于先前检查，不能形成重复证据循环')
+                self.coordination.begin(task_id, packet['id'], fingerprint, os.getpid())
         instruction = ('仅评审已给出的任务卡和证据，不能授权、不能启动执行。只输出 JSON：'
                        '{"decision":"continue|correct|stop","suggestions":["不超过500字的修订建议"]}。'
                        '建议不得声称证据之外的结论。')
@@ -414,24 +458,41 @@ class Planning:
             raw = self.model_router.call('reasoning', {'messages': [
                 {'role': 'system', 'content': instruction},
                 {'role': 'user', 'content': json.dumps(request, ensure_ascii=False)}], 'max_tokens': 1200},
-                external_allowed=True, purpose='planning_delivery_review', task_id=task_id)
+                external_allowed=True, purpose='planning_delivery_review', task_id=task_id, allow_fallback=False)
             output = raw.get('text') if isinstance(raw, dict) else raw
             if not isinstance(output, str):
                 raise ValueError('response_invalid')
             value = json.loads(output.removeprefix('```json').removesuffix('```').strip())
+            with self.lock, self.db:
+                self.coordination.finish(task_id, packet['id'], response=value)
         except Exception as exc:
+            with self.lock, self.db:
+                self.coordination.finish(task_id, packet['id'], error='response_unconfirmed')
             raise StoreError('unavailable', '交付评审模型未能返回有效建议') from exc
         decision, suggestions = value.get('decision'), value.get('suggestions')
-        if decision not in {'continue', 'correct', 'stop'} or not isinstance(suggestions, list):
-            raise StoreError('validation', '评审建议格式无效')
         with self.lock, self.db:
-            self.delivery.checkpoint(task_id, expected_version, [item['id'] for item in evidence], decision=decision,
+            # Metadata edits must not discard a valid response; material edits
+            # retain it as stale and cannot promote it to an accepted checkpoint.
+            current_task, _ = self._owned(task_id)
+            if self.delivery.content_fingerprint(task_id) != fingerprint:
+                raise StoreError('version_conflict', '任务材料已改变，返回建议已保留为过期记录')
+            self.delivery.checkpoint(task_id, current_task['version'], [item['id'] for item in evidence], decision=decision,
                                      suggestions=suggestions, verify_task=self._delivery_verify,
                                      advance_task=self._delivery_advance, commit=False)
             self._change(task_id, 'delivery_reviewed', {'decision': decision})
         detail = self.detail(task_id)
-        detail['delivery']['review'] = {'decision': decision, 'suggestions': suggestions, 'starts_runner': False}
+        detail['delivery']['review'] = {'decision': decision, 'suggestions': suggestions, 'packet_id': packet['id'], 'starts_runner': False}
         return detail
+
+    def _dependency_ready(self, task_id):
+        try:
+            self._owned(task_id)
+            card = self.delivery.detail(task_id)['card']
+            required = {v['id'] for v in card['card']['acceptance']} if card else set()
+            accepted = {v['criterion_id'] for v in self._current_evidence(task_id, accepted_only=True)}
+            return bool(required) and required <= accepted
+        except StoreError:
+            return False
 
     def _project(self, project_id, project_name, section_id, section_name):
         if project_id:
@@ -539,6 +600,9 @@ class Planning:
             task, _ = self._editable(task_id, expected_version)
             if task['state'] == 'running':
                 raise StoreError('conflict', '任务正在执行')
+            readiness = self.coordination.readiness(task_id, task['project_id'], self._dependency_ready)
+            if not readiness['ready']:
+                raise StoreError('conflict', '并行边界冲突或上游交付尚未验收，请查看任务详情')
             message = None
             if message_id is not None:
                 message = self.db.execute('SELECT * FROM planning_messages WHERE id=? AND task_id=?', (message_id, task_id)).fetchone()
@@ -797,7 +861,7 @@ class Planning:
             item = self._project_task(task, meta, runs[-1] if runs else None)
             item['runs'] = [{k:r.get(k) for k in ('id','message_id','state','result','error','thread_id','turn_id','created_at','finished_at','duration_ms','input_tokens','output_tokens','cached_input_tokens')} for r in runs]
             snapshots = {row['run_id']: dict(row) for row in self.db.execute(
-                'SELECT run_id,task_version,delivery_revision,delivery_sha256,prompt_sha256,created_at FROM planning_run_snapshots WHERE run_id IN (SELECT id FROM runs WHERE task_id=?)',
+                'SELECT run_id,task_version,delivery_revision,delivery_sha256,prompt_sha256,content_fingerprint,created_at FROM planning_run_snapshots WHERE run_id IN (SELECT id FROM runs WHERE task_id=?)',
                 (task_id,))}
             for run in item['runs']:
                 run['input_snapshot'] = snapshots.get(run['id'])
@@ -816,6 +880,9 @@ class Planning:
             item['knowledge_refs'] = [dict(r) for r in self.db.execute(
                 'SELECT scope,key,title,sha256,linked_at FROM planning_knowledge WHERE task_id=?', (task_id,))]
             item['delivery'] = self.delivery.detail(task_id)
+            item['coordination'] = self.coordination.detail(task_id, self.delivery.content_fingerprint(task_id))
+            item['coordination']['readiness'] = self.coordination.readiness(task_id, task['project_id'], self._dependency_ready)
+            item['coordination']['model_calls'] = self.model_router.task_calls(task_id) if self.model_router is not None and hasattr(self.model_router, 'task_calls') else []
             from .planning_notes import PlanningNotes
             item['notes'] = {'local_edits': PlanningNotes(self.output_root, self.db, self.lock).local_edits(task_id)}
             item['native_thread_id'] = self.store.sessions.get(task['session_id']).get('native_thread_id') if task.get('session_id') else None
@@ -1031,6 +1098,12 @@ class Planning:
     def _prepare(self, run):
         task_id, run_id = run['task']['id'], run['id']
         with self.lock:
+            readiness = self.coordination.readiness(task_id, run['task']['project_id'], self._dependency_ready)
+            if not readiness['ready']:
+                raise StoreError('conflict', '执行准备时发现并行边界变化，请核对占用任务')
+            ownership = readiness['plan']
+            if any(ownership.values()):
+                run['task']['prompt'] += '\n\n本任务声明的分工边界（不扩大执行权限）：\n' + json.dumps(ownership, ensure_ascii=False)
             cwd = Path(run['project']['cwd'])
             out = self._private_dir(self.output_root, ['runs',run_id])
             inputs = self._private_dir(cwd, ['.codex-workbench','inputs',run_id])
@@ -1080,6 +1153,8 @@ class Planning:
                     (run_id, task_version, card['revision'] if card else None,
                      hashlib.sha256(card_payload.encode()).hexdigest() if card else None,
                      hashlib.sha256(run['task']['prompt'].encode()).hexdigest(), now()))
+                self.db.execute('UPDATE planning_run_snapshots SET content_fingerprint=? WHERE run_id=?',
+                                (self.delivery.content_fingerprint(task_id), run_id))
                 self._change(task_id, 'started', {'run_id':run_id})
 
     def _completed(self, run):
@@ -1114,6 +1189,16 @@ class Planning:
             self._refresh_note(task_id)
 
     def _recover(self):
+        def is_alive(pid):
+            try:
+                os.kill(pid, 0)
+                return True
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return True
+        with self.db:
+            self.coordination.recover(is_alive)
         # Only this feature's abandoned runs, never another subsystem's live work.
         for row in self.db.execute("""SELECT r.id AS run_id, r.task_id, COALESCE(p.owner_pid,o.owner_pid) AS owner_pid
                 FROM runs r JOIN planning_tasks t ON t.task_id=r.task_id

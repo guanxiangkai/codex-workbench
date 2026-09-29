@@ -1,3 +1,4 @@
+import json
 import tempfile
 import time
 import unittest
@@ -5,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_workbench.planning import Planning
+from codex_workbench.planning_intake import PlanningIntake
 from codex_workbench.executor import Execution
 from codex_workbench.store import StoreError
 
@@ -111,6 +113,37 @@ class PlanningIntakeTests(unittest.TestCase):
         self.assertIn('原始说明', self.requests[-1].prompt)
         self.assertIn('补充上下文', self.requests[-1].prompt)
         self.assertIn('请回答这个问题', self.requests[-1].prompt)
+
+    def test_explicit_current_task_pins_the_task_project(self):
+        other_path = Path(self.tmp.name) / 'other'; other_path.mkdir()
+        other = self.plan.store.create_project('其他项目', str(other_path))
+        task = self.plan.create('已有任务', '原始说明', project_id=self.project['id'], execution_account_id=self.account['id'])
+        response = {'items': [{'intent': 'question', 'target_task_id': task['id'],
+                    'expected_version': task['version'], 'title': '答复', 'prompt': '请继续',
+                    'project_id': self.project['id'], 'tags': []}]}
+        router = type('Router', (), {'call': lambda _, *args, **kwargs: {'text': json.dumps(response)}})()
+        intake = PlanningIntake(lambda: [], self.plan.store.list_projects, self.plan.store.list_sections,
+                                self.plan._intake_tasks, router=router)
+        item = intake.generate('请继续', task_id=task['id'], project_id=self.project['id'])['items'][0]
+        self.assertEqual(task['id'], item['target_task_id'])
+        self.assertEqual(self.project['id'], item['project_id'])
+        self.assertNotEqual(other['id'], item['project_id'])
+
+    def test_current_task_project_conflict_and_ambiguous_short_reply_remain_unassigned(self):
+        other_path = Path(self.tmp.name) / 'other'; other_path.mkdir()
+        other = self.plan.store.create_project('其他项目', str(other_path))
+        task = self.plan.create('已有任务', '原始说明', project_id=self.project['id'], execution_account_id=self.account['id'])
+        called = []
+        router = type('Router', (), {'call': lambda _, *args, **kwargs: called.append(True)})()
+        intake = PlanningIntake(lambda: [], self.plan.store.list_projects, self.plan.store.list_sections,
+                                self.plan._intake_tasks, router=router)
+        mismatch = intake.generate('继续', task_id=task['id'], project_id=other['id'])
+        uncertain = intake.generate('继续')
+        self.assertEqual('current_task_project_mismatch', mismatch['warning'])
+        self.assertIsNone(mismatch['items'][0]['project_id'])
+        self.assertEqual('assignment_uncertain', uncertain['warning'])
+        self.assertIsNone(uncertain['items'][0]['project_id'])
+        self.assertEqual([], called)
 
 
 if __name__ == '__main__':

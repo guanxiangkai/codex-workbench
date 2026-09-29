@@ -31,11 +31,32 @@ class PlanningIntake:
             'original_text': text,
         }]}
 
+    @staticmethod
+    def _ambiguous_followup(text):
+        """Do not guess a project for a short conversational continuation."""
+        normalized = re.sub(r'\s+', '', text)
+        if len(normalized) > 48:
+            return False
+        return bool(re.fullmatch(r'(?:好|好的|继续|可以|行|嗯|收到|明白|这个呢|然后呢|为什么|怎么做|再补充.*|补充.*)', normalized, re.I))
+
     def generate(self, text, *, project_id=None, task_id=None, start_date=None, due_date=None, period=None, today=None):
         if not isinstance(text, str) or not text.strip():
             return self._manual('', project_id, task_id, start_date, due_date, period, 'empty_input')
         if len(text.encode('utf-8')) > 32768:
             return self._manual(text, project_id, task_id, start_date, due_date, period, 'model_input_too_long')
+        all_tasks = self.tasks()
+        selected = next((task for task in all_tasks if task.get('id') == task_id), None) if task_id else None
+        if task_id and selected is None:
+            # A stale or forged task reference must not become a new task in an
+            # arbitrary project.  The caller can refresh the current task first.
+            return self._manual(text, None, None, start_date, due_date, period, 'current_task_not_found')
+        if selected and project_id is not None and project_id != selected.get('project_id'):
+            return self._manual(text, None, None, start_date, due_date, period, 'current_task_project_mismatch')
+        if not task_id and project_id is None and self._ambiguous_followup(text):
+            return self._manual(text, None, None, start_date, due_date, period, 'assignment_uncertain')
+        # A selected task is the authoritative continuity anchor.  Its project
+        # cannot be replaced by a model-selected project.
+        effective_project_id = selected.get('project_id') if selected else project_id
         sections = {section['id']: section['name'] for section in self.sections()}
         def bounded(records, limit, byte_limit):
             output, used = [], 0
@@ -48,9 +69,9 @@ class PlanningIntake:
             return output
         candidates = [{'id': project['id'], 'name': project['name'], 'section_id': project.get('section_id'),
                        'section_name': sections.get(project.get('section_id'))} for project in self.projects()[:100]]
-        candidates.sort(key=lambda item: item['id'] != project_id)
+        candidates.sort(key=lambda item: item['id'] != effective_project_id)
         candidates = bounded(candidates, 40, 6000)
-        tasks = self.tasks()
+        tasks = all_tasks
         if task_id:
             tasks = [task for task in tasks if task['id'] == task_id]
         elif project_id:
@@ -65,10 +86,11 @@ class PlanningIntake:
             '"due_date":null,"period":null,"tags":[],"project_name":null,"section_id":null,"section_name":null}]}. '
             'project_id 只能从以下候选中选择：' + json.dumps(candidates, ensure_ascii=False) +
             '；target_task_id 只能从以下候选中选择：' + json.dumps(task_candidates, ensure_ascii=False) +
-            '。当前输入上下文为 project_id=' + str(project_id) + ', task_id=' + str(task_id) +
+            '。当前输入上下文为 project_id=' + str(effective_project_id) + ', task_id=' + str(task_id) +
             ', start_date=' + str(start_date) + ', due_date=' + str(due_date) + ', period=' + str(period) +
-            ', today=' + str(today or date.today().isoformat()) + '。上述上下文是未明确时的默认值；'
-            '每项还可提供 task_card={goal,scope:[],preserve:[],acceptance:[{id,text}],facts:[],assumptions:[],original}；'
+            ', today=' + str(today or date.today().isoformat()) + '。'
+            + ('已显式选择当前任务；所有项必须归属该任务及其项目，不能创建新任务或改选项目。' if selected else '上述上下文是未明确时的默认值；')
+            + '每项还可提供 task_card={goal,scope:[],preserve:[],acceptance:[{id,text}],facts:[],assumptions:[],original}；'
             'facts仅写用户明确事实，推测放assumptions，original保留原文。'
             '不得编造候选、版本、账户、模型或执行权限；'
             '可保留用户明确的项目/分区名称建议。无法判断时填 null。不要输出 Markdown 或解释。')
@@ -88,7 +110,8 @@ class PlanningIntake:
                     payload = re.sub(r'^```(?:json)?\s*|\s*```$', '', payload, flags=re.S | re.I).strip()
                 value = json.loads(payload)
                 items = self._validate(value, candidates, task_candidates, selected_task_id=task_id,
-                                       default_project_id=project_id, default_start_date=start_date,
+                                       selected_task_project_id=selected.get('project_id') if selected else None,
+                                       default_project_id=effective_project_id, default_start_date=start_date,
                                        default_due_date=due_date, default_period=period)
                 for item in items:
                     item['original_text'] = text
@@ -97,11 +120,11 @@ class PlanningIntake:
                 return {'source': 'model', 'warning': None, 'items': items}
             except Exception:
                 continue
-        return self._manual(text, project_id, task_id, start_date, due_date, period, 'model_failed')
+        return self._manual(text, effective_project_id, task_id, start_date, due_date, period, 'model_failed')
 
     @staticmethod
     def _validate(value: Any, projects: list[dict], tasks: list[dict], *, selected_task_id: str | None,
-                  default_project_id: str | None, default_start_date: str | None,
+                  selected_task_project_id: str | None, default_project_id: str | None, default_start_date: str | None,
                   default_due_date: str | None, default_period: str | None):
         if not isinstance(value, dict) or not isinstance(value.get('items'), list) or not 1 <= len(value['items']) <= 12:
             raise ValueError('draft_schema')
@@ -116,7 +139,9 @@ class PlanningIntake:
             target = item.get('target_task_id')
             if target is not None and target not in task_ids:
                 raise ValueError('draft_schema')
-            if selected_task_id is not None and target is not None and target != selected_task_id:
+            if selected_task_id is not None and target != selected_task_id:
+                raise ValueError('draft_schema')
+            if selected_task_id is not None and item['intent'] == 'create_task':
                 raise ValueError('draft_schema')
             if item['intent'] == 'create_task' and target is not None:
                 raise ValueError('draft_schema')
@@ -124,6 +149,13 @@ class PlanningIntake:
                 raise ValueError('draft_schema')
             project_id = item.get('project_id') or default_project_id
             if project_id is not None and project_id not in ids:
+                raise ValueError('draft_schema')
+            if target is not None:
+                target_project_id = next(candidate['project_id'] for candidate in tasks if candidate['id'] == target)
+                if project_id is not None and project_id != target_project_id:
+                    raise ValueError('draft_schema')
+                project_id = target_project_id
+            if selected_task_project_id is not None and project_id != selected_task_project_id:
                 raise ValueError('draft_schema')
             title, prompt = item.get('title'), item.get('prompt')
             if not isinstance(title, str) or not title.strip() or len(title) > 300 or not isinstance(prompt, str) or len(prompt) > 12000:

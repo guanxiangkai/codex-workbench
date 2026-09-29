@@ -100,6 +100,17 @@ class PlanningServiceTest(unittest.TestCase):
             with self.subTest(patch=patch),self.assertRaises(ValueError):
                 validate('planning_update', {'task_id':'task_1','expected_version':1,'patch':patch})
 
+    def test_delivery_catalog_accepts_the_complete_save_card_payload(self):
+        arguments = {
+            'task_id': 'task_1', 'expected_version': 3, 'action': 'save_card',
+            'payload': {'card': {
+                'goal': '完成验收', 'scope': [], 'preserve': [],
+                'acceptance': [{'id': 'A1', 'text': '保存任务卡'}],
+                'facts': [], 'assumptions': [], 'original': '完成验收',
+            }},
+        }
+        self.assertEqual(arguments, validate('planning_delivery', arguments))
+
     def test_close_closes_an_initialized_local_planning_service(self):
         self.board.close()
         self.assertTrue(self.planning.closed)

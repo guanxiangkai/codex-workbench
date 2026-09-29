@@ -172,6 +172,8 @@ class PlanningServiceTest(unittest.TestCase):
             self.assertNotIn('const WORKBENCH_BOOTSTRAP=null;',page['html'])
         with self.assertRaises(ValueError):
             self.board.page('library')
+        self.assertIsNone(self.board._planning)
+        self.board.sync('planning')
         self.assertEqual(('/Applications/ControlledCodex/codex',), self.board._planning.runner.executor.command)
         self.assertEqual([], self.fixture.native.calls)
 

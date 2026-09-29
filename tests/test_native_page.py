@@ -16,19 +16,21 @@ class NativePageTests(unittest.TestCase):
             def context(self):return self.epoch
             def signature(self,view):return view
         self.service.source_versions=Versions()
-        self.release.manifest.return_value={'html':"<html><script>const INITIAL_PAGE='accounts';const WORKBENCH_BOOTSTRAP=null;</script></html>",'resource_uri':'ui://test'}
+        self.release.manifest.return_value={'html':"<html><script>const INITIAL_PAGE='planning';const WORKBENCH_BOOTSTRAP=null;</script></html>",'resource_uri':'ui://test'}
     def bootstrap(self,page):return json.loads(re.search(r'const WORKBENCH_BOOTSTRAP=(.*?);</script>',page['html']).group(1))
     def test_cold_page_returns_shell_without_reading_sources(self):
         self.prepare()
         page=self.service.page(native=True);data=self.bootstrap(page)
         self.assertEqual([],data['views']);self.assertEqual([],self.native.calls)
+        self.assertIn("const INITIAL_PAGE='planning';",page['html'])
+        self.assertEqual([],list(self.root.iterdir()))
         self.assertNotIn('transport',data);self.assertEqual([],page['csp']['connectDomains'])
 
     def test_warm_page_reuses_initial_snapshot(self):
-        self.prepare();self.service.collect_snapshot('accounts')
+        self.prepare();self.service.sync('planning')
         calls=list(self.native.calls);data=self.bootstrap(self.service.page(native=True))
         self.assertTrue(data['views']);self.assertEqual(calls,self.native.calls)
-        self.assertEqual('accounts',data['views'][0]['data']['view'])
+        self.assertEqual('planning',data['views'][0]['data']['view'])
 
     def test_bootstrap_contains_only_requested_page(self):
         self.prepare();self.service.collect_snapshot('accounts');self.service.collect_snapshot('agents')
@@ -43,8 +45,8 @@ class NativePageTests(unittest.TestCase):
 
     def test_account_switch_drops_old_bootstrap(self):
         self.prepare();self.service.collect_snapshot('accounts')
-        first=self.bootstrap(self.service.page(native=True));self.service.source_versions.epoch='b'
-        second=self.bootstrap(self.service.page(native=True))
+        first=self.bootstrap(self.service.page('accounts',native=True));self.service.source_versions.epoch='b'
+        second=self.bootstrap(self.service.page('accounts',native=True))
         self.assertEqual('a',first['context']);self.assertEqual('b',second['context'])
         self.assertEqual([],second['views'])
 

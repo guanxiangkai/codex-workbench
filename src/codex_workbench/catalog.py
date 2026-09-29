@@ -13,8 +13,8 @@ MODULES=[
  {'id':'knowledge','name':'知识中心','group':'能力与知识'},{'id':'models','name':'模型目录','group':'能力与知识'},
  {'id':'planning','name':'工作计划','group':'工作台'},
 ]
-# 默认入口与导航第一项保持一致。
-DEFAULT_VIEW = MODULES[0]["id"]
+# 默认打开工作计划；各模块的导航顺序独立维护。
+DEFAULT_VIEW = "planning"
 UI_VIEWS = frozenset(module["id"] for module in MODULES)
 
 def text(maximum=300, nullable=False):
@@ -111,8 +111,10 @@ for _tool in TOOLS:
 TOOLS.extend([
  definition('planning_delivery','更新任务交付','在当前任务版本下更新任务卡、批注、证据或人工验收；不自动执行。',
   {'task_id':ID,'expected_version':{'type':'integer','minimum':1},
-   'action':{'type':'string','enum':['save_card','create_anchor','add_annotation','record_evidence','accept_evidence','checkpoint','prepare_rework','review_delivery','diff_artifacts','advice_decision','save_ownership','model_evaluation']},
-   'payload':{'type':'object','maxProperties':30}},['task_id','expected_version','action','payload'],read_only=False,idempotent=False),
+   'action':{'type':'string','enum':['save_card','create_anchor','add_annotation','record_evidence','accept_evidence','checkpoint','prepare_rework','review_delivery','diff_artifacts','advice_decision','save_ownership','model_evaluation','cancel_handoff','reconcile_handoff','recover_handoff','governance_capture','governance_freeze','governance_feedback','governance_propose','governance_preview','governance_evaluate']},
+   # The action name is closed here; Planning.delivery_action performs the
+   # corresponding action-specific payload validation before any mutation.
+   'payload':{'type':'object','maxProperties':30,'additionalProperties':True}},['task_id','expected_version','action','payload'],read_only=False,idempotent=False),
  definition('planning_context','检索任务上下文','仅检索本任务显式关联的资料和知识。semantic=true 使用已登记外部模型；默认本地关键词。',
   {'task_id':ID,'query':text(2000),'semantic':{'type':'boolean'}},['task_id']),
  definition('planning_knowledge_candidates','提取知识候选','从有效交付证据提取待审核候选，不直接写入已审核知识。',
@@ -182,7 +184,13 @@ def _value(value, schema):
         for item in value:
             _value(item, schema["items"])
     elif "object" in types and isinstance(value, dict):
-        properties = schema.get("properties", {})
+        if len(value) > schema.get("maxProperties", 1000):
+            raise ValueError("对象字段过多")
+        properties = schema.get("properties")
+        if properties is None:
+            if schema.get("additionalProperties") is True:
+                return
+            properties = {}
         if set(value) - set(properties) or set(schema.get("required", [])) - set(value):
             raise ValueError("对象包含未知字段或缺少必填字段")
         for key, child in value.items():

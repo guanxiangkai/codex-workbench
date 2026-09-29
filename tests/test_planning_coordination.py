@@ -69,6 +69,73 @@ class PlanningCoordinationTests(unittest.TestCase):
         stored = self.db.execute("SELECT state,owner_pid FROM planning_handoffs WHERE id=?", (packet["id"],)).fetchone()
         self.assertEqual(("sending", 456), (stored["state"], stored["owner_pid"]))
 
+    def test_unknown_handoff_requires_evidence_based_reconciliation_and_cannot_resend(self):
+        packet = self.handoff()
+        self.coordination.begin("task-1", packet["id"], "v1", 456)
+        self.coordination.finish("task-1", packet["id"], error="timeout")
+        reconciled = self.coordination.reconcile(
+            "task-1", packet["id"], "v1", provider_operation_id="OP42", status_query_ref="provider_op_42",
+            side_effect_state="submitted", last_event_id="event-7", source={"kind": "provider_status", "id": "OP42"},
+            status_evidence="provider reports operation is still running",
+        )
+        self.assertEqual("unknown", reconciled["state"])
+        self.assertIsNone(reconciled["response"])
+        self.assertEqual("OP42", reconciled["provider_operation_id"])
+        self.assertEqual({"id": "OP42", "kind": "provider_status"}, reconciled["reconciliation_source"])
+        with self.assertRaises(StoreError) as resend:
+            self.coordination.begin("task-1", packet["id"], "v1", 457)
+        self.assertEqual("conflict", resend.exception.code)
+        with self.assertRaises(StoreError) as mismatch:
+            self.coordination.reconcile(
+                "task-1", packet["id"], "v1", provider_operation_id="OP43", status_query_ref="provider_op_42",
+                side_effect_state="submitted", source={"kind": "provider_status", "id": "OP43"},
+                status_evidence="untrusted replacement operation",
+            )
+        self.assertEqual("idempotency_conflict", mismatch.exception.code)
+
+    def test_prepared_handoff_can_be_cancelled_without_treating_disconnect_as_cancel(self):
+        packet = self.handoff()
+        cancelled = self.coordination.cancel_prepared("task-1", packet["id"], "v1", "用户取消")
+        self.assertEqual("cancelled", cancelled["state"])
+        with self.assertRaises(StoreError) as blocked:
+            self.coordination.begin("task-1", packet["id"], "v1", 999)
+        self.assertEqual("conflict", blocked.exception.code)
+
+    def test_reconciled_completion_rejects_operation_mismatch(self):
+        packet = self.handoff()
+        self.coordination.begin("task-1", packet["id"], "v1", 456)
+        self.coordination.finish("task-1", packet["id"], error="timeout")
+        self.coordination.reconcile(
+            "task-1", packet["id"], "v1", provider_operation_id="OP42", status_query_ref="provider_op_42",
+            side_effect_state="completed", source={"kind": "provider_status", "id": "OP42"},
+            status_evidence="provider reports the operation completed",
+        )
+        with self.assertRaises(StoreError) as mismatch:
+            self.coordination.reconcile_response(
+                "task-1", packet["id"], "v1", provider_operation_id="OP43",
+                response={"decision": "continue", "suggestions": []},
+                source={"kind": "provider_result", "id": "OP43"}, status_evidence="wrong operation",
+            )
+        self.assertEqual("idempotency_conflict", mismatch.exception.code)
+
+    def test_reconciled_completion_with_structured_response_can_be_decided(self):
+        packet = self.handoff()
+        self.coordination.begin("task-1", packet["id"], "v1", 456)
+        self.coordination.finish("task-1", packet["id"], error="timeout")
+        self.coordination.reconcile(
+            "task-1", packet["id"], "v1", provider_operation_id="OP42", status_query_ref="provider_op_42",
+            side_effect_state="completed", source={"kind": "provider_status", "id": "OP42"},
+            status_evidence="provider reports the operation completed",
+        )
+        restored = self.coordination.reconcile_response(
+            "task-1", packet["id"], "v1", provider_operation_id="OP42",
+            response={"decision": "correct", "suggestions": ["补充来源"]},
+            source={"kind": "provider_result", "id": "OP42"}, status_evidence="signed provider result retrieved",
+        )
+        self.assertEqual("received", restored["state"])
+        self.assertEqual("correct", restored["response"]["decision"])
+        self.coordination.decide("task-1", packet["id"], "v1", 0, "accepted", "已核对")
+
     def test_plan_blocks_cycles_unaccepted_dependencies_and_shared_execution(self):
         verify = lambda task_id: self.db.execute("SELECT id FROM tasks WHERE id=?", (task_id,)).fetchone() or (_ for _ in ()).throw(StoreError("not_found", "missing"))
         self.coordination.save_plan("task-2", {"dependencies": ["task-1"]}, verify)

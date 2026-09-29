@@ -38,6 +38,7 @@ class PreviewTests(unittest.TestCase):
     def test_real_ui_resource(self):
         status, body, headers = self.request("/", "GET")
         self.assertEqual(status, 200)
+        self.assertIn(b"const INITIAL_PAGE='planning';", body)
         self.assertIn(b"ui/initialize", body)
         self.assertNotIn(b"__WORKBENCH_INITIAL_PAGE__", body)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])

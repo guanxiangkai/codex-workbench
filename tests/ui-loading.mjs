@@ -33,6 +33,9 @@ stalled.controls.get('retry').click();await flush();stalled.requests.at(-1).reso
 const stale=boot();await flush();await stale.event('pagehide');await stale.event('pageshow',{persisted:true});stale.requests[1].resolve(data('latest'));stale.requests[0].resolve(data('obsolete'));await flush();assert.match(stale.root.innerHTML,/latest/);assert.doesNotMatch(stale.root.innerHTML,/obsolete/);
 const bodyStall=boot();await flush();bodyStall.requests[0].response({ok:true,json:()=>new Promise(()=>{})});await flush();await bodyStall.expire();assert.match(bodyStall.root.innerHTML,/超时/);assert.doesNotMatch(bodyStall.root.innerHTML,/aria-busy="true"/);
 const host=boot({embedded:true});await flush();await host.reply(host.messages[0],{});const call=host.messages.find(x=>x.method==='tools/call');assert(call);
+// 冷入口只带页面标记，不能抢占正在读取的真实数据或写入空缓存。
+await host.hostResult({structuredContent:{view:'agents',_bootstrap_pending:true}});
+assert.equal(host.fields.s.syncing,true);assert.equal(Object.keys(host.fields.s.data).length,0);
 await host.visibility(true);await host.reply(call,data('host-result'));assert.match(host.root.innerHTML,/host-result/);
 await host.visibility(false);assert.equal(host.messages.filter(x=>x.method==='tools/call').length,1);await host.expire();assert.doesNotMatch(host.root.innerHTML,/超时/);assert.doesNotMatch(host.root.innerHTML,/aria-busy="true"/);
 console.log('UI 加载：隐藏/返回、页面恢复、超时重试、乱序响应、宿主桥接通过');

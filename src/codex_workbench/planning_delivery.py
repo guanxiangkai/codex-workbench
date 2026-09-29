@@ -64,7 +64,7 @@ class PlanningDelivery:
                     user_acceptance TEXT NOT NULL, usage TEXT, source_ref TEXT,
                     summary TEXT, check_name TEXT, result TEXT, manual_validation INTEGER NOT NULL DEFAULT 0,
                     card_revision INTEGER, card_sha256 TEXT,
-                    input_fingerprint TEXT, input_snapshot TEXT, created_at TEXT NOT NULL
+                    input_fingerprint TEXT, input_snapshot TEXT, acceptance_snapshot TEXT, created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS planning_delivery_checkpoints (
                     id TEXT PRIMARY KEY, task_id TEXT NOT NULL, round INTEGER NOT NULL,
@@ -113,6 +113,10 @@ class PlanningDelivery:
                     self.db.execute(f"ALTER TABLE planning_delivery_evidence ADD COLUMN {column} {definition}")
                 except sqlite3.OperationalError:
                     pass
+            try:
+                self.db.execute("ALTER TABLE planning_delivery_evidence ADD COLUMN acceptance_snapshot TEXT")
+            except sqlite3.OperationalError:
+                pass
             try:
                 self.db.execute("ALTER TABLE planning_delivery_knowledge_candidates ADD COLUMN source_evidence_id TEXT")
             except sqlite3.OperationalError:
@@ -223,7 +227,32 @@ class PlanningDelivery:
                     "recorded_fingerprint": None}
         if isinstance(recorded_snapshot, dict):
             if recorded_snapshot.get("card") != snapshot.get("card"):
-                reason = "card_changed"
+                recorded_card = recorded_snapshot.get("card") or {}
+                current_card = snapshot.get("card") or {}
+                saved = value.get("acceptance_snapshot")
+                try:
+                    saved = json.loads(saved) if isinstance(saved, str) else saved
+                except (TypeError, ValueError):
+                    saved = None
+                current_criterion = self._current_criterion(task_id, value["criterion_id"])
+                # A card revision that only changes another acceptance condition
+                # does not invalidate this criterion's evidence.  Goal, scope,
+                # preserve and all non-acceptance card material still define the
+                # execution contract and therefore remain global invalidators.
+                if (saved and current_criterion == saved
+                        and recorded_card.get("revision") is not None
+                        and current_card.get("revision") is not None):
+                    try:
+                        previous_payload = self._card_payload_at_evidence(value)
+                    except (TypeError, ValueError):
+                        previous_payload = None
+                    current_payload = self._card_payload(task_id)
+                    if previous_payload is not None and current_payload is not None:
+                        global_keys = ("goal", "scope", "preserve", "facts", "assumptions", "original")
+                        if all(previous_payload.get(key) == current_payload.get(key) for key in global_keys):
+                            return {"valid": True, "reason": None, "current_fingerprint": current,
+                                    "recorded_fingerprint": recorded, "criterion_id": value["criterion_id"]}
+                reason = "criterion_removed" if current_criterion is None else "card_changed"
             elif recorded_snapshot.get("attachments") != snapshot.get("attachments"):
                 reason = "attachments_changed"
             elif recorded_snapshot.get("latest_run_id") != snapshot.get("latest_run_id"):
@@ -234,6 +263,51 @@ class PlanningDelivery:
             reason = "execution_input_changed"
         return {"valid": False, "reason": reason, "current_fingerprint": current,
                 "recorded_fingerprint": recorded}
+
+    def _card_payload(self, task_id):
+        row = self.db.execute("SELECT payload FROM planning_delivery_cards WHERE task_id=?", (task_id,)).fetchone()
+        return json.loads(row["payload"]) if row is not None else None
+
+    def _current_criterion(self, task_id, criterion_id):
+        card = self._card_payload(task_id)
+        if card is None:
+            return None
+        return next((item for item in card["acceptance"] if item["id"] == criterion_id), None)
+
+    @staticmethod
+    def _card_payload_at_evidence(evidence):
+        snapshot = evidence.get("input_snapshot")
+        snapshot = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
+        # Card contents were not retained in early snapshots.  Those records
+        # remain conservatively stale after a card edit.
+        return snapshot.get("card_payload") if isinstance(snapshot, dict) else None
+
+    def acceptance_condition_statuses(self, task_id):
+        """Return current and removed conditions with evidence-level freshness.
+
+        Consumers can render one card per stable condition id without treating a
+        revision to an unrelated condition as a failure of every condition.
+        """
+        card = self._card_payload(task_id)
+        if card is None:
+            return []
+        current = {item["id"]: item for item in card["acceptance"]}
+        rows = self.db.execute("SELECT * FROM planning_delivery_evidence WHERE task_id=? ORDER BY created_at,id", (task_id,)).fetchall()
+        grouped = {}
+        for row in rows:
+            item = dict(row)
+            grouped.setdefault(item["criterion_id"], []).append({
+                "id": item["id"], "freshness": self.evidence_freshness(task_id, item),
+                "source_ref": json.loads(item["source_ref"]) if item.get("source_ref") else None,
+            })
+        result = []
+        for criterion_id in sorted(set(current) | set(grouped)):
+            condition = current.get(criterion_id)
+            result.append({"id": criterion_id, "text": condition["text"] if condition else None,
+                           "current": condition is not None,
+                           "reason": None if condition else "criterion_removed",
+                           "evidence": grouped.get(criterion_id, [])})
+        return result
 
     @staticmethod
     def _text(value, field, limit=10000, *, empty=False):
@@ -431,8 +505,12 @@ class PlanningDelivery:
             evidence_id = str(uuid.uuid4())
             input_snapshot = self.content_snapshot(task_id)
             input_fingerprint = hashlib.sha256(_json(input_snapshot).encode()).hexdigest()
-            self.db.execute("""INSERT INTO planning_delivery_evidence(id,task_id,criterion_id,executor_state,validation_state,user_acceptance,usage,source_ref,summary,check_name,result,manual_validation,card_revision,card_sha256,input_fingerprint,input_snapshot,created_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (evidence_id, task_id, criterion_id, executor_state, validation_state, "pending", _json(usage) if usage is not None else None, _json(source), self._text(summary, "证据摘要", 10000), self._text(check_name, "检查名称", 500), self._text(result, "检查结果", 10000), int(manual_validation), revision, card_sha256, input_fingerprint, _json(input_snapshot), _now()))
+            # Retain the full card only in evidence history.  The execution
+            # fingerprint deliberately remains compatible with run snapshots.
+            input_snapshot["card_payload"] = self._card_payload(task_id)
+            acceptance_snapshot = self._current_criterion(task_id, criterion_id)
+            self.db.execute("""INSERT INTO planning_delivery_evidence(id,task_id,criterion_id,executor_state,validation_state,user_acceptance,usage,source_ref,summary,check_name,result,manual_validation,card_revision,card_sha256,input_fingerprint,input_snapshot,acceptance_snapshot,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (evidence_id, task_id, criterion_id, executor_state, validation_state, "pending", _json(usage) if usage is not None else None, _json(source), self._text(summary, "证据摘要", 10000), self._text(check_name, "检查名称", 500), self._text(result, "检查结果", 10000), int(manual_validation), revision, card_sha256, input_fingerprint, _json(input_snapshot), _json(acceptance_snapshot), _now()))
             return {"id": evidence_id, "executor_state": executor_state, "validation_state": validation_state, "user_acceptance": "pending", "usage": usage, "source_ref": source, "manual_validation": manual_validation}
         return self._mutate(task_id, expected_version, verify_task, advance_task, action, commit=commit)
 
@@ -446,9 +524,6 @@ class PlanningDelivery:
             if accepted and row["validation_state"] != "passed":
                 _error("unverified_acceptance", "没有通过验证的证据不能验收")
             if accepted:
-                revision, card_sha256 = self._card_criterion(task_id, row["criterion_id"])
-                if row["card_revision"] != revision or row["card_sha256"] != card_sha256:
-                    _error("stale_evidence", "任务卡已修订，必须重新验证")
                 freshness = self.evidence_freshness(task_id, row)
                 if not freshness["valid"]:
                     _error("stale_evidence", f"交付证据已失效：{freshness['reason']}")
@@ -468,15 +543,12 @@ class PlanningDelivery:
         evidence_ids = sorted(set(evidence_ids))
         def action(_task):
             placeholders = ",".join("?" for _ in evidence_ids)
-            rows = self.db.execute(f"""SELECT id,validation_state,criterion_id,card_revision,card_sha256,
+            rows = self.db.execute(f"""SELECT id,validation_state,criterion_id,card_revision,card_sha256,acceptance_snapshot,
                 source_ref,input_fingerprint,input_snapshot FROM planning_delivery_evidence
                 WHERE task_id=? AND id IN ({placeholders})""", (task_id, *evidence_ids)).fetchall()
             if len(rows) != len(evidence_ids) or any(row["validation_state"] == "unknown" for row in rows):
                 _error("validation", "监督检查点需要已记录的验证证据")
             for row in rows:
-                revision, card_sha256 = self._card_criterion(task_id, row["criterion_id"])
-                if row["card_revision"] != revision or row["card_sha256"] != card_sha256:
-                    _error("stale_evidence", "监督证据对应的任务卡已修订")
                 freshness = self.evidence_freshness(task_id, row)
                 if not freshness["valid"]:
                     _error("stale_evidence", f"监督证据已失效：{freshness['reason']}")

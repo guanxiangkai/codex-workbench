@@ -99,8 +99,11 @@ class SyncServiceTests(unittest.TestCase):
             def context(self):return 'account'
             def signature(self,view):return view
         self.service.source_versions=Versions()
-        self.service.collect_snapshot('accounts')
+        cold=self.service.call('open_workbench',{})
+        self.assertEqual({'view':'planning','_bootstrap_pending':True},cold)
+        self.assertEqual([],list(self.root.iterdir()))
+        self.service.sync('planning')
         first=self.service.call('open_workbench',{})
-        self.assertEqual('accounts',first['view']);self.assertIn('revision',first['_sync']);self.assertIn('accounts',first)
+        self.assertEqual('planning',first['view']);self.assertIn('revision',first['_sync']);self.assertIn('tasks',first)
         self.service.call('open_workbench',{})
-        self.assertEqual(1,self.native.calls.count('accounts'))
+        self.assertEqual([],self.native.calls)

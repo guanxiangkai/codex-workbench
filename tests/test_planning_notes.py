@@ -41,6 +41,36 @@ class PlanningNotesTest(unittest.TestCase):
             conflict = notes.export(self.detail(task_id, "Changed"))
             self.assertEqual("conflict", conflict["status"])
             self.assertEqual("# user draft\n", path.read_text())
+            self.assertEqual("candidate", conflict["candidate"]["status"])
+            self.assertEqual(task_id, conflict["candidate"]["task_id"])
+            self.assertEqual([conflict["candidate"]["content_sha256"]],
+                             [item["content_sha256"] for item in notes.local_edits(task_id)])
+
+    def test_moc_is_a_logical_view_and_export_replays_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            notes = PlanningNotes(Path(directory), sqlite3.connect(":memory:"))
+            task_id = str(uuid4())
+            first = notes.export({**self.detail(task_id), "version": 4})
+            self.assertEqual("created", first["status"])
+            self.assertIn("任务视图", (Path(directory) / "工作台导航.md").read_text())
+            self.assertFalse((Path(directory) / "MOC").exists())
+            self.assertEqual("updated", notes.export({**self.detail(task_id), "version": 4})["status"])
+
+    def test_selected_knowledge_edit_is_versioned_candidate_not_authority(self):
+        with tempfile.TemporaryDirectory() as directory:
+            notes=PlanningNotes(Path(directory),sqlite3.connect(':memory:'))
+            record={'scope_key':'project:one','knowledge_key':'rule','title':'规则','content':'current','updated_at':'2026-09-29'}
+            result=notes.export_knowledge([record])
+            path=Path(result['items'][0]['path'])
+            self.assertTrue(path.is_file())
+            self.assertIn('project:one',(Path(directory)/'知识地图.md').read_text())
+            first_version=notes.db.execute('SELECT base_revision FROM planning_knowledge_exports').fetchone()[0]
+            path.write_text(path.read_text()+'\nlocal edit')
+            result=notes.export_knowledge([{**record,'content':'new accepted revision'}])
+            self.assertEqual('conflict',result['items'][0]['status'])
+            self.assertEqual(first_version,result['items'][0]['candidate']['base_revision'])
+            self.assertTrue(result['items'][0]['candidate']['base_stale'])
+            self.assertIn('local edit',path.read_text())
 
     def test_symlink_target_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

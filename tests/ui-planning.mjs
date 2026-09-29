@@ -283,3 +283,60 @@ await new Promise(resolve=>setTimeout(resolve,0));
 assert.equal(JSON.stringify(intakeCalls.find(([name,args])=>name==='planning_start'&&args.message_id)[1]),JSON.stringify({task_id:'work-1',expected_version:2,message_id:'message-1'}));
 intakeUI.leave();
 console.log('planning UI: intake save remains non-executing and question runs carry message_id');
+
+// Delivery stays a separate user acceptance record and file review starts from an asset.
+const deliveryUI=window.WorkbenchPlanning.create({tool:async()=>({item:{}}),escape:String});
+deliveryUI.state.view='detail';
+deliveryUI.state.detail={id:'delivery-1',title:'验收任务',version:4,status:'pending',assets:[{id:'asset-1',name:'需求.pdf'}],delivery:{card:{card:{goal:'交付',scope:['当前任务'],preserve:['证据'],acceptance:[{id:'a-1',text:'可人工验收'}],facts:[],assumptions:[],original:'原文'}},evidence:[{id:'e-1',criterion_id:'a-1',executor_state:'completed',validation_state:'passed',user_acceptance:'pending'}]}};
+deliveryUI.state.detailTab='delivery';
+assert.match(deliveryUI.render('planning',data),/交付验收/);
+assert.match(deliveryUI.render('planning',data),/执行.*验证.*用户验收/);
+assert.match(deliveryUI.render('planning',data),/user_acceptance|用户验收/,'验收有独立字段与展示');
+deliveryUI.state.detailTab='files';
+assert.match(deliveryUI.render('planning',data),/当前任务来源检索/);
+assert.match(deliveryUI.render('planning',data),/语义检索（GLM）会发送当前任务已关联的文本/);
+console.log('planning UI: delivery acceptance is explicit and task-scoped source retrieval is disclosed');
+
+// Delivery follow-ups stay deliberate: differences and supervised suggestions are visible,
+// rework is saved from an annotation, and knowledge extraction remains an unreviewed candidate.
+deliveryUI.state.detailTab='delivery';
+deliveryUI.state.detail.knowledge_refs=[{scope:'project:delivery',title:'已关联范围'}];
+deliveryUI.state.detail.delivery.annotations=[{id:'annotation-1',change_text:'保留证据并补充说明'}];
+deliveryUI.state.detail.delivery.artifact_diff={changed:true,line_count:2,diff:'- 旧文本\n+ 新文本'};
+deliveryUI.state.detail.delivery.review={decision:'revise',suggestions:['补充验证'],starts_runner:false};
+deliveryUI.state.detail.delivery.metrics={rework_count:1,first_round_acceptance:'rejected',correction_acceptance:'pending',runtime_ms:null,stopped:false,failed:true};
+deliveryUI.state.knowledgeCandidates=[{scope:'project:delivery',title:'旧会话候选',content:'不可替代详情记录',status:'candidate'}];
+deliveryUI.state.detail.delivery.knowledge_candidates=[{id:'candidate-1',scope:'project:delivery',title:'候选',content:'待审核内容',status:'candidate',reviewed:false,local_only:true,applicability:{status:'unknown',reason:'pending_confirmation'},source:{kind:'asset',id:'asset-1'},card_revision:4,card_sha256:'card-hash',verified_at:'2026-09-29T10:00:00Z'}];
+const deliveryHtml=deliveryUI.render('planning',data);
+assert.match(deliveryHtml,/交付指标/);
+assert.match(deliveryHtml,/返工次数[\s\S]*1/);
+assert.match(deliveryHtml,/首轮验收[\s\S]*未接受/);
+assert.match(deliveryHtml,/修正后验收[\s\S]*待确认/);
+assert.match(deliveryHtml,/运行时长[\s\S]*未知/);
+assert.match(deliveryHtml,/已停止[\s\S]*否/);
+assert.match(deliveryHtml,/失败[\s\S]*是/);
+assert.match(deliveryHtml,/附件版本差异/);
+assert.match(deliveryHtml,/文本差异/);
+assert.match(deliveryHtml,/保存返工说明/);
+assert.match(deliveryHtml,/不会启动执行/);
+assert.match(deliveryHtml,/已验收来源的知识候选/);
+assert.match(deliveryHtml,/候选仅供查看，尚未审核或写入知识库/);
+assert.match(deliveryHtml,/待审核内容/);
+assert.match(deliveryHtml,/本地待审核/);
+assert.match(deliveryHtml,/适用性待确认/);
+assert.match(deliveryHtml,/来源与版本/);
+assert.match(deliveryHtml,/card-hash/);
+assert.doesNotMatch(deliveryHtml,/旧会话候选/,'重开详情必须使用持久化候选，而非旧会话状态');
+console.log('planning UI: delivery rework, diff, review, and knowledge candidates remain explicit');
+
+const actionEvents=new Map(),deliveryActions=[];
+const actionRoot={addEventListener:(kind,fn)=>actionEvents.set(kind,fn),removeEventListener:()=>{},querySelector:()=>null};
+const actionUI=window.WorkbenchPlanning.create({tool:async(name,args)=>{deliveryActions.push([name,args]);return {item:{id:'delivery-2',version:5,status:'pending',delivery:{annotations:[]}}};}});
+actionUI.state.view='detail';
+actionUI.state.detail={id:'delivery-2',version:4,status:'pending',delivery:{annotations:[{id:'annotation-2'}]}};
+actionUI.bind(actionRoot);
+actionEvents.get('click')({target:{closest:()=>({dataset:{planningAction:'prepare-rework',annotationId:'annotation-2'}})},preventDefault(){}});
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(JSON.stringify(deliveryActions[0]),JSON.stringify(['planning_delivery',{task_id:'delivery-2',expected_version:4,action:'prepare_rework',payload:{annotation_id:'annotation-2'}}]));
+actionUI.leave();
+console.log('planning UI: annotation rework dispatch is explicit and non-running');

@@ -28,7 +28,7 @@ class PlanningTests(unittest.TestCase):
                 event('thread', '01234567-89ab-4cde-8123-0123456789ab')
                 outer.entered.set()
                 outer.release.wait(3)
-                out = Path(request.cwd) / '.codex-workbench' / 'outputs' / request.run_id
+                out = outer.plan.output_root / 'runs' / request.run_id
                 (out / '图.png').write_bytes(b'image fixture')
                 return Execution('review', '可查阅的结果')
         self.plan = Planning(Path(self.temp.name), Executor())
@@ -177,7 +177,7 @@ class PlanningTests(unittest.TestCase):
         self.plan.upload_chunk(upload['upload_id'], 262144, base64.b64encode(payload[262144:]).decode())
         asset = self.plan.upload_commit(upload['upload_id'])
         self.assertEqual(asset['bytes'], len(payload))
-        note_path = self.plan.root/'library'/'Tasks'/f"{task['id']}.md"
+        note_path = self.plan.output_root/'Tasks'/f"{task['id']}.md"
         self.assertIn('附件.bin', note_path.read_text())
         called = []
         def knowledge(scope, key):
@@ -200,7 +200,7 @@ class PlanningTests(unittest.TestCase):
         task = self.plan.create('保留手写资料')
         asset = self.plan.upload('原始资料.txt', base64.b64encode(b'content').decode())
         self.plan.link(asset['id'], task['id'])
-        asset_note = self.plan.root/'library'/'Assets'/f"{asset['id']}.md"
+        asset_note = self.plan.output_root/'Assets'/f"{asset['id']}.md"
         self.assertIn('原始资料.txt', asset_note.read_text())
         asset_note.write_text('用户补充的说明')
         exported = self.plan.export(task['id'])

@@ -14,6 +14,7 @@ class PlanningDeliveryTests(unittest.TestCase):
         self.db.execute("CREATE TABLE assets(id TEXT PRIMARY KEY,sha256 TEXT)")
         self.db.execute("CREATE TABLE asset_refs(asset_id TEXT,task_id TEXT)")
         self.db.execute("CREATE TABLE runs(id TEXT PRIMARY KEY,task_id TEXT,state TEXT)")
+        self.db.execute("CREATE TABLE planning_run_snapshots(run_id TEXT PRIMARY KEY,content_fingerprint TEXT)")
         self.task = {"id": "task-1", "version": 1}
         self.asset = {"id": "asset-1", "sha256": "a" * 64}
         self.run = {"id": "run-1", "task_id": "task-1"}
@@ -22,6 +23,8 @@ class PlanningDeliveryTests(unittest.TestCase):
         self.db.execute("INSERT INTO asset_refs VALUES(?,?)", (self.asset["id"], self.task["id"]))
         self.db.execute("INSERT INTO runs VALUES(?,?,?)", (self.run["id"], self.task["id"], "review"))
         self.delivery.save_card("task-1", self.task["version"], self.card(), verify_task=self.verify, advance_task=self.advance)
+        self.db.execute("INSERT INTO planning_run_snapshots VALUES(?,?)",
+                        (self.run["id"], self.delivery.content_fingerprint(self.task["id"])))
 
     def verify(self, task_id, version):
         if task_id != self.task["id"] or version != self.task["version"]:
@@ -96,6 +99,84 @@ class PlanningDeliveryTests(unittest.TestCase):
             self.delivery.checkpoint("task-1", self.task["version"], [third_evidence["id"]], decision="stop", suggestions=[],
                                      verify_task=self.verify, advance_task=self.advance)
         self.assertEqual("correction_limit", raised.exception.code)
+
+    def test_evidence_becomes_stale_when_current_execution_inputs_change(self):
+        evidence = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                                  validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                                  summary="运行完成", check_name="运行检查", result="通过",
+                                                  verify_task=self.verify, advance_task=self.advance)
+        self.db.execute("INSERT INTO assets VALUES(?,?)", ("asset-2", "b" * 64))
+        self.db.execute("INSERT INTO asset_refs VALUES(?,?)", ("asset-2", self.task["id"]))
+        freshness = self.delivery.evidence_freshness("task-1", evidence["id"])
+        self.assertEqual({"valid": False, "reason": "attachments_changed"},
+                         {key: freshness[key] for key in ("valid", "reason")})
+        with self.assertRaises(StoreError) as raised:
+            self.delivery.accept_evidence("task-1", self.task["version"], evidence["id"], accepted=True,
+                                          verify_task=self.verify, advance_task=self.advance)
+        self.assertEqual("stale_evidence", raised.exception.code)
+
+    def test_run_evidence_requires_recorded_execution_input_fingerprint(self):
+        self.db.execute("DELETE FROM planning_run_snapshots WHERE run_id=?", (self.run["id"],))
+        with self.assertRaises(StoreError) as raised:
+            self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                          validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                          summary="运行完成", check_name="运行检查", result="通过",
+                                          verify_task=self.verify, advance_task=self.advance)
+        self.assertEqual("source_unverifiable", raised.exception.code)
+
+    def test_evidence_becomes_stale_when_task_card_changes(self):
+        evidence = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                                  validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                                  summary="运行完成", check_name="运行检查", result="通过",
+                                                  verify_task=self.verify, advance_task=self.advance)
+        changed = self.card()
+        changed["acceptance"] = [{"id": "c1", "text": "验证通过并保留记录"}]
+        self.delivery.save_card("task-1", self.task["version"], changed,
+                                verify_task=self.verify, advance_task=self.advance)
+        freshness = self.delivery.evidence_freshness("task-1", evidence["id"])
+        self.assertEqual({"valid": False, "reason": "card_changed"},
+                         {key: freshness[key] for key in ("valid", "reason")})
+
+    def test_evidence_does_not_expire_from_its_own_task_version_advance(self):
+        evidence = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                                  validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                                  summary="运行完成", check_name="运行检查", result="通过",
+                                                  verify_task=self.verify, advance_task=self.advance)
+        freshness = self.delivery.evidence_freshness("task-1", evidence["id"])
+        self.assertTrue(freshness["valid"])
+        accepted = self.delivery.accept_evidence("task-1", self.task["version"], evidence["id"], accepted=True,
+                                                 verify_task=self.verify, advance_task=self.advance)
+        self.assertEqual("accepted", accepted["user_acceptance"])
+
+    def test_evidence_becomes_stale_when_a_new_current_run_exists(self):
+        evidence = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                                  validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                                  summary="运行完成", check_name="运行检查", result="通过",
+                                                  verify_task=self.verify, advance_task=self.advance)
+        self.db.execute("INSERT INTO runs VALUES(?,?,?)", ("run-2", self.task["id"], "review"))
+        freshness = self.delivery.evidence_freshness("task-1", evidence["id"])
+        self.assertEqual({"valid": False, "reason": "current_run_changed"},
+                         {key: freshness[key] for key in ("valid", "reason")})
+        with self.assertRaises(StoreError) as raised:
+            self.delivery.checkpoint("task-1", self.task["version"], [evidence["id"]], decision="continue", suggestions=[],
+                                     verify_task=self.verify, advance_task=self.advance)
+        self.assertEqual("stale_evidence", raised.exception.code)
+
+    def test_evidence_becomes_stale_when_ownership_plan_changes(self):
+        self.db.execute("CREATE TABLE planning_work_ownership(task_id TEXT PRIMARY KEY,plan TEXT NOT NULL,updated_at TEXT NOT NULL)")
+        self.db.execute("INSERT INTO planning_work_ownership VALUES(?,?,?)",
+                        ("task-1", '{"dependencies":[],"owner":"agent-a","paths":["src"]}', "2026-09-29T00:00:00Z"))
+        self.db.execute("UPDATE planning_run_snapshots SET content_fingerprint=? WHERE run_id=?",
+                        (self.delivery.content_fingerprint("task-1"), self.run["id"]))
+        evidence = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="c1", executor_state="completed",
+                                                  validation_state="passed", source_ref={"kind": "run", "id": self.run["id"]},
+                                                  summary="运行完成", check_name="运行检查", result="通过",
+                                                  verify_task=self.verify, advance_task=self.advance)
+        self.db.execute("UPDATE planning_work_ownership SET plan=? WHERE task_id=?",
+                        ('{"dependencies":[],"owner":"agent-b","paths":["src"]}', "task-1"))
+        freshness = self.delivery.evidence_freshness("task-1", evidence["id"])
+        self.assertEqual({"valid": False, "reason": "execution_input_changed"},
+                         {key: freshness[key] for key in ("valid", "reason")})
 
     def test_card_uses_parent_version_contract(self):
         saved = self.delivery.save_card("task-1", self.task["version"], self.card(), verify_task=self.verify, advance_task=self.advance)

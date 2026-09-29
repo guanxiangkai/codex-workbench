@@ -27,9 +27,9 @@ class ModuleCatalogTests(unittest.TestCase):
         writable={'account_create','account_login','account_status','account_default',
                   'planning_create','planning_update','planning_start','planning_stop',
                   'planning_archive','planning_delete','planning_followup','planning_knowledge_link',
-                  'planning_export','planning_draft','planning_intake','planning_intake_save','library_upload','library_upload_begin',
+                  'planning_delivery','planning_knowledge_candidates','planning_export','planning_draft','planning_intake','planning_intake_save','library_upload','library_upload_begin',
                   'library_upload_chunk','library_upload_commit','library_link'}
-        self.assertEqual(41,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writable) for t in TOOLS))
+        self.assertEqual(46,len(TOOLS));self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writable) for t in TOOLS))
     def test_knowledge_list_scope_and_body_exclusion(self):
         runner=Runner();catalog=KnowledgeCatalog('/synthetic/knowledge',runner)
         result=catalog.listing('project:a','查询')

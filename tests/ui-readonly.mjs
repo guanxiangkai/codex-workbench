@@ -75,16 +75,25 @@ assert.equal(h.filteredConfigurations(configData,'','redis','缓存')[0].id,'b')
 assert.equal(h.folderPath([{id:'x',name:'X',parent_id:'y'},{id:'y',name:'Y',parent_id:'x'}],'x'),'Y / X');
 console.log('配置中心：目录后代、循环保护、类型与搜索交集、目录搜索通过');
 
+const countdownNow=Date.parse('2026-09-28T00:00:00Z');
+for(const [seconds,expected] of [[172801,'2 天后'],[86400,'1 天后'],[86399,'23 小时后'],[3600,'1 小时后'],[3599,'59 分钟后'],[60,'1 分钟后'],[59,'0 分钟后'],[0,'已到预计时间'],[-1,'已到预计时间']]){
+ assert.equal(h.resetCountdown(new Date(countdownNow+seconds*1000).toISOString(),countdownNow),expected);
+}
+assert.equal(h.resetCountdown('invalid',countdownNow),'未提供');
+assert.equal(h.resetCountdown(null,countdownNow),'未提供');
+assert.equal(h.resetCountdown((countdownNow+86400000)/1000,countdownNow),'1 天后');
+assert.equal(h.resetCountdown(countdownNow+86400000,countdownNow),'1 天后');
 const resetData={reset_analysis:{signal:'present',predicted_reset_window:{start:'2026-09-28T08:00:00+08:00',end:'2026-09-28T12:00:00+08:00',basis:'官方公告'},history_summary:{reported_count:4,tracked_count:2},confidence:.8,confidence_kind:'evidence_score',observed_at:'2026-09-27T09:00:00+08:00'},accounts:[{id:'a',email:'a@example.com',login_status:'ready',remaining_percent:80},{id:'b',email:'b@example.com',login_status:'ready',remaining_percent:60}]};
-const present=h.resetAnalysisView(resetData.reset_analysis);assert.match(present,/置信度 80%/);assert.doesNotMatch(present,/模型置信度/);assert.match(present,/2026\/09\/28[^<]*至[^<]*2026\/09\/28/);assert.doesNotMatch(present,/人工重置信号|近期有信号|暂无法确认|官方公告|根据当前数据无法判断|没有可用预测/);assert.match(present,/2026\/09\/28/);
-const pacificTime=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-29T23:30:00-07:00',observed_at:'2026-09-29T23:00:00-07:00'});assert.match(pacificTime,/>预计重置时间</);assert.match(pacificTime,/2026\/09\/30 14:30/);assert.match(pacificTime,/更新时间：2026\/9\/30 14:00:00/);
-const deadlineNode=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-30T06:59:00Z',predicted_reset_kind:'deadline',observed_at:'2026-09-28T06:34:01Z'});assert.match(deadlineNode,/>2026\/09\/30 14:59</);assert.doesNotMatch(deadlineNode,/至|参考时点|北京时间| 前</);assert.match(deadlineNode,/更新时间：2026\/9\/28 14:34:01/);
+const resetNow=Date.parse('2026-09-28T00:00:00+08:00');
+const present=h.resetAnalysisView(resetData.reset_analysis,resetNow);assert.match(present,/置信度 80%/);assert.doesNotMatch(present,/模型置信度/);assert.match(present,/>8 小时后<\/time> 至 <time[^>]+>12 小时后<\/time>/);assert.doesNotMatch(present,/人工重置信号|近期有信号|暂无法确认|官方公告|根据当前数据无法判断|没有可用预测/);assert.match(present,/2026\/09\/28/);
+const pacificTime=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-29T23:30:00-07:00',observed_at:'2026-09-29T23:00:00-07:00'},Date.parse('2026-09-30T06:00:00Z'));assert.match(pacificTime,/>预计重置时间</);assert.match(pacificTime,/2026\/09\/30 14:30/);assert.match(pacificTime,/更新时间：2026\/9\/30 14:00:00/);
+const deadlineNode=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-30T06:59:00Z',predicted_reset_kind:'deadline',observed_at:'2026-09-28T06:34:01Z'},resetNow);assert.match(deadlineNode,/>2 天后</);assert.match(deadlineNode,/title="2026\/09\/30 14:59"/);assert.doesNotMatch(deadlineNode,/至|参考时点|北京时间| 前</);assert.match(deadlineNode,/更新时间：2026\/9\/28 14:34:01/);
 const coarseNode=h.resetAnalysisView({signal:'present',summary:'下周还会重置'});assert.match(coarseNode,/尚无具体节点/);
 const legacyScore=h.resetAnalysisView({signal:'unknown',confidence:.65,confidence_kind:'model_assessment'});assert.match(legacyScore,/置信度未提供/);assert.doesNotMatch(legacyScore,/65%|模型置信度/);
 const evidenceHistory=h.resetAnalysisView({signal:'present',predicted_reset_at:'2026-09-29T10:00:00+08:00',history_summary:{reported_count:55,tracked_count:null},evidence:[{source:'公告 A',error:'timeout'}],history:[{event_type:'manual_quota_reset'}]});assert.doesNotMatch(evidenceHistory,/来源 1\/2|覆盖不完整|本机历史|赠送重置卡|未获官方核验/);assert.match(evidenceHistory,/2026\/09\/29/);
 const none=h.resetAnalysisView({signal:'none',history_summary:{reported_count:0,tracked_count:0}});assert.match(none,/>无</);assert.doesNotMatch(none,/人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测|未确定/);
 const unknown=h.resetAnalysisView({signal:'unknown',history_summary:{reported_count:null,tracked_count:1}});assert.match(unknown,/未确定/);assert.doesNotMatch(unknown,/人工重置信号|近期有信号|暂无法确认|根据当前数据无法判断|没有可用预测|>无</);
-const accountHtml=h.accountView(resetData);assert.equal((accountHtml.match(/class="reset-analysis"/g)||[]).length,1);assert(accountHtml.indexOf('reset-analysis')<accountHtml.indexOf('class="account-grid"'));assert.equal((accountHtml.match(/class="card account"/g)||[]).length,2);
+const accountHtml=h.accountView(resetData);assert.doesNotMatch(accountHtml,/>额度剩余</);assert.match(accountHtml,/aria-label="剩余额度百分比">80%/);assert.equal((accountHtml.match(/class="reset-analysis"/g)||[]).length,1);assert(accountHtml.indexOf('reset-analysis')<accountHtml.indexOf('class="account-grid"'));assert.equal((accountHtml.match(/class="card account"/g)||[]).length,2);
  h.setQuery(' a ');const searched=h.accountView(resetData);assert.doesNotMatch(searched,/class="reset-analysis"/);h.setQuery('   ');const whitespace=h.accountView(resetData);assert.match(whitespace,/class="reset-analysis"/);h.setQuery('');
 console.log('账户重置分析：单实例宽卡片、全量账户搜索隔离、信号状态、时间范围与双口径计数通过');
 

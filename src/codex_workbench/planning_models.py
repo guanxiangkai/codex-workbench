@@ -118,7 +118,7 @@ class PlanningModels:
             id INTEGER PRIMARY KEY AUTOINCREMENT, capability TEXT NOT NULL, purpose TEXT NOT NULL,
             task_id TEXT,
             model_id TEXT NOT NULL, provider_id TEXT NOT NULL, success INTEGER NOT NULL,
-            code TEXT, fallback_reason TEXT, elapsed_ms INTEGER NOT NULL, usage TEXT, route TEXT NOT NULL, created_at TEXT NOT NULL
+            code TEXT, fallback_reason TEXT, elapsed_ms INTEGER NOT NULL, usage TEXT, cost REAL, route TEXT NOT NULL, created_at TEXT NOT NULL
         )""")
         try:
             db.execute("ALTER TABLE planning_model_calls ADD COLUMN fallback_reason TEXT")
@@ -128,7 +128,18 @@ class PlanningModels:
             db.execute("ALTER TABLE planning_model_calls ADD COLUMN task_id TEXT")
         except sqlite3.OperationalError:
             pass
+        try:
+            db.execute("ALTER TABLE planning_model_calls ADD COLUMN cost REAL")
+        except sqlite3.OperationalError:
+            pass
         db.execute("CREATE INDEX IF NOT EXISTS planning_model_calls_route ON planning_model_calls(capability,purpose,model_id,created_at)")
+        db.execute("""CREATE TABLE IF NOT EXISTS planning_model_evaluations (
+            call_id INTEGER PRIMARY KEY REFERENCES planning_model_calls(id),
+            quality TEXT, adopted INTEGER, correction_count INTEGER, reason TEXT NOT NULL, updated_at TEXT NOT NULL,
+            CHECK (quality IS NULL OR quality IN ('accepted','rejected','needs_correction')),
+            CHECK (adopted IS NULL OR adopted IN (0,1)),
+            CHECK (correction_count IS NULL OR correction_count >= 0)
+        )""")
 
     def _recent_latencies(self, capability, purpose):
         if self.telemetry_db is None:
@@ -144,12 +155,50 @@ class PlanningModels:
     def _persist(self, event, capability):
         if self.telemetry_db is None:
             return
-        self.telemetry_db.execute("""INSERT INTO planning_model_calls
-            (capability,purpose,task_id,model_id,provider_id,success,code,fallback_reason,elapsed_ms,usage,route,created_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (capability, event['purpose'], event.get('task_id'), event['model_id'],
+        cursor = self.telemetry_db.execute("""INSERT INTO planning_model_calls
+            (capability,purpose,task_id,model_id,provider_id,success,code,fallback_reason,elapsed_ms,usage,cost,route,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (capability, event['purpose'], event.get('task_id'), event['model_id'],
             event['provider_id'], int(event['success']), event['code'], event.get('fallback_reason'), event['elapsed_ms'],
-            json.dumps(event['usage'], separators=(',', ':')) if event['usage'] is not None else None,
+            json.dumps(event['usage'], separators=(',', ':')) if event['usage'] is not None else None, event.get('cost'),
             json.dumps(event['route'], separators=(',', ':')), datetime.now(timezone.utc).isoformat()))
+        event['call_id'] = cursor.lastrowid
+
+    def record_evaluation(self, call_id, *, task_id, quality=None, adopted=None, correction_count=None, reason):
+        """Attach user or review evidence to one recorded model call.
+
+        This intentionally cannot create a call record: quality, adoption and
+        corrections are unknown until a caller supplies evidence for an actual
+        invocation.
+        """
+        if self.telemetry_db is None:
+            raise ModelCallError('telemetry_unavailable')
+        if isinstance(call_id, bool) or not isinstance(call_id, int) or call_id < 1:
+            raise ValueError('call_id_invalid')
+        if not isinstance(task_id, str) or not task_id:
+            raise ValueError('task_id_invalid')
+        if quality not in {None, 'accepted', 'rejected', 'needs_correction'}:
+            raise ValueError('quality_invalid')
+        if adopted is not None and not isinstance(adopted, bool):
+            raise ValueError('adoption_invalid')
+        if (correction_count is not None and (isinstance(correction_count, bool)
+                                              or not isinstance(correction_count, int)
+                                              or correction_count < 0)):
+            raise ValueError('correction_count_invalid')
+        if quality is None and adopted is None and correction_count is None:
+            raise ValueError('evaluation_empty')
+        if not isinstance(reason, str) or not reason.strip() or len(reason) > 2000:
+            raise ValueError('reason_invalid')
+        exists = self.telemetry_db.execute('SELECT 1 FROM planning_model_calls WHERE id=? AND task_id=?',
+                                           (call_id, task_id)).fetchone()
+        if exists is None:
+            raise ValueError('call_not_found')
+        with self.telemetry_db:
+            self.telemetry_db.execute("""INSERT INTO planning_model_evaluations
+                (call_id,quality,adopted,correction_count,reason,updated_at) VALUES(?,?,?,?,?,?)
+                ON CONFLICT(call_id) DO UPDATE SET quality=excluded.quality, adopted=excluded.adopted,
+                correction_count=excluded.correction_count, reason=excluded.reason, updated_at=excluded.updated_at""",
+                (call_id, quality, None if adopted is None else int(adopted), correction_count, reason.strip(),
+                 datetime.now(timezone.utc).isoformat()))
 
     def stats(self, capability=None, purpose=None, task_id=None):
         """Return aggregate route evidence without request/answer material."""
@@ -163,10 +212,76 @@ class PlanningModels:
         if task_id is not None:
             where.append('task_id=?'); values.append(task_id)
         clause = (' WHERE ' + ' AND '.join(where)) if where else ''
-        return [dict(row) for row in self.telemetry_db.execute("""SELECT capability,purpose,task_id,model_id,provider_id,
-            count(*) AS calls,sum(success) AS successes,round(avg(elapsed_ms)) AS average_latency_ms,
-            sum(CASE WHEN fallback_reason IS NOT NULL THEN 1 ELSE 0 END) AS fallbacks
-            FROM planning_model_calls""" + clause + " GROUP BY capability,purpose,task_id,model_id,provider_id ORDER BY capability,purpose,model_id", values)]
+        rows = self.telemetry_db.execute("""SELECT c.id,c.capability,c.purpose,c.task_id,c.model_id,c.provider_id,
+            c.success,c.elapsed_ms,c.usage,c.cost,c.fallback_reason,e.quality,e.adopted,e.correction_count
+            FROM planning_model_calls c LEFT JOIN planning_model_evaluations e ON e.call_id=c.id""" + clause +
+            " ORDER BY c.capability,c.purpose,c.model_id,c.id", values).fetchall()
+        groups = {}
+        for row in rows:
+            value = dict(row)
+            key = tuple(value[name] for name in ('capability', 'purpose', 'task_id', 'model_id', 'provider_id'))
+            groups.setdefault(key, []).append(value)
+        return [self._stats_group(group) for group in groups.values()]
+
+    def task_calls(self, task_id):
+        """Return safe, persisted call/evaluation evidence for a task's review UI."""
+        if self.telemetry_db is None:
+            return []
+        if not isinstance(task_id, str) or not task_id:
+            raise ValueError('task_id_invalid')
+        rows = self.telemetry_db.execute("""SELECT c.id AS call_id,c.capability,c.purpose,c.task_id,c.model_id,
+            c.provider_id,c.success,c.code,c.fallback_reason,c.elapsed_ms,c.usage,c.cost,c.route,c.created_at,
+            e.quality,e.adopted,e.correction_count,e.reason,e.updated_at
+            FROM planning_model_calls c LEFT JOIN planning_model_evaluations e ON e.call_id=c.id
+            WHERE c.task_id=? ORDER BY c.id DESC""", (task_id,)).fetchall()
+        result = []
+        for row in rows:
+            value = dict(row)
+            try:
+                value['usage'] = json.loads(value['usage']) if value['usage'] is not None else None
+            except (TypeError, ValueError):
+                value['usage'] = None
+            try:
+                value['route'] = json.loads(value['route'])
+            except (TypeError, ValueError):
+                value['route'] = None
+            result.append(value)
+        return result
+
+    @staticmethod
+    def _stats_group(rows):
+        first = rows[0]
+        result = {name: first[name] for name in ('capability', 'purpose', 'task_id', 'model_id', 'provider_id')}
+        result['calls'] = len(rows)
+        result['successes'] = sum(row['success'] for row in rows)
+        result['average_latency_ms'] = round(sum(row['elapsed_ms'] for row in rows) / len(rows))
+        result['total_elapsed_ms'] = sum(row['elapsed_ms'] for row in rows)
+        result['fallbacks'] = sum(row['fallback_reason'] is not None for row in rows)
+        qualities = [row['quality'] for row in rows]
+        adoptions = [row['adopted'] for row in rows]
+        corrections = [row['correction_count'] for row in rows]
+        # A partial review is evidence about only those calls, not a pass rate for
+        # the group.  Keep the aggregate unknown until every call is evaluated.
+        result['quality_pass_rate'] = (round(sum(value == 'accepted' for value in qualities) / len(rows), 4)
+                                       if all(value is not None for value in qualities) else None)
+        result['adoption_rate'] = (round(sum(adoptions) / len(rows), 4)
+                                   if all(value is not None for value in adoptions) else None)
+        result['correction_count'] = sum(corrections) if all(value is not None for value in corrections) else None
+        usages = []
+        for row in rows:
+            try:
+                usage = json.loads(row['usage']) if row['usage'] is not None else None
+            except (TypeError, ValueError):
+                usage = None
+            usages.append(usage if isinstance(usage, dict) else None)
+        for field in ('input_tokens', 'output_tokens', 'total_tokens'):
+            values = [usage.get(field) if usage is not None else None for usage in usages]
+            result[field] = (sum(values) if all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                                                for value in values) else None)
+        costs = [row['cost'] for row in rows]
+        result['cost'] = (sum(costs) if all(isinstance(value, (int, float)) and not isinstance(value, bool)
+                                            for value in costs) else None)
+        return result
 
     @staticmethod
     def _instant(value):
@@ -248,19 +363,20 @@ class PlanningModels:
                                   m['provider_id'] != 'minimax', m['id']))
         return result
 
-    def call(self, capability, payload, *, external_allowed=False, purpose='auxiliary', task_id=None):
+    def call(self, capability, payload, *, external_allowed=False, purpose='auxiliary', task_id=None, allow_fallback=True):
         models = self.candidates(capability, external_allowed=external_allowed, purpose=purpose)
         if not models:
             raise ModelCallError('data_boundary' if not external_allowed else 'model_unavailable')
         tried = set()
         last = 'model_unavailable'
         for model in models:
-            if model['provider_id'] in tried or len(tried) >= 2:
+            if model['provider_id'] in tried or len(tried) >= (2 if allow_fallback else 1):
                 continue
             tried.add(model['provider_id'])
             started = time.monotonic()
             event = {'model_id': model['id'], 'provider_id': model['provider_id'], 'purpose': purpose,
-                     'task_id': task_id, 'route': model['_route'], 'success': False, 'code': None, 'usage': None}
+                     'task_id': task_id, 'route': model['_route'], 'success': False, 'code': None,
+                     'usage': None, 'cost': None}
             if last != 'model_unavailable':
                 event['fallback_reason'] = last
             try:
@@ -272,7 +388,9 @@ class PlanningModels:
                     result['text'] = visible_answer(result.get('text'))
                 event['success'] = True
                 event['usage'] = {k:result[k] for k in ('input_tokens','output_tokens','total_tokens') if result.get(k) is not None} or None
-                return {**result, 'model_id': model['id'], 'route': model['_route']}
+                if isinstance(result.get('cost'), (int, float)) and not isinstance(result.get('cost'), bool):
+                    event['cost'] = result['cost']
+                response = {**result, 'model_id': model['id'], 'route': model['_route']}
             except ModelCallError as exc:
                 last = event['code'] = exc.code
             except Exception:
@@ -284,4 +402,9 @@ class PlanningModels:
                 self._persist(event, capability)
                 if self.record:
                     self.record(event)
+            if event['success']:
+                response['model_call_id'] = event.get('call_id')
+                return response
+            if not allow_fallback:
+                raise ModelCallError(last)
         raise ModelCallError(last)

@@ -340,3 +340,28 @@ await new Promise(resolve=>setTimeout(resolve,0));
 assert.equal(JSON.stringify(deliveryActions[0]),JSON.stringify(['planning_delivery',{task_id:'delivery-2',expected_version:4,action:'prepare_rework',payload:{annotation_id:'annotation-2'}}]));
 actionUI.leave();
 console.log('planning UI: annotation rework dispatch is explicit and non-running');
+
+// Freshness, proposal decisions, ownership and model quality stay in the existing detail.
+const coopCalls=[],coopEvents=new Map();
+const coopTask={id:'coop',title:'协作任务',version:3,status:'pending',delivery:{evidence:[{id:'stale-e',criterion_id:'ready',user_acceptance:'pending',freshness:{valid:false}}],knowledge_candidates:[{title:'旧知识候选',content:'示例',source_validity:{valid:false}}]},coordination:{ownership:{owner:'',paths:[],resources:[],dependencies:[]},readiness:{blockers:[]},handoffs:[{id:'packet',state:'received',stale:false,response:{suggestions:['<unsafe>请检查结果']},decisions:[],packet_sha256:'abc'}],model_calls:[{call_id:4,model_id:'verified-model',success:1,elapsed_ms:12,usage:null,cost:null,quality:null,adopted:null}]}};
+const coopUI=window.WorkbenchPlanning.create({tool:async(name,args)=>{coopCalls.push([name,args]);return {item:coopTask};}});
+coopUI.state.detail=coopTask;coopUI.state.detailTab='delivery';coopUI.state.view='detail';
+const coopRoot={querySelector:()=>null,querySelectorAll:()=>[],addEventListener:(kind,fn)=>coopEvents.set(kind,fn),removeEventListener:()=>{}};
+coopUI.bind(coopRoot);let coopMarkup=coopUI.render('planning',data);
+assert.match(coopMarkup,/来源已变化，需重新核验/);
+assert.doesNotMatch(coopMarkup,/data-evidence-id="stale-e"/);
+assert.match(coopMarkup,/来源已失效，需重新核验/);
+assert.match(coopMarkup,/&lt;unsafe&gt;/);
+assert.match(coopMarkup,/Token 未知/);
+assert.match(coopMarkup,/并行分工与依赖/);
+coopUI.state.coordinationDrafts['advice-packet-0']={decision:'rejected',reason:'依据不足'};
+coopEvents.get('click')({target:{closest:()=>({dataset:{planningAction:'advice-decision',formKey:'advice-packet-0',packetId:'packet',suggestionIndex:'0'}})},preventDefault(){}});
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(coopCalls[0][1].action,'advice_decision');
+assert.equal(coopCalls[0][1].payload.reason,'依据不足');
+assert.equal(coopCalls.length,1,'采纳决定不得启动执行器或再调用模型');
+coopTask.coordination.handoffs[0].stale=true;
+coopMarkup=coopUI.render('planning',data);assert.doesNotMatch(coopMarkup,/data-planning-action="advice-decision"/);
+coopTask.coordination.handoffs[0].state='unknown';coopMarkup=coopUI.render('planning',data);assert.match(coopMarkup,/系统不会自动重复发送/);
+coopUI.leave();
+console.log('planning UI: stale evidence blocks acceptance, decisions do not execute, missing usage stays unknown');

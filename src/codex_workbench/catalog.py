@@ -111,7 +111,7 @@ for _tool in TOOLS:
 TOOLS.extend([
  definition('planning_delivery','更新任务交付','在当前任务版本下更新任务卡、批注、证据或人工验收；不自动执行。',
   {'task_id':ID,'expected_version':{'type':'integer','minimum':1},
-   'action':{'type':'string','enum':['save_card','create_anchor','add_annotation','record_evidence','accept_evidence','checkpoint','prepare_rework','review_delivery','diff_artifacts']},
+   'action':{'type':'string','enum':['save_card','create_anchor','add_annotation','record_evidence','accept_evidence','checkpoint','prepare_rework','review_delivery','diff_artifacts','advice_decision','save_ownership','model_evaluation']},
    'payload':{'type':'object','maxProperties':30}},['task_id','expected_version','action','payload'],read_only=False,idempotent=False),
  definition('planning_context','检索任务上下文','仅检索本任务显式关联的资料和知识。semantic=true 使用已登记外部模型；默认本地关键词。',
   {'task_id':ID,'query':text(2000),'semantic':{'type':'boolean'}},['task_id']),

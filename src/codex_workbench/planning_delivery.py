@@ -63,7 +63,8 @@ class PlanningDelivery:
                     executor_state TEXT NOT NULL, validation_state TEXT NOT NULL,
                     user_acceptance TEXT NOT NULL, usage TEXT, source_ref TEXT,
                     summary TEXT, check_name TEXT, result TEXT, manual_validation INTEGER NOT NULL DEFAULT 0,
-                    card_revision INTEGER, card_sha256 TEXT, created_at TEXT NOT NULL
+                    card_revision INTEGER, card_sha256 TEXT,
+                    input_fingerprint TEXT, input_snapshot TEXT, created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS planning_delivery_checkpoints (
                     id TEXT PRIMARY KEY, task_id TEXT NOT NULL, round INTEGER NOT NULL,
@@ -79,7 +80,7 @@ class PlanningDelivery:
                     id TEXT PRIMARY KEY, task_id TEXT NOT NULL, scope TEXT NOT NULL,
                     title TEXT NOT NULL, content TEXT NOT NULL, content_sha256 TEXT NOT NULL,
                     source_ref TEXT NOT NULL, card_revision INTEGER NOT NULL, card_sha256 TEXT NOT NULL,
-                    verified_at TEXT NOT NULL, applicability TEXT NOT NULL,
+                    verified_at TEXT NOT NULL, source_evidence_id TEXT, applicability TEXT NOT NULL,
                     relation_type TEXT, direction TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL,
                     UNIQUE(task_id, scope, content_sha256, source_ref, card_revision)
                 );
@@ -106,12 +107,133 @@ class PlanningDelivery:
                 """)
             for column, definition in (("source_ref", "TEXT"), ("summary", "TEXT"), ("check_name", "TEXT"),
                                        ("result", "TEXT"), ("manual_validation", "INTEGER NOT NULL DEFAULT 0"),
-                                       ("card_revision", "INTEGER"), ("card_sha256", "TEXT")):
+                                       ("card_revision", "INTEGER"), ("card_sha256", "TEXT"),
+                                       ("input_fingerprint", "TEXT"), ("input_snapshot", "TEXT")):
                 try:
                     self.db.execute(f"ALTER TABLE planning_delivery_evidence ADD COLUMN {column} {definition}")
                 except sqlite3.OperationalError:
                     pass
+            try:
+                self.db.execute("ALTER TABLE planning_delivery_knowledge_candidates ADD COLUMN source_evidence_id TEXT")
+            except sqlite3.OperationalError:
+                pass
             self.db.commit()
+
+    def _tables(self):
+        return {row[0] for row in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+    def _has_column(self, table, column):
+        return table in self._tables() and any(
+            row["name"] == column for row in self.db.execute(f"PRAGMA table_info({table})"))
+
+    def content_snapshot(self, task_id):
+        """返回当前实际执行材料的稳定快照，不包含任务乐观锁版本。
+
+        交付操作本身会推进 ``tasks.version``，因此该版本不能作为证据新鲜度
+        锚点。快照只记录会改变执行内容、运行目标或资料输入的字段。
+        """
+        tables = self._tables()
+        task = {}
+        if {"tasks", "projects"} <= tables:
+            row = self.db.execute("""SELECT t.title,t.prompt,t.project_id,t.agent_id,
+                t.execution_account_id,t.execution_account_subject,t.resource_paths,t.section_name,t.section_id,
+                t.model,t.effort,t.concurrency,t.sandbox,p.name AS project_name,p.cwd AS project_cwd,
+                a.name AS agent_name,a.instructions AS agent_instructions
+                FROM tasks t JOIN projects p ON p.id=t.project_id
+                LEFT JOIN agents a ON a.id=t.agent_id WHERE t.id=?""", (task_id,)).fetchone()
+            if row is not None:
+                task = {key: row[key] for key in row.keys()}
+        card = self.db.execute("SELECT revision,payload FROM planning_delivery_cards WHERE task_id=?", (task_id,)).fetchone()
+        card_value = None if card is None else {
+            "revision": card["revision"],
+            "sha256": hashlib.sha256(card["payload"].encode()).hexdigest(),
+        }
+        supplements = []
+        if "planning_messages" in tables:
+            for row in self.db.execute("SELECT id,content FROM planning_messages WHERE task_id=? AND kind='supplement' ORDER BY created_at,id", (task_id,)):
+                supplements.append({"id": row["id"], "sha256": hashlib.sha256(row["content"].encode()).hexdigest()})
+        attachments = []
+        if {"assets", "asset_refs"} <= tables:
+            ref_columns = {row["name"] for row in self.db.execute("PRAGMA table_info(asset_refs)")}
+            source_filter = "AND r.source_kind IN ('input','link')" if "source_kind" in ref_columns else ""
+            for row in self.db.execute(f"""SELECT DISTINCT a.id,a.sha256 FROM assets a
+                JOIN asset_refs r ON r.asset_id=a.id WHERE r.task_id=? {source_filter}
+                ORDER BY a.id""", (task_id,)):
+                attachments.append({"id": row["id"], "sha256": row["sha256"]})
+        latest_run_id = None
+        if "runs" in tables:
+            order = "created_at,id" if self._has_column("runs", "created_at") else "id"
+            row = self.db.execute(f"SELECT id FROM runs WHERE task_id=? ORDER BY {order} DESC LIMIT 1", (task_id,)).fetchone()
+            latest_run_id = row["id"] if row is not None else None
+        ownership_plan = None
+        if "planning_work_ownership" in tables:
+            row = self.db.execute("SELECT plan FROM planning_work_ownership WHERE task_id=?", (task_id,)).fetchone()
+            if row is not None:
+                ownership_plan = json.loads(row["plan"])
+        return {"task": task, "card": card_value, "supplements": supplements,
+                "attachments": attachments, "latest_run_id": latest_run_id,
+                "ownership_plan": ownership_plan}
+
+    def content_fingerprint(self, task_id):
+        """计算当前执行材料快照的 SHA-256，用于跨交付元数据变更的新鲜度判断。"""
+        return hashlib.sha256(_json(self.content_snapshot(task_id)).encode()).hexdigest()
+
+    def _source_validity(self, task_id, source_ref):
+        try:
+            current = self._source_ref(task_id, source_ref)
+        except StoreError as exc:
+            return {"valid": False, "reason": "source_missing", "message": str(exc)}
+        if source_ref.get("kind") == "asset" and current.get("sha256") != source_ref.get("sha256"):
+            return {"valid": False, "reason": "source_asset_changed"}
+        if source_ref.get("kind") == "run":
+            if not source_ref.get("input_fingerprint"):
+                return {"valid": False, "reason": "source_unverifiable"}
+            if current.get("state") != source_ref.get("state"):
+                return {"valid": False, "reason": "source_run_changed"}
+            if current.get("input_fingerprint") != source_ref.get("input_fingerprint"):
+                return {"valid": False, "reason": "source_run_changed"}
+        return {"valid": True, "reason": None}
+
+    def evidence_freshness(self, task_id, evidence):
+        """核验一条证据是否仍对应当前输入、来源、任务卡和当前运行。
+
+        返回值包含机器可读的失效原因，供验收、检查点和知识候选一致使用。
+        """
+        if isinstance(evidence, str):
+            evidence = self.db.execute("SELECT * FROM planning_delivery_evidence WHERE id=? AND task_id=?", (evidence, task_id)).fetchone()
+        if evidence is None:
+            return {"valid": False, "reason": "evidence_missing"}
+        value = dict(evidence)
+        source = json.loads(value["source_ref"]) if isinstance(value.get("source_ref"), str) else value.get("source_ref")
+        source_validity = self._source_validity(task_id, source)
+        if not source_validity["valid"]:
+            return source_validity
+        snapshot = self.content_snapshot(task_id)
+        current = hashlib.sha256(_json(snapshot).encode()).hexdigest()
+        recorded = value.get("input_fingerprint")
+        if recorded == current:
+            return {"valid": True, "reason": None, "current_fingerprint": current, "recorded_fingerprint": recorded}
+        recorded_snapshot = value.get("input_snapshot")
+        try:
+            recorded_snapshot = json.loads(recorded_snapshot) if recorded_snapshot else None
+        except (TypeError, ValueError):
+            recorded_snapshot = None
+        if not recorded:
+            return {"valid": False, "reason": "execution_input_changed", "current_fingerprint": current,
+                    "recorded_fingerprint": None}
+        if isinstance(recorded_snapshot, dict):
+            if recorded_snapshot.get("card") != snapshot.get("card"):
+                reason = "card_changed"
+            elif recorded_snapshot.get("attachments") != snapshot.get("attachments"):
+                reason = "attachments_changed"
+            elif recorded_snapshot.get("latest_run_id") != snapshot.get("latest_run_id"):
+                reason = "current_run_changed"
+            else:
+                reason = "execution_input_changed"
+        else:
+            reason = "execution_input_changed"
+        return {"valid": False, "reason": reason, "current_fingerprint": current,
+                "recorded_fingerprint": recorded}
 
     @staticmethod
     def _text(value, field, limit=10000, *, empty=False):
@@ -278,7 +400,12 @@ class PlanningDelivery:
         row = self.db.execute("SELECT id,state FROM runs WHERE id=? AND task_id=?", (source_ref["id"], task_id)).fetchone()
         if row is None:
             _error("validation", "运行证据不存在或不属于任务")
-        return {"kind": "run", "id": row["id"], "state": row["state"]}
+        result = {"kind": "run", "id": row["id"], "state": row["state"]}
+        if self._has_column("planning_run_snapshots", "content_fingerprint"):
+            snapshot = self.db.execute("SELECT content_fingerprint FROM planning_run_snapshots WHERE run_id=?", (row["id"],)).fetchone()
+            if snapshot is not None and snapshot["content_fingerprint"]:
+                result["input_fingerprint"] = snapshot["content_fingerprint"]
+        return result
 
     def record_evidence(self, task_id, expected_version, *, criterion_id, executor_state, validation_state, source_ref, summary, check_name, result, manual_validation=False, usage=None, verify_task, advance_task, commit=True):
         criterion_id = self._text(criterion_id, "验收条件标识", 160)
@@ -291,13 +418,21 @@ class PlanningDelivery:
         def action(_task):
             revision, card_sha256 = self._card_criterion(task_id, criterion_id)
             source = self._source_ref(task_id, source_ref)
+            source_validity = self._source_validity(task_id, source)
+            if not source_validity["valid"]:
+                code = "source_unverifiable" if source_validity["reason"] == "source_unverifiable" else "stale_evidence"
+                _error(code, f"证据来源已失效：{source_validity['reason']}")
+            if source["kind"] == "run" and source["input_fingerprint"] != self.content_fingerprint(task_id):
+                _error("stale_evidence", "运行对应的执行输入已改变，不能补记证据")
             if validation_state == "passed" and executor_state != "completed":
                 _error("validation", "通过验证必须对应已完成执行")
             if validation_state == "passed" and source["kind"] == "run" and source["state"] != "review":
                 _error("validation", "运行尚未进入 review，不能作为通过证据")
             evidence_id = str(uuid.uuid4())
-            self.db.execute("""INSERT INTO planning_delivery_evidence(id,task_id,criterion_id,executor_state,validation_state,user_acceptance,usage,source_ref,summary,check_name,result,manual_validation,card_revision,card_sha256,created_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (evidence_id, task_id, criterion_id, executor_state, validation_state, "pending", _json(usage) if usage is not None else None, _json(source), self._text(summary, "证据摘要", 10000), self._text(check_name, "检查名称", 500), self._text(result, "检查结果", 10000), int(manual_validation), revision, card_sha256, _now()))
+            input_snapshot = self.content_snapshot(task_id)
+            input_fingerprint = hashlib.sha256(_json(input_snapshot).encode()).hexdigest()
+            self.db.execute("""INSERT INTO planning_delivery_evidence(id,task_id,criterion_id,executor_state,validation_state,user_acceptance,usage,source_ref,summary,check_name,result,manual_validation,card_revision,card_sha256,input_fingerprint,input_snapshot,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (evidence_id, task_id, criterion_id, executor_state, validation_state, "pending", _json(usage) if usage is not None else None, _json(source), self._text(summary, "证据摘要", 10000), self._text(check_name, "检查名称", 500), self._text(result, "检查结果", 10000), int(manual_validation), revision, card_sha256, input_fingerprint, _json(input_snapshot), _now()))
             return {"id": evidence_id, "executor_state": executor_state, "validation_state": validation_state, "user_acceptance": "pending", "usage": usage, "source_ref": source, "manual_validation": manual_validation}
         return self._mutate(task_id, expected_version, verify_task, advance_task, action, commit=commit)
 
@@ -314,7 +449,9 @@ class PlanningDelivery:
                 revision, card_sha256 = self._card_criterion(task_id, row["criterion_id"])
                 if row["card_revision"] != revision or row["card_sha256"] != card_sha256:
                     _error("stale_evidence", "任务卡已修订，必须重新验证")
-                self._source_ref(task_id, json.loads(row["source_ref"]))
+                freshness = self.evidence_freshness(task_id, row)
+                if not freshness["valid"]:
+                    _error("stale_evidence", f"交付证据已失效：{freshness['reason']}")
             state = "accepted" if accepted else "rejected"
             self.db.execute("UPDATE planning_delivery_evidence SET user_acceptance=? WHERE id=?", (state, evidence_id))
             return {"id": evidence_id, "user_acceptance": state}
@@ -331,14 +468,18 @@ class PlanningDelivery:
         evidence_ids = sorted(set(evidence_ids))
         def action(_task):
             placeholders = ",".join("?" for _ in evidence_ids)
-            rows = self.db.execute(f"SELECT id,validation_state,criterion_id,card_revision,card_sha256,source_ref FROM planning_delivery_evidence WHERE task_id=? AND id IN ({placeholders})", (task_id, *evidence_ids)).fetchall()
+            rows = self.db.execute(f"""SELECT id,validation_state,criterion_id,card_revision,card_sha256,
+                source_ref,input_fingerprint,input_snapshot FROM planning_delivery_evidence
+                WHERE task_id=? AND id IN ({placeholders})""", (task_id, *evidence_ids)).fetchall()
             if len(rows) != len(evidence_ids) or any(row["validation_state"] == "unknown" for row in rows):
                 _error("validation", "监督检查点需要已记录的验证证据")
             for row in rows:
                 revision, card_sha256 = self._card_criterion(task_id, row["criterion_id"])
                 if row["card_revision"] != revision or row["card_sha256"] != card_sha256:
                     _error("stale_evidence", "监督证据对应的任务卡已修订")
-                self._source_ref(task_id, json.loads(row["source_ref"]))
+                freshness = self.evidence_freshness(task_id, row)
+                if not freshness["valid"]:
+                    _error("stale_evidence", f"监督证据已失效：{freshness['reason']}")
             used = self.db.execute("SELECT count(*) FROM planning_delivery_checkpoints WHERE task_id=?", (task_id,)).fetchone()[0]
             if used >= 2:
                 _error("correction_limit", "最多允许两轮修订检查")
@@ -425,6 +566,7 @@ class PlanningDelivery:
             value["usage"] = json.loads(value["usage"]) if value["usage"] is not None else None
             value["source_ref"] = json.loads(value["source_ref"]) if value["source_ref"] else None
             value["manual_validation"] = bool(value["manual_validation"])
+            value["freshness"] = self.evidence_freshness(task_id, value)
             evidence.append(value)
         checkpoints = []
         for row in self.db.execute("SELECT * FROM planning_delivery_checkpoints WHERE task_id=? ORDER BY round", (task_id,)):
@@ -437,9 +579,27 @@ class PlanningDelivery:
             value["applicability"] = json.loads(value["applicability"])
             value["reviewed"] = False
             value["local_only"] = True
+            value["source_validity"] = self._candidate_source_validity(task_id, value)
             candidates.append(value)
         return {"card": card_value, "anchors": anchors, "annotations": annotations, "evidence": evidence,
                 "checkpoints": checkpoints, "knowledge_candidates": candidates, "metrics": self.metrics(task_id)}
+
+    def _candidate_source_validity(self, task_id, candidate):
+        """将候选精确关联到其验收证据，并保留失效原因供历史展示。"""
+        source = candidate.get("source")
+        evidence_id = candidate.get("source_evidence_id")
+        if not isinstance(source, dict) or not isinstance(evidence_id, str) or not evidence_id:
+            return {"valid": False, "reason": "source_missing"}
+        row = self.db.execute("""SELECT * FROM planning_delivery_evidence
+            WHERE id=? AND task_id=? AND validation_state='passed' AND user_acceptance='accepted'""",
+                              (evidence_id, task_id)).fetchone()
+        if (row is None or row["source_ref"] != _json(source)
+                or row["card_revision"] != candidate.get("card_revision")
+                or row["card_sha256"] != candidate.get("card_sha256")
+                or row["created_at"] != candidate.get("verified_at")):
+            return {"valid": False, "reason": "accepted_evidence_missing"}
+        freshness = self.evidence_freshness(task_id, row)
+        return {"valid": freshness["valid"], "reason": freshness["reason"], "evidence_id": row["id"]}
 
     def save_knowledge_candidates(self, task_id, candidates):
         """Persist only unreviewed local candidates derived from accepted evidence."""
@@ -456,20 +616,25 @@ class PlanningDelivery:
                         or not isinstance(candidate.get("title"), str) or not isinstance(candidate.get("content"), str)
                         or not isinstance(candidate.get("sha256"), str) or not isinstance(candidate.get("card_revision"), int)
                         or not isinstance(candidate.get("card_sha256"), str) or not isinstance(candidate.get("verified_at"), str)
+                        or not isinstance(candidate.get("source_evidence_id"), str) or not candidate["source_evidence_id"]
                         or applicability != {"status": "unknown", "reason": "pending_confirmation"}):
                     _error("validation", "知识候选来源或适用性无效")
+                source_validity = self._candidate_source_validity(task_id, candidate)
+                if not source_validity["valid"]:
+                    _error("stale_evidence", f"知识候选来源已失效：{source_validity['reason']}")
                 identity = _json({"task_id": task_id, "scope": candidate["scope"], "sha256": candidate["sha256"],
                                   "source": source, "card_revision": candidate["card_revision"]})
                 candidate_id = hashlib.sha256(identity.encode()).hexdigest()
                 self.db.execute("""INSERT OR IGNORE INTO planning_delivery_knowledge_candidates
-                    (id,task_id,scope,title,content,content_sha256,source_ref,card_revision,card_sha256,verified_at,applicability,relation_type,direction,status,created_at)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (id,task_id,scope,title,content,content_sha256,source_ref,card_revision,card_sha256,verified_at,source_evidence_id,applicability,relation_type,direction,status,created_at)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (candidate_id, task_id, candidate["scope"], candidate["title"], candidate["content"], candidate["sha256"],
                      _json(source), candidate["card_revision"], candidate["card_sha256"], candidate["verified_at"],
-                     _json(applicability), candidate.get("relation_type"), candidate.get("direction"), "candidate", _now()))
+                     candidate["source_evidence_id"], _json(applicability), candidate.get("relation_type"), candidate.get("direction"), "candidate", _now()))
                 row = self.db.execute("SELECT * FROM planning_delivery_knowledge_candidates WHERE id=?", (candidate_id,)).fetchone()
                 value = dict(row)
                 value["source"] = json.loads(value.pop("source_ref")); value["sha256"] = value.pop("content_sha256")
                 value["applicability"] = json.loads(value["applicability"]); value["reviewed"] = False; value["local_only"] = True
+                value["source_validity"] = source_validity
                 saved.append(value)
         return saved

@@ -362,6 +362,7 @@ function receiveHostResult(result){
  if(!root||!bridge.embedded||s.detail||Object.keys(s.data).length)return;
  try{
   const value=readResult(result);
+  if(value._bootstrap_pending===true)return;
   if(value.view!==s.page)return;
   const {_sync,...data}=value;
   if(!Object.hasOwn(PAGES,data.view))return;

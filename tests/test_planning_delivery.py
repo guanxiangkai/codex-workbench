@@ -178,6 +178,48 @@ class PlanningDeliveryTests(unittest.TestCase):
         self.assertEqual({"valid": False, "reason": "execution_input_changed"},
                          {key: freshness[key] for key in ("valid", "reason")})
 
+    def test_stable_acceptance_ids_keep_unrelated_evidence_current_and_retain_removed_history(self):
+        card = self.card()
+        card["acceptance"] = [
+            {"id": "a1", "text": "接口返回正确"},
+            {"id": "a2", "text": "失败状态可见"},
+            {"id": "a3", "text": "原有权限保持"},
+        ]
+        self.delivery.save_card("task-1", self.task["version"], card,
+                                verify_task=self.verify, advance_task=self.advance)
+        source = {"kind": "asset", **self.asset}
+        a1 = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="a1",
+                                           executor_state="completed", validation_state="passed", source_ref=source,
+                                           summary="接口验证", check_name="接口", result="通过",
+                                           verify_task=self.verify, advance_task=self.advance)
+        a2 = self.delivery.record_evidence("task-1", self.task["version"], criterion_id="a2",
+                                           executor_state="completed", validation_state="passed", source_ref=source,
+                                           summary="失败验证", check_name="失败", result="通过",
+                                           verify_task=self.verify, advance_task=self.advance)
+        changed = self.card()
+        changed["acceptance"] = [
+            {"id": "a1", "text": "接口返回正确"},
+            {"id": "a2", "text": "失败状态可见且可追踪"},
+            {"id": "a3", "text": "原有权限保持"},
+        ]
+        self.delivery.save_card("task-1", self.task["version"], changed,
+                                verify_task=self.verify, advance_task=self.advance)
+        self.assertTrue(self.delivery.evidence_freshness("task-1", a1["id"])["valid"])
+        self.assertEqual("card_changed", self.delivery.evidence_freshness("task-1", a2["id"])["reason"])
+
+        removed = self.card()
+        removed["acceptance"] = [
+            {"id": "a1", "text": "接口返回正确"},
+            {"id": "a3", "text": "原有权限保持"},
+        ]
+        self.delivery.save_card("task-1", self.task["version"], removed,
+                                verify_task=self.verify, advance_task=self.advance)
+        statuses = {item["id"]: item for item in self.delivery.acceptance_condition_statuses("task-1")}
+        self.assertTrue(statuses["a1"]["current"])
+        self.assertTrue(statuses["a1"]["evidence"][0]["freshness"]["valid"])
+        self.assertFalse(statuses["a2"]["current"])
+        self.assertEqual("criterion_removed", statuses["a2"]["reason"])
+
     def test_card_uses_parent_version_contract(self):
         saved = self.delivery.save_card("task-1", self.task["version"], self.card(), verify_task=self.verify, advance_task=self.advance)
         self.assertEqual(2, saved["revision"])

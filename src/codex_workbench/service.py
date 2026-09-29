@@ -174,8 +174,8 @@ class Workbench:
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
         if not local_view and epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        snapshot=self._planning_state(view) if local_view else self._snapshot_state(view)
-        if local_view or snapshot['status']['snapshot']['state'] != 'pending':
+        snapshot=(self._planning_state(view) if self._planning is not None else None) if local_view else self._snapshot_state(view)
+        if snapshot is not None and (local_view or snapshot['status']['snapshot']['state'] != 'pending'):
             value={'args':{'view':view},'revision':self._snapshot_revision(snapshot),'data':snapshot}
             length=len(json.dumps(value,ensure_ascii=False).encode())
             if length <= 700_000:
@@ -558,6 +558,9 @@ class Workbench:
         if name=='library_content':return {'item':self._planning_service().asset_content(**args)}
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
+            # 冷入口只打开页面；计划存储由页面的异步同步初始化。
+            if DEFAULT_VIEW in LOCAL_PLANNING_VIEWS and self._planning is None:
+                return {'view':DEFAULT_VIEW,'_bootstrap_pending':True}
             initial=self.sync(DEFAULT_VIEW)
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})

@@ -96,9 +96,10 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
 class Workbench:
     """MCP 和 HTTP 共用工具白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
-                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None):
+                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None, output_root=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
         self.codex=codex;self.lease_fd=lease_fd
+        self.output_root=Path(output_root) if output_root else Path.home()/'Documents'/'输出'
         # 登录服务只在用户发起账户操作时构造。这样打开只读页面不会创建或迁移业务库。
         self._account_service=None
         self.db=self.data_dir/'workbench.sqlite3'
@@ -127,7 +128,32 @@ class Workbench:
             if self._planning is None:
                 from .planning import Planning
                 from .executor import CodexExecutor
-                self._planning=Planning(self.data_dir,executor=CodexExecutor((self.codex,),lease_fd=self.lease_fd),knowledge_reader=self.knowledge.detail)
+                from .planning_models import PlanningModels
+                from .planning_context import PlanningContext
+                router=PlanningModels(self._models, self._other_accounts)
+                context=PlanningContext(cache_path=self.data_dir/'planning-context-cache.sqlite3')
+                def embed(texts):
+                    response=router.call('embedding',{'input':texts},external_allowed=True,purpose='planning_context')
+                    vectors=response.get('vectors')
+                    if not isinstance(vectors,list) or not vectors or not vectors[0]:
+                        raise ValueError('embedding_response_invalid')
+                    dimensions=len(vectors[0])
+                    if any(len(vector)!=dimensions for vector in vectors):raise ValueError('embedding_dimension_mismatch')
+                    # Establish a binding only from the registered adapter's actual response.
+                    binding={'model_id':response['model_id'],'dimensions':dimensions}
+                    if context.embedding_binding and context.embedding_binding!=binding:
+                        raise ValueError('embedding_binding_changed')
+                    context.embedding_binding=binding
+                    return {**response,'dimensions':dimensions}
+                def rerank(query,documents):
+                    response=router.call('rerank',{'query':query,'documents':[item['content'] for item in documents]},external_allowed=True,purpose='planning_context')
+                    binding={'model_id':response['model_id']}
+                    if context.rerank_binding and context.rerank_binding!=binding:raise ValueError('rerank_binding_changed')
+                    context.rerank_binding=binding
+                    return response
+                context.embedding=embed;context.rerank=rerank
+                self._planning=Planning(self.data_dir,executor=CodexExecutor((self.codex,),lease_fd=self.lease_fd),
+                    knowledge_reader=self.knowledge.detail,output_root=self.output_root,context_engine=context,model_router=router)
             return self._planning
 
     def _planning_state(self,view):
@@ -503,8 +529,23 @@ class Workbench:
         if name=='planning_intake':return {'draft':self._planning_service().intake(models_provider=self._models, **args)}
         if name=='planning_intake_save':return self._planning_service().intake_save(**args)
         if name=='planning_knowledge_link':return {'item':self._planning_service().link_knowledge(**args)}
-        if name=='planning_export':return {'item':self._planning_service().export(**args)}
+        if name=='planning_export':
+            plan=self._planning_service()
+            result=plan.export(task_id=args['task_id'])
+            if args.get('include_knowledge',True):
+                from .planning_notes import PlanningNotes
+                records=[self.knowledge.detail(ref['scope'],ref['key'])['knowledge'] for ref in plan.detail(task_id=args['task_id']).get('knowledge_refs',[])]
+                if records:
+                    result['knowledge']=PlanningNotes(self.output_root,plan.db,plan.lock).export_knowledge(records)
+            return {'item':result}
         if name=='planning_detail':return {'item':self._planning_service().detail(**args)}
+        if name=='planning_delivery':return {'item':self._planning_service().delivery_action(**args)}
+        if name=='planning_context':return {'item':self._planning_service().context(**args)}
+        if name=='planning_knowledge_candidates':return {'items':self._planning_service().knowledge_candidates(**args)}
+        if name in {'planning_output_filter','planning_output_source'}:
+            from .planning_output import PlanningOutput
+            output=PlanningOutput(self.data_dir/'planning-output-cache')
+            return {'item':output.filter(**args) if name=='planning_output_filter' else output.read(**args)}
         if name=='planning_draft':
             from .planning_draft import PlanningDraft
             return {'draft':PlanningDraft(self._models).generate(args['text'])}

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import posixpath
+import sqlite3
 from pathlib import Path
 import uuid
 from datetime import datetime, timezone
@@ -37,6 +38,9 @@ class PlanningCoordination:
                 fingerprint TEXT NOT NULL, packet TEXT NOT NULL, packet_sha256 TEXT NOT NULL,
                 state TEXT NOT NULL, response TEXT, response_sha256 TEXT, error TEXT,
                 owner_pid INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                provider_operation_id TEXT, status_query_ref TEXT, side_effect_state TEXT,
+                last_event_id TEXT, operation_key TEXT, reconciliation_source TEXT,
+                status_evidence TEXT,
                 UNIQUE(task_id,purpose,packet_sha256)
             );
             CREATE TABLE IF NOT EXISTS planning_advice_decisions (
@@ -48,6 +52,12 @@ class PlanningCoordination:
                 task_id TEXT PRIMARY KEY, plan TEXT NOT NULL, updated_at TEXT NOT NULL
             );
         ''')
+        for column in ("provider_operation_id", "status_query_ref", "side_effect_state", "last_event_id",
+                       "operation_key", "reconciliation_source", "status_evidence"):
+            try:
+                db.execute(f"ALTER TABLE planning_handoffs ADD COLUMN {column} TEXT")
+            except sqlite3.OperationalError:
+                pass
 
     def prepare(self, task_id, fingerprint, packet, purpose='delivery_review'):
         raw = encoded(packet)
@@ -59,8 +69,10 @@ class PlanningCoordination:
         if row:
             return self.packet(task_id, row['id'], fingerprint)
         key, stamp = str(uuid.uuid4()), instant()
-        self.db.execute('INSERT INTO planning_handoffs VALUES(?,?,?,?,?,?,?,NULL,NULL,NULL,NULL,?,?)',
-                        (key, task_id, purpose, fingerprint, raw, sha, 'prepared', stamp, stamp))
+        self.db.execute('''INSERT INTO planning_handoffs
+            (id,task_id,purpose,fingerprint,packet,packet_sha256,state,created_at,updated_at,side_effect_state,operation_key)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)''',
+                        (key, task_id, purpose, fingerprint, raw, sha, 'prepared', stamp, stamp, 'none', sha))
         return self.packet(task_id, key, fingerprint)
 
     def packet(self, task_id, packet_id, fingerprint):
@@ -70,6 +82,7 @@ class PlanningCoordination:
         value = dict(row)
         value['packet'] = json.loads(value['packet'])
         value['response'] = json.loads(value['response']) if value['response'] else None
+        value['reconciliation_source'] = json.loads(value['reconciliation_source']) if value['reconciliation_source'] else None
         value['stale'] = value['fingerprint'] != fingerprint
         value['decisions'] = [dict(r) for r in self.db.execute(
             'SELECT suggestion_index,decision,reason,created_at FROM planning_advice_decisions WHERE packet_id=? ORDER BY id', (packet_id,))]
@@ -82,18 +95,75 @@ class PlanningCoordination:
             raise StoreError('version_conflict', '交接材料已过期，请按当前任务重新准备')
         if packet['state'] != 'prepared':
             raise StoreError('conflict', '该材料已提交；结果未知时先核对记录，不自动重发')
-        self.db.execute("UPDATE planning_handoffs SET state='sending',owner_pid=?,updated_at=? WHERE id=?", (owner_pid, instant(), packet_id))
+        self.db.execute("UPDATE planning_handoffs SET state='sending',owner_pid=?,side_effect_state='attempted',updated_at=? WHERE id=?", (owner_pid, instant(), packet_id))
         return packet
+
+    def cancel_prepared(self, task_id, packet_id, fingerprint, reason):
+        packet = self.packet(task_id, packet_id, fingerprint)
+        if packet['stale'] or packet['state'] != 'prepared':
+            raise StoreError('conflict', '只有尚未发送的交接材料可以安全取消')
+        if not isinstance(reason, str) or not reason.strip() or len(reason) > 2000:
+            raise StoreError('validation', '取消原因无效')
+        self.db.execute("UPDATE planning_handoffs SET state='cancelled',error=?,updated_at=? WHERE id=?", (reason.strip(), instant(), packet_id))
+        return self.packet(task_id, packet_id, fingerprint)
+
+    def reconcile(self, task_id, packet_id, fingerprint, *, provider_operation_id, status_query_ref,
+                  side_effect_state, last_event_id=None, source=None, status_evidence=None):
+        """Persist a bounded manual status check; it never follows a reference or accepts a response."""
+        packet = self.packet(task_id, packet_id, fingerprint)
+        if packet['stale'] or packet['state'] not in {'sending', 'unknown'}:
+            raise StoreError('conflict', '只有发送中或结果未知的交接可核对')
+        values = (provider_operation_id, status_query_ref, side_effect_state)
+        if any(not isinstance(value, str) or not value.strip() or len(value) > 500 for value in values):
+            raise StoreError('validation', '外部操作核对字段无效')
+        if '://' in status_query_ref or '/' in status_query_ref:
+            raise StoreError('validation', '状态查询引用必须是已登记的引用标识，不能是 URL 或路径')
+        if side_effect_state not in {'unknown', 'submitted', 'completed', 'failed'}:
+            raise StoreError('validation', '外部副作用状态无效')
+        if packet.get('provider_operation_id') and packet['provider_operation_id'] != provider_operation_id.strip():
+            raise StoreError('idempotency_conflict', '外部操作标识与已记录操作不一致')
+        if packet.get('status_query_ref') and packet['status_query_ref'] != status_query_ref.strip():
+            raise StoreError('idempotency_conflict', '状态查询引用与已记录操作不一致')
+        if not isinstance(source, dict) or not source or not isinstance(status_evidence, str) or not status_evidence.strip() or len(status_evidence) > 4000:
+            raise StoreError('validation', '人工核对需要来源引用和状态证据')
+        self.db.execute('''UPDATE planning_handoffs SET state='unknown',provider_operation_id=?,status_query_ref=?,
+            side_effect_state=?,last_event_id=?,reconciliation_source=?,status_evidence=?,owner_pid=NULL,updated_at=? WHERE id=?''',
+            (provider_operation_id.strip(), status_query_ref.strip(), side_effect_state, last_event_id,
+             encoded(source), status_evidence.strip(), instant(), packet_id))
+        return self.packet(task_id, packet_id, fingerprint)
+
+    @staticmethod
+    def _validate_response(response):
+        if (not isinstance(response, dict) or response.get('decision') not in {'continue', 'correct', 'stop'}
+                or not isinstance(response.get('suggestions'), list) or len(response['suggestions']) > 20
+                or any(not isinstance(s, str) or not s.strip() or len(s) > 2000 for s in response['suggestions'])):
+            raise StoreError('validation', '建议结果格式无效')
+
+    def reconcile_response(self, task_id, packet_id, fingerprint, *, provider_operation_id, response, source, status_evidence):
+        """Accept a returned structured response only after a recorded server-side completion."""
+        packet = self.packet(task_id, packet_id, fingerprint)
+        if packet['stale'] or packet['state'] != 'unknown' or packet.get('side_effect_state') != 'completed':
+            raise StoreError('conflict', '只有已核对完成但结果未知的交接可恢复响应')
+        if not isinstance(provider_operation_id, str) or not provider_operation_id.strip() or packet.get('provider_operation_id') != provider_operation_id.strip():
+            raise StoreError('idempotency_conflict', '外部操作标识与已记录操作不一致')
+        if not isinstance(source, dict) or not source or not isinstance(status_evidence, str) or not status_evidence.strip() or len(status_evidence) > 4000:
+            raise StoreError('validation', '恢复响应需要来源引用和完成状态证据')
+        self._validate_response(response)
+        if packet.get('response') is not None:
+            if packet['response'] == response:
+                return packet
+            raise StoreError('idempotency_conflict', '已记录的外部响应与本次响应不一致')
+        self.db.execute('''UPDATE planning_handoffs SET state='received',response=?,response_sha256=?,
+            reconciliation_source=?,status_evidence=?,owner_pid=NULL,updated_at=? WHERE id=?''',
+            (encoded(response), digest(response), encoded(source), status_evidence.strip(), instant(), packet_id))
+        return self.packet(task_id, packet_id, fingerprint)
 
     def finish(self, task_id, packet_id, response=None, error=None):
         row = self.db.execute('SELECT state FROM planning_handoffs WHERE id=? AND task_id=?', (packet_id, task_id)).fetchone()
         if not row or row['state'] != 'sending':
             raise StoreError('conflict', '交接状态已变化')
         if response is not None:
-            if (not isinstance(response, dict) or response.get('decision') not in {'continue', 'correct', 'stop'}
-                    or not isinstance(response.get('suggestions'), list) or len(response['suggestions']) > 20
-                    or any(not isinstance(s, str) or not s.strip() or len(s) > 2000 for s in response['suggestions'])):
-                raise StoreError('validation', '建议结果格式无效')
+            self._validate_response(response)
         self.db.execute('UPDATE planning_handoffs SET state=?,response=?,response_sha256=?,error=?,owner_pid=NULL,updated_at=? WHERE id=?',
                         ('received' if response is not None else 'unknown', encoded(response) if response is not None else None,
                          digest(response) if response is not None else None, error, instant(), packet_id))
@@ -117,7 +187,7 @@ class PlanningCoordination:
         for row in self.db.execute("SELECT id,owner_pid FROM planning_handoffs WHERE state='sending'").fetchall():
             if row['owner_pid'] is not None and is_alive(row['owner_pid']):
                 continue
-            self.db.execute("UPDATE planning_handoffs SET state='unknown',error='interrupted',owner_pid=NULL,updated_at=? WHERE id=?", (instant(), row['id']))
+            self.db.execute("UPDATE planning_handoffs SET state='unknown',side_effect_state='unknown',error='interrupted',owner_pid=NULL,updated_at=? WHERE id=?", (instant(), row['id']))
 
     @staticmethod
     def normalize_plan(plan):

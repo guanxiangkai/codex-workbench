@@ -132,6 +132,9 @@ class Planning:
         self.delivery = PlanningDelivery(self.db, self.lock)
         from .planning_coordination import PlanningCoordination
         self.coordination = PlanningCoordination(self.db)
+        from .planning_governance import Governance
+        self.governance = Governance(self.db)
+        self.governance.lock = self.lock
         self.context_engine = context_engine or PlanningContext()
         self.runner = Runner(self.store, executor, prepare=self._prepare, completed=self._completed)
         self._uploads = {}
@@ -181,6 +184,8 @@ class Planning:
     def delivery_action(self, task_id, expected_version, action, payload):
         if not isinstance(action, str) or not isinstance(payload, dict):
             raise StoreError('validation', '交付操作无效')
+        if action.startswith('governance_'):
+            return self._governance_action(task_id, expected_version, action, payload)
         if action in {'review_delivery', 'review-delivery'}:
             return self._review_delivery(task_id, expected_version)
         if action in {'diff_artifacts', 'diff-artifacts'}:
@@ -217,6 +222,21 @@ class Planning:
                 self.delivery.accept_evidence(task_id, expected_version, payload.get('evidence_id'), accepted=payload.get('accepted'), **common)
             elif action == 'checkpoint':
                 self.delivery.checkpoint(task_id, expected_version, payload.get('evidence_ids'), decision=payload.get('decision'), suggestions=payload.get('suggestions'), permissions_requested=payload.get('permissions_requested', False), **common)
+            elif action in {'cancel_handoff', 'reconcile_handoff', 'recover_handoff'}:
+                task, _ = self._editable(task_id, expected_version)
+                fingerprint = self.delivery.content_fingerprint(task_id)
+                if action == 'cancel_handoff':
+                    self.coordination.cancel_prepared(task_id, payload.get('packet_id'), fingerprint, payload.get('reason'))
+                elif action == 'recover_handoff':
+                    self.coordination.reconcile_response(task_id, payload.get('packet_id'), fingerprint,
+                        provider_operation_id=payload.get('provider_operation_id'), response=payload.get('response'),
+                        source=payload.get('source'), status_evidence=payload.get('status_evidence'))
+                else:
+                    self.coordination.reconcile(task_id, payload.get('packet_id'), fingerprint,
+                        provider_operation_id=payload.get('provider_operation_id'), status_query_ref=payload.get('status_query_ref'),
+                        side_effect_state=payload.get('side_effect_state'), last_event_id=payload.get('last_event_id'),
+                        source=payload.get('source'), status_evidence=payload.get('status_evidence'))
+                self._delivery_advance(task)
             elif action == 'advice_decision':
                 task, _ = self._editable(task_id, expected_version)
                 self.coordination.decide(task_id, payload.get('packet_id'), self.delivery.content_fingerprint(task_id),
@@ -483,6 +503,116 @@ class Planning:
         detail = self.detail(task_id)
         detail['delivery']['review'] = {'decision': decision, 'suggestions': suggestions, 'packet_id': packet['id'], 'starts_runner': False}
         return detail
+
+    def _rule_inputs(self, task_id, run_id=None):
+        from .planning_rule_manifest import collect_rules
+        task, _ = self._owned(task_id)
+        project = self.store.get_project(task['project_id'])
+        saved = self.delivery.detail(task_id)['card']
+        return collect_rules(task, project, saved['card'] if saved else None, run_id=run_id)
+
+    def _capture_rule_manifest(self, task_id, run_id=None):
+        manifest, contents = self._rule_inputs(task_id, run_id)
+        record = self.governance.record_manifest(task_id, run_id or 'inspection', manifest)
+        return record, contents
+
+    def _governance_action(self, task_id, expected_version, action, payload):
+        allowed = {'governance_capture', 'governance_freeze', 'governance_feedback',
+                   'governance_propose', 'governance_preview', 'governance_evaluate'}
+        if action not in allowed:
+            raise StoreError('validation', '不支持的治理操作')
+        if action == 'governance_evaluate':
+            return self._evaluate_governance(task_id, expected_version, payload.get('candidate_id'), payload.get('approved_packet_hash'))
+        with self.lock:
+            task, _ = self._editable(task_id, expected_version)
+            if task['state'] == 'running':
+                raise StoreError('conflict', '执行期间不能修改规则治理记录')
+            scope = {'project_id': task['project_id'], 'scope_id': 'task:' + task_id, 'kind': 'task'}
+            if action == 'governance_preview':
+                packet = self._governance_packet(task_id, payload.get('candidate_id'))
+                result = self.detail(task_id)
+                result['governance']['external_review'] = packet
+                return result
+            if action == 'governance_capture':
+                self._capture_rule_manifest(task_id)
+            elif action == 'governance_freeze':
+                record, contents = self._capture_rule_manifest(task_id)
+                target = payload.get('rule_id', 'task-card')
+                rule = next((r for r in record['manifest']['rules'] if r['id'] == target), None)
+                if rule is None:
+                    raise StoreError('validation', '规则不在服务端发现的当前清单中')
+                self.governance.freeze_suite(task_id, {
+                    'scope': scope, 'selection': payload.get('selection', 'user_selected_holdout'),
+                    'cases': payload.get('cases'), 'baseline_manifest_hash': record['manifest_hash'],
+                    'baseline': {'rule_id': target, 'text': contents[target], 'content_hash': rule['content_hash']}})
+            elif action == 'governance_feedback':
+                # No file edits or claimed runtime loading can be supplied through this route.
+                self.governance.feedback(task_id, payload)
+            elif action == 'governance_propose':
+                record, _ = self._capture_rule_manifest(task_id)
+                self.governance.propose(task_id, {**payload, 'scope': scope,
+                    'baseline_manifest_hash': record['manifest_hash']})
+            with self.db:
+                self._delivery_advance(task)
+                self._change(task_id, action, {'action': action})
+        return self.detail(task_id)
+
+    def _governance_packet(self, task_id, candidate_id):
+        packet = self.governance.preview_evaluation(task_id, candidate_id)
+        if packet['baseline']['rule_id'] != 'task-card':
+            raise StoreError('data_boundary', '文件规则仅支持本地差异审查，不能发送完整 AGENTS 文件')
+        self._model_safe(packet)
+        digest = hashlib.sha256(json.dumps(packet, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        return {'packet_hash': digest, 'packet': packet, 'approval_required': True,
+                'boundary': '仅在审核下列任务约束、候选与案例输入并授权外发后，提交 approved_packet_hash；不发送预期断言。'}
+
+    def _evaluate_governance(self, task_id, expected_version, candidate_id, approved_packet_hash=None):
+        if self.model_router is None:
+            raise StoreError('unavailable', '规则行为评测模型暂不可用')
+        with self.lock:
+            task, _ = self._editable(task_id, expected_version)
+            if task['state'] == 'running':
+                raise StoreError('conflict', '执行期间不能开始规则评测')
+            current, _ = self._capture_rule_manifest(task_id)
+            candidate = next((c for c in self.governance.detail(task_id)['candidates'] if c['id'] == candidate_id), None)
+            if candidate is None:
+                raise StoreError('not_found', '规则候选不存在或不属于当前任务')
+            if candidate['baseline_manifest_hash'] != current['manifest_hash']:
+                raise StoreError('conflict', '规则已变化，请基于新基线建立独立评测任务')
+            preview = self._governance_packet(task_id, candidate_id)
+            if not isinstance(approved_packet_hash, str) or approved_packet_hash != preview['packet_hash']:
+                raise StoreError('data_boundary', '请先预览并审核本次外发包，再以 approved_packet_hash 授权相同内容')
+            fingerprint = self.delivery.content_fingerprint(task_id)
+        def require_current():
+            self._editable(task_id, expected_version)
+            latest, _ = self._capture_rule_manifest(task_id)
+            if latest['manifest_hash'] != current['manifest_hash'] or self.delivery.content_fingerprint(task_id) != fingerprint:
+                raise StoreError('conflict', '评测来源已变化')
+            return True
+        def evaluate(case, variant):
+            with self.lock:
+                require_current()
+            rule = variant['value'].get('text') if variant['name'] == 'baseline' else variant['value'].get('replacement_text')
+            if not isinstance(rule, str) or not rule.strip():
+                return {'actual': False}
+            packet = self._model_safe({'rules': rule, 'input': case})
+            # Only the input is sent; hidden expected assertions stay in the local evaluator.
+            raw = self.model_router.call('reasoning', {'messages': [
+                {'role': 'system', 'content': '这是无工具、无权限的规则行为评测。按所给规则回答所给任务，只输出任务结果，不猜测试答案。'},
+                {'role': 'user', 'content': json.dumps(packet, ensure_ascii=False)}], 'max_tokens': 1600},
+                external_allowed=True, purpose='planning_rule_evaluation', task_id=task_id, allow_fallback=False)
+            result = raw.get('text') if isinstance(raw, dict) else raw
+            with self.lock:
+                require_current()
+            return {'actual': isinstance(result, str), 'text': result}
+        result = self.governance.evaluate(task_id, candidate_id, evaluate, finalize_guard=lambda _: require_current())
+        with self.lock, self.db:
+            # A rejected result is audited without overwriting a newer task version.
+            current_task, _ = self._owned(task_id)
+            if result['summary']['finalize_guard']['state'] == 'accepted' and current_task['version'] == expected_version:
+                self._delivery_advance(current_task)
+            self._change(task_id, 'governance_evaluated', {'evaluation_id': result['id']})
+        return self.detail(task_id)
 
     def _dependency_ready(self, task_id):
         try:
@@ -880,6 +1010,9 @@ class Planning:
             item['knowledge_refs'] = [dict(r) for r in self.db.execute(
                 'SELECT scope,key,title,sha256,linked_at FROM planning_knowledge WHERE task_id=?', (task_id,))]
             item['delivery'] = self.delivery.detail(task_id)
+            item['delivery']['conditions'] = self.delivery.acceptance_condition_statuses(task_id)
+            item['governance'] = self.governance.detail(task_id)
+            item['governance']['measurement_boundary'] = '规则文本行为评测；不代表 Skill 隐式触发、工具权限或生产验收'
             item['coordination'] = self.coordination.detail(task_id, self.delivery.content_fingerprint(task_id))
             item['coordination']['readiness'] = self.coordination.readiness(task_id, task['project_id'], self._dependency_ready)
             item['coordination']['model_calls'] = self.model_router.task_calls(task_id) if self.model_router is not None and hasattr(self.model_router, 'task_calls') else []
@@ -1155,6 +1288,7 @@ class Planning:
                      hashlib.sha256(run['task']['prompt'].encode()).hexdigest(), now()))
                 self.db.execute('UPDATE planning_run_snapshots SET content_fingerprint=? WHERE run_id=?',
                                 (self.delivery.content_fingerprint(task_id), run_id))
+                self._capture_rule_manifest(task_id, run_id=run_id)
                 self._change(task_id, 'started', {'run_id':run_id})
 
     def _completed(self, run):

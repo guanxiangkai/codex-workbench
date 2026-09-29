@@ -297,6 +297,19 @@ assert.match(deliveryUI.render('planning',data),/当前任务来源检索/);
 assert.match(deliveryUI.render('planning',data),/语义检索（GLM）会发送当前任务已关联的文本/);
 console.log('planning UI: delivery acceptance is explicit and task-scoped source retrieval is disclosed');
 
+// Evidence keeps the user-facing asset selector but sends the server its task-scoped structured anchor.
+const evidenceEvents=new Map(),evidenceCalls=[];
+const evidenceForm={querySelectorAll:()=>nodeList([node('criterion_id','a-1'),node('source','asset:asset-evidence'),node('executor_state','completed'),node('validation_state','passed'),node('check_name','人工核对'),node('result','结果一致'),node('summary','已核验附件')])};
+const evidenceRoot={addEventListener:(kind,fn)=>evidenceEvents.set(kind,fn),removeEventListener:()=>{},querySelector:q=>q==='[data-planning-form="evidence"]'?evidenceForm:null};
+const evidenceUI=window.WorkbenchPlanning.create({tool:async(name,args)=>{evidenceCalls.push([name,args]);return {item:{id:'evidence-task',version:8,status:'pending',delivery:{evidence:[]}}};}});
+evidenceUI.state.view='detail';evidenceUI.state.detail={id:'evidence-task',version:7,status:'pending',assets:[{id:'asset-evidence',name:'synthetic-A1.txt',sha256:'sha256-a1'}],runs:[],delivery:{card:{card:{goal:'目标',scope:[],preserve:[],acceptance:[{id:'a-1',text:'条件'}],facts:[],assumptions:[]}}}};
+evidenceUI.bind(evidenceRoot);
+evidenceEvents.get('click')({target:{closest:()=>({dataset:{planningAction:'record-evidence'}})},preventDefault(){}});
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(JSON.stringify(evidenceCalls[0]),JSON.stringify(['planning_delivery',{task_id:'evidence-task',expected_version:7,action:'record_evidence',payload:{criterion_id:'a-1',executor_state:'completed',validation_state:'passed',source_ref:{kind:'asset',id:'asset-evidence',sha256:'sha256-a1'},check_name:'人工核对',result:'结果一致',summary:'已核验附件'}}]));
+evidenceUI.leave();
+console.log('planning UI: evidence submissions preserve task-scoped structured asset anchors');
+
 // Delivery follow-ups stay deliberate: differences and supervised suggestions are visible,
 // rework is saved from an annotation, and knowledge extraction remains an unreviewed candidate.
 deliveryUI.state.detailTab='delivery';
@@ -365,3 +378,31 @@ coopMarkup=coopUI.render('planning',data);assert.doesNotMatch(coopMarkup,/data-p
 coopTask.coordination.handoffs[0].state='unknown';coopMarkup=coopUI.render('planning',data);assert.match(coopMarkup,/系统不会自动重复发送/);
 coopUI.leave();
 console.log('planning UI: stale evidence blocks acceptance, decisions do not execute, missing usage stays unknown');
+
+// Delivery conditions retain stable IDs across a reordered task-card draft; duplicate IDs stop before a write.
+const conditionEvents=new Map(),conditionCalls=[];
+let conditionInput='第二项\ncriterion-new: 新条件\n第一项';
+const conditionForm={querySelectorAll:()=>nodeList([node('goal','保留目标'),node('scope',''),node('preserve',''),node('acceptance',conditionInput),node('facts',''),node('assumptions','')])};
+const conditionRoot={addEventListener:(kind,fn)=>conditionEvents.set(kind,fn),removeEventListener:()=>{},querySelector:q=>q==='[data-planning-form="delivery-card"]'?conditionForm:null};
+const conditionUI=window.WorkbenchPlanning.create({tool:async(name,args)=>{conditionCalls.push([name,args]);return {item:{id:'conditions',version:2,status:'pending',delivery:{card:{card:args.payload?.card||conditionUI.state.detail.delivery.card.card}}}};}});
+conditionUI.state.view='detail';conditionUI.state.detail={id:'conditions',version:1,status:'pending',delivery:{card:{card:{goal:'保留目标',scope:[],preserve:[],acceptance:[{id:'a-1',text:'第一项'},{id:'a-2',text:'第二项'}],facts:[],assumptions:[]}}}};
+conditionUI.bind(conditionRoot);
+const conditionAction=name=>conditionEvents.get('click')({target:{closest:()=>({dataset:{planningAction:name}})},preventDefault(){}});
+conditionAction('save-card');await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(JSON.stringify(conditionCalls[0][1].payload.card.acceptance),JSON.stringify([{id:'a-2',text:'第二项'},{id:'criterion-new',text:'新条件'},{id:'a-1',text:'第一项'}]));
+conditionInput='duplicate: 一\nduplicate: 二';conditionAction('save-card');await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(conditionCalls.length,1,'重复验收条件 ID 在发起写入前被拒绝');
+assert.match(conditionUI.state.error,/验收条件标识重复/);
+conditionUI.state.detailTab='delivery';
+assert.doesNotThrow(()=>conditionUI.render('planning',data),'无效验收草稿重绘不能抛出异常');
+assert.match(conditionUI.render('planning',data),/duplicate: 一/,'无效验收草稿必须原样回显');
+conditionAction('governance-capture');await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(JSON.stringify(conditionCalls[1]),JSON.stringify(['planning_delivery',{task_id:'conditions',expected_version:2,action:'governance_capture',payload:{}}]));
+conditionUI.leave();
+
+// The existing delivery detail fold presents stale conditions, governance state, and recovery evidence without a new page.
+const governedUI=window.WorkbenchPlanning.create({tool:async()=>({item:{}})});
+governedUI.state.view='detail';governedUI.state.detailTab='delivery';governedUI.state.detail={id:'governed',title:'治理任务',version:1,status:'pending',delivery:{card:{card:{goal:'目标',scope:[],preserve:[],acceptance:[{id:'a-1',text:'条件'}],facts:[],assumptions:[]}},conditions:[{id:'a-1',text:'条件',current:false,reason:'condition_changed',evidence:[{source_ref:'run:1',freshness:{reason:'condition_changed'}}]}],evidence:[]},coordination:{handoffs:[{id:'packet-1',state:'unknown',packet_sha256:'packet',provider_operation_id:'op-1',side_effect_state:'completed',reconciliation_source:'provider-status',status_query_ref:'provider-status:op-1',status_evidence:{state:'completed'},last_event_id:'event-1',decisions:[]}],model_calls:[]},governance:{measurement_boundary:'规则文本行为评测；不代表 Skill 隐式触发、工具权限或生产验收',manifests:[{id:'manifest-1',created_at:'2026-09-29T10:00:00Z',manifest:{rules:[{id:'project:rules',source:'authorised-collector',content_hash:'hash-rules',load_state:'loaded'}]}}],suite:{baseline_manifest_hash:'baseline-1'},candidates:[{id:'candidate-1',state:'proposed',budget:{estimated_tokens:64},diff:'- old\n+ new'}],evaluations:[],metrics:{observations:2,evaluations:1,completed:{true:1,false:0,known:1,unknown:1,true_ratio:1},rework:{true:0,false:0,known:0,unknown:2,true_ratio:null},user_intervention:{true:0,false:0,known:0,unknown:2,true_ratio:null},regression:{true:0,false:0,known:0,unknown:2,true_ratio:null}}}};
+const governedMarkup=governedUI.render('planning',data);
+for(const label of ['验收条件追踪','已过期','condition_changed','规则治理与评测','检查规则清单','规则加载状态','project:rules','已加载','authorised-collector','hash-rules','估算 Token（UTF-8 字节/4）','真占比 100%','规则文本行为评测','候选差异','- old','操作 ID','副作用状态','对账来源','状态查询引用','状态证据'])assert.match(governedMarkup,new RegExp(label));
+console.log('planning UI: stable delivery conditions, governance checks, and reconciliation evidence stay in the existing detail folds');

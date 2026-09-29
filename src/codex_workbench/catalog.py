@@ -84,7 +84,7 @@ TOOLS.extend([
  definition('planning_delete','删除计划任务','用版本号确认后软删除本机任务，保留资料和执行历史。',{'task_id':ID,'expected_version':{'type':'integer','minimum':1}},['task_id','expected_version'],read_only=False,idempotent=False),
  definition('planning_followup','记录任务追问','只记录追问，不自动启动或执行任务。',{'task_id':ID,'expected_version':{'type':'integer','minimum':1},'prompt':text(12000)},['task_id','expected_version','prompt'],read_only=False,idempotent=False),
  definition('planning_knowledge_link','关联已审核知识','将用户明确选取的已审核知识条目关联到本机任务。',{'task_id':ID,'scope':text(200),'key':text(200)},['task_id','scope','key'],read_only=False,idempotent=False),
- definition('planning_export','导出计划笔记','生成本机 Obsidian Markdown 投影，不改写权威知识。',{'task_id':ID},['task_id'],read_only=False,idempotent=False),
+ definition('planning_export','导出计划笔记','生成本机 Obsidian Markdown 投影；可包含任务显式关联的已审核知识，不改写权威知识。',{'task_id':ID,'include_knowledge':{'type':'boolean'}},['task_id'],read_only=False,idempotent=False),
  definition('planning_detail','读取计划任务','读取本机任务及其运行和追问记录。',{'task_id':ID},['task_id']),
  definition('planning_draft','生成计划草案','使用已验证的本机模型目录生成草案；失败时返回手工草案。',{'text':text(12000)},['text'],read_only=False,idempotent=False),
  definition('planning_intake','识别文字任务录入','把文字拆为待确认的新任务、补充或问答草案；不保存或执行。',{'text':text(12000),'project_id':text(255,True),'task_id':text(255,True),'start_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'due_date':{'type':['string','null'],'pattern':'^\\d{4}-\\d{2}-\\d{2}$'},'period':text(80,True)},['text'],read_only=False,idempotent=False),
@@ -98,6 +98,31 @@ TOOLS.extend([
  definition('library_content','读取资料分块','读取本机资料的 Base64 分块。',{'asset_id':ID,'offset':{'type':'integer','minimum':0},'length':{'type':'integer','minimum':1,'maximum':262144}},['asset_id']),
 ])
 
+TASK_CARD={'type':'object','properties':{
+ 'goal':text(10000),'original':text(100000),
+ **{key:{'type':'array','items':text(4000),'maxItems':100} for key in ('scope','preserve','facts','assumptions')},
+ 'acceptance':{'type':'array','minItems':1,'maxItems':100,'items':{'type':'object','properties':{'id':text(160),'text':text(4000)},'required':['id','text'],'additionalProperties':False}}},
+ 'required':['goal','original','scope','preserve','facts','assumptions','acceptance'],'additionalProperties':False}
+for _tool in TOOLS:
+    _properties=_tool['inputSchema']['properties']
+    if _tool['name']=='planning_create':_properties.update(task_card=TASK_CARD,original_text=text(100000))
+    if _tool['name']=='planning_update':_properties['patch']['properties'].update(task_card=TASK_CARD,original_text=text(100000))
+    if _tool['name']=='planning_intake_save':_properties['items']['items']['properties'].update(task_card=TASK_CARD,original_text=text(100000))
+TOOLS.extend([
+ definition('planning_delivery','更新任务交付','在当前任务版本下更新任务卡、批注、证据或人工验收；不自动执行。',
+  {'task_id':ID,'expected_version':{'type':'integer','minimum':1},
+   'action':{'type':'string','enum':['save_card','create_anchor','add_annotation','record_evidence','accept_evidence','checkpoint','prepare_rework','review_delivery','diff_artifacts']},
+   'payload':{'type':'object','maxProperties':30}},['task_id','expected_version','action','payload'],read_only=False,idempotent=False),
+ definition('planning_context','检索任务上下文','仅检索本任务显式关联的资料和知识。semantic=true 使用已登记外部模型；默认本地关键词。',
+  {'task_id':ID,'query':text(2000),'semantic':{'type':'boolean'}},['task_id']),
+ definition('planning_knowledge_candidates','提取知识候选','从有效交付证据提取待审核候选，不直接写入已审核知识。',
+  {'task_id':ID,'delivery':{'type':'object'},'scope':text(200),'source':{'type':'object'},'relation_type':text(80,True),'direction':text(80,True)},
+  ['task_id','delivery','scope','source'],read_only=False,idempotent=False),
+ definition('planning_output_filter','整理工具输出','保留控制字段、错误和证据引用；可显式关闭并读取原文。',
+  {'value':{},'enabled':{'type':'boolean'}},['value']),
+ definition('planning_output_source','回取工具原文','读取一小时内的本机工具输出原文，可按 JSON Pointer 读取省略片段。',
+  {'source_id':{'type':'string','pattern':'^[0-9a-f]{64}$'},'pointer':text(2000)},['source_id']),
+])
 # 输出声明与模块边界一致；动态来源字段仅在各读取适配器中投影。
 _OUTPUT_KEYS={
  'account_create':['account'], 'account_login':['login'], 'account_status':['account','login'],
@@ -114,6 +139,7 @@ _OUTPUT_KEYS={
  'planning_create':['item'],'planning_update':['item'],'planning_start':['item'],'planning_stop':['item'],'planning_archive':['item'],
  'planning_delete':['item'],'planning_followup':['item'],'planning_knowledge_link':['item'],'planning_export':['item'],
  'planning_detail':['item'],'planning_draft':['draft'],'planning_intake':['draft'],'planning_intake_save':['items','tasks'],
+ 'planning_delivery':['item'],'planning_context':['item'],'planning_knowledge_candidates':['items'],'planning_output_filter':['item'],'planning_output_source':['item'],
  'library_upload':['item'],'library_upload_begin':['item'],'library_upload_chunk':['item'],'library_upload_commit':['item'],
  'library_link':['item'],'library_list':['item'],'library_content':['item'],
 }

@@ -12,6 +12,6 @@ class Fixture:
         self.native=FakeNative();self.credentials=FakeCredentials();self.secret_reads=[]
         def reader(*args):self.secret_reads.append(args[1:]);return {'ciphertext':'synthetic-envelope','entry_id':args[1]}
         versions=type('Versions',(),{'context':lambda self:'fixture-context'})()
-        self.board=Workbench(self.root,self.root/'resources',native_reader=self.native,credential_catalog=self.credentials,credential_reader=reader,source_versions=versions)
+        self.board=Workbench(self.root,self.root/'resources',native_reader=self.native,credential_catalog=self.credentials,credential_reader=reader,source_versions=versions,output_root=self.root/'outputs')
     def close(self):
         self.board.close();self.patch.stop();self.temp.cleanup()

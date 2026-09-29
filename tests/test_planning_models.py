@@ -111,6 +111,43 @@ class PlanningModelsTest(unittest.TestCase):
         self.assertEqual('rate_limited', fallback_event['fallback_reason'])
         self.assertEqual(5, sum(item['calls'] for item in router.stats('reasoning', 'delivery_review')))
 
+    def test_evaluation_requires_a_persisted_call_and_keeps_unknown_metrics_null(self):
+        db = sqlite3.connect(':memory:')
+        db.row_factory = sqlite3.Row
+        router = PlanningModels(lambda: [model('minimax', 'mini')], lambda: [],
+                               invoke=lambda candidate, request: {'success': True, 'text': 'ok', 'input_tokens': 2})
+        router.bind_telemetry(db)
+        response = router.call('reasoning', {'messages': [{'content': 'private'}]}, external_allowed=True,
+                               purpose='delivery_review', task_id='task-1')
+        call_id = response['model_call_id']
+        before = router.stats(task_id='task-1')[0]
+        self.assertIsNone(before['quality_pass_rate'])
+        self.assertIsNone(before['adoption_rate'])
+        self.assertIsNone(before['correction_count'])
+        self.assertEqual(2, before['input_tokens'])
+        self.assertIsNone(before['total_tokens'])
+        with self.assertRaisesRegex(ValueError, 'call_not_found'):
+            router.record_evaluation(call_id + 100, task_id='task-1', quality='accepted', reason='用户采纳')
+        with self.assertRaisesRegex(ValueError, 'call_not_found'):
+            router.record_evaluation(call_id, task_id='other-task', quality='accepted', reason='跨任务')
+        router.record_evaluation(call_id, task_id='task-1', quality='accepted', adopted=True,
+                                 correction_count=0, reason='用户采纳')
+        after = router.stats(task_id='task-1')[0]
+        self.assertEqual(1, after['quality_pass_rate'])
+        self.assertEqual(1, after['adoption_rate'])
+        self.assertEqual(0, after['correction_count'])
+        self.assertEqual(call_id, router.task_calls('task-1')[0]['call_id'])
+
+    def test_disabling_fallback_does_not_replay_a_failed_packet(self):
+        calls = []
+        def invoke(candidate, request):
+            calls.append(candidate['id'])
+            raise ModelCallError('timeout')
+        router = PlanningModels(lambda: [model('minimax', 'mini'), model('bigmodel', 'glm')], lambda: [], invoke=invoke)
+        with self.assertRaisesRegex(ModelCallError, 'timeout'):
+            router.call('reasoning', {'messages': [{'content': 'private'}]}, external_allowed=True, allow_fallback=False)
+        self.assertEqual(['mini'], calls)
+
 
 if __name__ == "__main__":
     unittest.main()

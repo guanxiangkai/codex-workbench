@@ -1,5 +1,6 @@
 """配置中心的公开投影；沿用目录与凭据引用，不解密、不重复登记。"""
 from .configuration_schema import configuration_schema
+from .configuration_metadata import DISPLAY_TYPES
 
 
 def configuration_entries(entries, models, other_accounts=()):
@@ -27,6 +28,7 @@ def configuration_entries(entries, models, other_accounts=()):
         explicit = item.get('service_type')
         kind = explicit if explicit in labels else next(iter(types)) if len(types) == 1 else None
         item.update(service_type=kind, service_type_label=labels.get(kind),
+                    display_type_label=DISPLAY_TYPES.get(item.get('display_type')),
                     other_account_ids=account_links.get(entry['id'], []),
                     account_provider_ids=list(dict.fromkeys(provider_links.get(entry['id'], []))))
         result.append(item)

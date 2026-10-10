@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_workbench.catalog import TOOLS, validate
+from codex_workbench.account_profiles import import_profile
 from codex_workbench.readonly_sources import NativeRead, ReadRpc, ReadonlyCredentials, connection, rows
 from codex_workbench.service import Workbench
 
@@ -36,13 +37,13 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','agents','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','knowledge','models','config']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
     def test_only_explicit_account_actions_can_write(self):
-        writes={'account_create','account_login','account_status','account_default'}
+        writes={'account_create','account_login','account_status','account_default','account_profile_update','account_profile_capture','account_profile_import'}
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,{})
@@ -50,6 +51,70 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
     def test_forged_context_or_missing_required_params_rejected(self):
         for name,args in [('workbench_state',{'view':'accounts','codex_home':'/tmp/other'}),('credential_details',{'id':'x','public_key':'k','request_id':'r','refreshToken':True})]:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,args)
+
+    def test_ready_account_status_survives_optional_profile_refresh_failure(self):
+        account_service = type('Accounts', (), {
+            'status': lambda self, identifier, refresh: {'login': {'status': 'ready'}},
+            'close': lambda self: None,
+        })()
+        self.service._account_service = account_service
+        with patch.object(self.native, 'refresh_profile', side_effect=ValueError('temporary profile failure'), create=True):
+            result = self.service.call('account_status', {'id': 'current'})
+        self.assertEqual('ready', result['login']['status'])
+        self.assertEqual({'state': 'failed'}, result['account']['profile_refresh'])
+        self.assertTrue(result['account']['profile_capture_required'])
+
+    def test_profile_import_requires_single_use_matching_capture(self):
+        account={'id':'one','provider_id':'minimax','usage_credential_id':'key-one'}
+        target={'view':'other_accounts','id':'one'}
+        with patch.object(self.service,'_other_accounts',return_value={'accounts':[account]}):
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**target,'capture_id':'forged','display_name':'Wrong'})
+            grant=self.service.call('account_profile_capture',target)
+            args={**target,'capture_id':grant['capture_id'],'display_name':'Verified'}
+            self.service.call('account_profile_import',args)
+            before=(self.root/'account-profiles.json').read_bytes()
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',args)
+            self.assertEqual(before,(self.root/'account-profiles.json').read_bytes())
+            grant=self.service.call('account_profile_capture',target)
+            account['usage_credential_id']='key-two'
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**args,'capture_id':grant['capture_id']})
+            self.assertEqual(before,(self.root/'account-profiles.json').read_bytes())
+
+    def test_profile_capture_expiry_and_replacement_reject_old_grants(self):
+        account={'id':'one','provider_id':'minimax','usage_credential_id':'key-one'}
+        target={'view':'other_accounts','id':'one'}
+        with patch.object(self.service,'_other_accounts',return_value={'accounts':[account]}):
+            with patch('codex_workbench.service.time.monotonic',return_value=100):
+                old=self.service.call('account_profile_capture',target)
+                new=self.service.call('account_profile_capture',target)
+                with self.assertRaises(ValueError):
+                    self.service.call('account_profile_import',{**target,'capture_id':old['capture_id'],'display_name':'Old'})
+            with patch('codex_workbench.service.time.monotonic',return_value=701):
+                with self.assertRaises(ValueError):
+                    self.service.call('account_profile_import',{**target,'capture_id':new['capture_id'],'display_name':'Expired'})
+            self.assertFalse((self.root/'account-profiles.json').exists())
+
+    def test_current_profile_grant_and_snapshot_follow_bound_subject(self):
+        account={'id':'current','email':'person@example.invalid'}
+        target={'view':'accounts','id':'current'}
+        with patch.object(self.native,'accounts',return_value=[account]), patch.object(self.native,'profile_subject_binding',return_value='a'*64,create=True) as binding:
+            grant=self.service.call('account_profile_capture',target)
+            self.service.call('account_profile_import',{**target,'capture_id':grant['capture_id'],'display_name':'First person'})
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+            current=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+            self.assertEqual('First person',current['display_name'])
+            self.assertNotIn('_verified_subject_binding',current)
+            grant=self.service.call('account_profile_capture',target)
+            binding.return_value='b'*64
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**target,'capture_id':grant['capture_id'],'display_name':'Wrong person'})
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+            current=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+            self.assertNotIn('display_name',current)
+            self.assertNotIn('_verified_subject_binding',current)
 
     def test_model_queries_preserve_database_and_hide_endpoint_secrets(self):
         db=self.root/'workbench.sqlite3'
@@ -60,6 +125,19 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         value=self.service.call('model_list',{})['models'][0]
         self.assertEqual('',value['base_url']);self.assertEqual('entry',value['credential_id']);self.assertNotIn('credential_ref',value)
         self.assertEqual(before,hashlib.sha256(db.read_bytes()).hexdigest())
+
+    def test_snapshot_refresh_does_not_restore_explicitly_removed_profile(self):
+        account={'id':'registered-one','email':'person@example.invalid','name':'Old name','name_source':'official',
+                 'display_name':'Old name','avatar_data_uri':'old-avatar'}
+        value={'view':'accounts','accounts':[account],'status':{'state':'ok'}}
+        self.service.snapshots.put('fixture-context','accounts',value)
+        import_profile(self.root/'account-profiles.json','accounts',account,
+                       missing_fields=['display_name','avatar_data_uri'])
+        with patch.object(self.native,'accounts',return_value=[account]):
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+        result=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+        for field in ('name','name_source','display_name','avatar_data_uri'):
+            self.assertNotIn(field,result)
     def test_secret_read_is_explicit_and_returns_envelope_only(self):
         value=self.service.call('credential_details',{'id':'entry','public_key':'key','request_id':'request'})
         self.assertEqual({'ciphertext':'opaque','entry_id':'entry'},value)

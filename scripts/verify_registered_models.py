@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from codex_workbench.model_catalog import configured_models
 from codex_workbench.model_probe_worker import decode_credential
-from codex_workbench.registered_model_verifier import (record_results, verify_model_with_review,
+from codex_workbench.registered_model_verifier import (configuration_fingerprint, record_results, verify_model_with_review,
                                                         write_metadata, write_reviews)
 
 
@@ -49,20 +49,26 @@ def main() -> int:
         return 2
     # Resume an already accepted video task instead of submitting (and charging for)
     # another generation on a focused --model-id rerun.
+    previous_results: list[dict] = []
     try:
         previous = json.loads((args.data_dir / "registered-model-verifications.json").read_text(encoding="utf-8"))
-        pending = {item.get("model_id"): item.get("video_task_id") for item in previous.get("results", [])
+        candidate_results = previous.get("results") if isinstance(previous, dict) else None
+        previous_results = candidate_results if isinstance(candidate_results, list) else []
+        pending = {item.get("model_id"): (item.get("video_task_id"), item.get("configuration_fingerprint")) for item in previous_results
                    if isinstance(item, dict) and not item.get("success")
-                   and isinstance(item.get("video_task_id"), str)}
+                   and isinstance(item.get("video_task_id"), str)
+                   and isinstance(item.get("configuration_fingerprint"), str)}
     except (OSError, ValueError, json.JSONDecodeError, AttributeError):
         pending = {}
     for model in selected:
-        task_id = pending.get(model["id"])
-        if isinstance(task_id, str):
+        resume = pending.get(model["id"])
+        if isinstance(resume, tuple) and resume[1] == configuration_fingerprint(model, token):
+            task_id = resume[0]
             model["_verification_task_id"] = task_id
     outcomes = [verify_model_with_review(model, token, timeout=args.timeout, include_diagnostics=True) for model in selected]
     results = [result for result, _, _ in outcomes]
-    metadata_results = [{**result, **diagnostic} for result, _, diagnostic in outcomes]
+    metadata_results = [{**result, **diagnostic, "configuration_fingerprint": configuration_fingerprint(model, token)}
+                        for model, (result, _, diagnostic) in zip(selected, outcomes)]
     reviews = {result["model_id"]: review for result, review, _ in outcomes if result["success"] and review}
     write_metadata(args.data_dir, metadata_results)
     if reviews:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import struct
 import time
@@ -62,6 +63,15 @@ _OCR_PNG = _ocr_probe_png()
 def safe_result(model_id: str, success: bool, status: str, error_code: str) -> dict:
     """CLI 的唯一 stdout 合同，永不含服务响应、请求内容或凭据。"""
     return {"model_id": model_id, "success": success, "status": status, "error_code": error_code}
+
+
+def configuration_fingerprint(model: dict, token: str) -> str:
+    """One-way binding for resume: config identity plus the current credential value."""
+    identity = {key: str(model.get(key) or "") for key in ("id", "provider_id", "base_url", "model", "credential_id")}
+    digest = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(token.encode("utf-8"))
+    return digest.hexdigest()
 
 
 def _response_failure(payload: bytes | None, fallback: str = "response_invalid") -> dict:
@@ -129,7 +139,8 @@ def _image_output(value: dict | None) -> bool:
 
 def _minimax_image_output(value: dict | None) -> bool:
     """MiniMax image response uses ``data.image_urls/image_base64`` rather than OpenAI ``data``."""
-    if not isinstance(value, dict) or value.get("base_resp", {}).get("status_code") != 0:
+    base = value.get("base_resp") if isinstance(value, dict) else None
+    if not isinstance(base, dict) or base.get("status_code") != 0:
         return False
     data = value.get("data")
     if not isinstance(data, dict):
@@ -181,16 +192,20 @@ def _native_tts(model: dict, token: str, timeout: float) -> dict:
         return failure
     parsed = _json(payload)
     audio = parsed.get("data", {}).get("audio") if isinstance(parsed, dict) and isinstance(parsed.get("data"), dict) else None
-    if not isinstance(parsed, dict) or parsed.get("base_resp", {}).get("status_code") != 0 or not isinstance(audio, str):
+    base = parsed.get("base_resp") if isinstance(parsed, dict) else None
+    if not isinstance(base, dict) or base.get("status_code") != 0 or not isinstance(audio, str):
         return _response_failure(payload)
+    decoded_candidates: list[bytes] = []
     try:
-        decoded = base64.b64decode(audio, validate=True)
+        decoded_candidates.append(bytes.fromhex(audio))
     except ValueError:
-        try:
-            decoded = bytes.fromhex(audio)
-        except ValueError:
-            return _response_failure(payload)
-    return {"success": True, "code": "verified"} if _audio_bytes(decoded) else _response_failure(payload)
+        pass
+    try:
+        decoded_candidates.append(base64.b64decode(audio, validate=True))
+    except ValueError:
+        pass
+    return ({"success": True, "code": "verified"}
+            if any(_audio_bytes(decoded) for decoded in decoded_candidates) else _response_failure(payload))
 
 
 def _native_asr(model: dict, token: str, timeout: float) -> dict:
@@ -237,6 +252,17 @@ def _native_bigmodel_tts(model: dict, token: str, timeout: float) -> dict:
     return _response_failure(payload)
 
 
+def _downloadable_https_url(value: object) -> bool:
+    if not isinstance(value, str) or not value or len(value) > 4096 or any(character.isspace() for character in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        _ = parsed.port
+    except ValueError:
+        return False
+    return parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username and not parsed.password
+
+
 def _video_result(value: dict | None) -> tuple[str | None, bool]:
     """返回 (task_id, terminal-success)，仅有可下载视频才算终态成功。"""
     if not isinstance(value, dict):
@@ -246,15 +272,15 @@ def _video_result(value: dict | None) -> tuple[str | None, bool]:
         task_id = task.get("id")
         status = str(task.get("status") or "").lower()
         content = task.get("content")
-        has_video = isinstance(content, dict) and isinstance(content.get("url"), str) and content["url"].startswith("https://")
+        has_video = isinstance(content, dict) and _downloadable_https_url(content.get("url"))
         return (task_id, status == "succeeded" and has_video) if isinstance(task_id, str) and task_id else (None, False)
     task_id = value.get("id") or value.get("task_id")
     if not isinstance(task_id, str) or not task_id:
         return None, False
     status = str(value.get("task_status") or value.get("status") or "").lower()
     output = value.get("video_result") or value.get("result") or value.get("data")
-    has_video = (isinstance(output, dict) and isinstance(output.get("url") or output.get("video_url"), str)) or (
-        isinstance(output, list) and any(isinstance(item, dict) and isinstance(item.get("url") or item.get("video_url"), str) for item in output))
+    has_video = (isinstance(output, dict) and _downloadable_https_url(output.get("url") or output.get("video_url"))) or (
+        isinstance(output, list) and any(isinstance(item, dict) and _downloadable_https_url(item.get("url") or item.get("video_url")) for item in output))
     return task_id, status in {"success", "succeeded", "completed"} and has_video
 
 

@@ -66,30 +66,30 @@ class SnapshotStoreTest(unittest.TestCase):
     def test_restart_reuses_last_successful_public_snapshot(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision='test'
-            native=Mock();native.skills=Mock(return_value=[{'id':'one','display_name':'One'}])
+            native=Mock();native.accounts=Mock(return_value=[{'id':'one','email':'one@example.invalid','login_status':'ready','usage_refresh':{'state':'ready'}}])
             versions=Mock();versions.context=Mock(return_value='account-a')
             first=Workbench(Path(directory),Path(directory)/'resources',native_reader=native,source_versions=versions)
-            self.assertTrue(first.collect_snapshot('agents'))
+            self.assertTrue(first.collect_snapshot('accounts'))
             first.close()
             second=Workbench(Path(directory),Path(directory)/'resources',native_reader=native,source_versions=versions)
-            data=second.sync('agents')['data']
+            data=second.sync('accounts')['data']
             self.assertEqual('ready',data['status']['snapshot']['state'])
-            self.assertEqual(['one'],[item['id'] for item in data['skills']])
-            self.assertEqual(1,native.skills.call_count)
+            self.assertEqual(['one'],[item['id'] for item in data['accounts']])
+            self.assertEqual(1,native.accounts.call_count)
             second.close()
 
     def test_failed_collection_keeps_last_successful_data(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision='test'
-            native=Mock();native.skills=Mock(return_value=[{'id':'one','display_name':'One'}])
+            native=Mock();native.accounts=Mock(return_value=[{'id':'one','email':'one@example.invalid','login_status':'ready','usage_refresh':{'state':'ready'}}])
             versions=Mock();versions.context=Mock(return_value='account-a')
             board=Workbench(Path(directory),Path(directory)/'resources',native_reader=native,source_versions=versions)
-            self.assertTrue(board.collect_snapshot('agents'))
-            native.skills.side_effect=ValueError('private source failure')
-            self.assertFalse(board.collect_snapshot('agents'))
-            data=board.sync('agents')['data']
+            self.assertTrue(board.collect_snapshot('accounts'))
+            native.accounts.side_effect=ValueError('private source failure')
+            self.assertFalse(board.collect_snapshot('accounts'))
+            data=board.sync('accounts')['data']
             self.assertEqual('stale',data['status']['snapshot']['state'])
-            self.assertEqual(['one'],[item['id'] for item in data['skills']])
+            self.assertEqual(['one'],[item['id'] for item in data['accounts']])
             self.assertNotIn('private',str(data))
             board.close()
 
@@ -104,7 +104,7 @@ class SnapshotStoreTest(unittest.TestCase):
     def test_load_discards_malformed_view_entries(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'snapshots.json'
-            path.write_text('{"version":1,"contexts":{"a":{"models":{"data":{},"updated_at":"now"},"unknown":{"data":{},"updated_at":"now"},"agents":{"data":[],"updated_at":"now"},"config":{}}}}')
+            path.write_text('{"version":1,"contexts":{"a":{"models":{"data":{},"updated_at":"now"},"unknown":{"data":{},"updated_at":"now"},"accounts":{"data":[],"updated_at":"now"},"config":{}}}}')
             store=SnapshotStore(Path(directory))
             self.assertEqual(['models'],list(store.entries['a']))
 

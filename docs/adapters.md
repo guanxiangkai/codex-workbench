@@ -58,12 +58,6 @@ PYTHONPATH=src python3 migrate_resource_catalogs.py --resources-dir <资源目�
 
 MiniMax 消费者支持原始 Key 字符串及含 `api_key` 字段的 JSON。公开父进程只接收经过白名单转换的用量与固定错误码。配置详情消费者使用浏览器临时公钥，将结果以 RSA-OAEP / AES-GCM 信封返回。
 
-## 知识工具
-
-默认调用用户自行安装的 `~/.codex/skills/manage-personal-knowledge/scripts/personal-knowledge`，支持 `scopes`、`catalog`、`search`、`lookup` 等只读操作。仓库不带知识内容。调用方可注入符合 `KnowledgeCatalog` 契约的替代实现。
-
-用于缓存失效检测的目录可通过 `WORKBENCH_KNOWLEDGE_DIR` 和 `WORKBENCH_VAULT_DIR` 指定，默认位于本机工作台数据目录。检测只读取文件元数据，不读取秘密内容。
-
 ## 测试素材
 
 `src/codex_workbench/fixtures/probe.wav` 由仓库脚本生成纯正弦测试音，不包含人声或录音。它只适合检查容器与传输链路，不证明真实语音识别准确率。其他媒体夹具是代码生成的像素和静音帧。

@@ -115,7 +115,7 @@ def main() -> None:
     csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     page = f"""<!doctype html>
 <html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\"><title>Codex 工作台（静态演示）</title><link rel=\"stylesheet\" href=\"assets/app.css\"></head>
-<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户、模型、配置与知识均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
+<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户、模型、配置与连接均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
 """
     (output / "index.html").write_text(page, encoding="utf-8")
     print(f"Built static demo: {output}")

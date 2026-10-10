@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 const window={addEventListener(){}};window.parent=window;
-const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户与配置'},{id:'planning',name:'工作计划',group:'工作台'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
+const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'models',name:'模型目录',group:'账户管理'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
 vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8'),context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__workbenchReadonlyTest={navigation,setPage:value=>{s.page=value;},'),context);
 const h=window.__workbenchReadonlyTest;
 assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('codex://threads/id?token=secret'),null);assert.equal(h.nativeUrl('codex://threads/abc-123'),'codex://threads/abc-123');
@@ -102,5 +102,5 @@ const pendingSummary=h.resetAnalysisView({signal:'present',summary:' 待更新 '
 assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置已全部生效。'}),/分析摘要[\s\S]*本轮额度重置已全部生效。/);
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);
 
-for(const page of ['accounts','planning']){h.setPage(page);const nav=h.navigation();assert.match(nav,/data-page="planning" data-workbench-home="true"/);assert.doesNotMatch(nav,/data-group="(?:工作台|项目管理)"/);assert.match(nav,/账户与配置/);}h.setPage('accounts');
-console.log('工作台导航：标题直接进入月历，移除重复项目管理分组');
+for(const page of ['accounts','models']){h.setPage(page);const nav=h.navigation();assert.match(nav,/data-page="accounts" data-workbench-home="true"/);assert.doesNotMatch(nav,/能力与知识|项目管理/);assert.match(nav,/账户管理/);}h.setPage('accounts');
+console.log('工作台导航：只显示账户管理模块');

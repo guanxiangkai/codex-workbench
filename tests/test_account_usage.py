@@ -181,8 +181,7 @@ class UsageTests(unittest.TestCase):
         self.assertEqual('2026-09-17T04:01:00+00:00', second['data']['accounts'][0]['updated_at'])
         fixture.board.collect_snapshot('config')
         fixture.board.call('workbench_state', {'view': 'config'})
-        fixture.native.skill_sources = lambda: []
-        fixture.board.call('global_search', {'query': 'MiniMax'})
+        fixture.board.call('workbench_sync', {'view': 'models', 'query': 'MiniMax'})
         self.assertEqual(2, fetcher.call_count)
         self.assertEqual(before, path.read_bytes())
         account['usage_credential_id'] = '../bad'

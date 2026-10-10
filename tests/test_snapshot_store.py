@@ -10,6 +10,29 @@ from codex_workbench.snapshot_store import SnapshotStore, SnapshotScheduler, loa
 
 
 class SnapshotStoreTest(unittest.TestCase):
+    def test_restored_views_are_scheduled_and_survive_restart(self):
+        with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
+            release.return_value.revision = 'test'
+            native = Mock()
+            native.skills.return_value = [{'id': 'example', 'name': 'Example'}]
+            knowledge = Mock()
+            knowledge.snapshot.return_value = {'scopes': [], 'knowledge': [{'knowledge_key': 'example', 'title': 'Example'}]}
+            versions = Mock(); versions.context.return_value = 'account-a'
+            board = Workbench(Path(directory), Path(directory)/'resources', native_reader=native,
+                              knowledge_catalog=knowledge, source_versions=versions)
+            board.snapshot_scheduler = SnapshotScheduler(board)
+            try:
+                for view, key in (('agents', 'skills'), ('knowledge', 'knowledge')):
+                    with self.subTest(view=view):
+                        self.assertEqual('pending', board.state(view)['status']['snapshot']['state'])
+                        self.assertIn(('account-a', view), board.snapshot_scheduler.requested)
+                        self.assertTrue(board.collect_snapshot(view))
+                        self.assertEqual('ready', board.state(view)['status']['snapshot']['state'])
+                        restored = SnapshotStore(Path(directory)).get('account-a', view)
+                        self.assertEqual(1, len(restored['data'][key]))
+            finally:
+                board.close()
+
     def test_codex_cached_projection_preserves_last_refresh_and_identity_status(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision = 'test'

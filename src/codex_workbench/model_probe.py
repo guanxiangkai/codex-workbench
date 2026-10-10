@@ -88,7 +88,8 @@ def _provider_error_diagnostic(payload: bytes | None, http_status: int | None) -
         # Payment Required does not identify whether balance, subscription, or
         # a provider-side billing rule caused the denial.
         diagnosis = "payment_required"
-    elif code == "1008":
+    elif code in {"1008", "1113"}:
+        # BigModel 1113 uses HTTP 429 for account arrears, not rate limiting.
         diagnosis = "insufficient_balance"
     elif code == "1002" or http_status == 429:
         diagnosis = "rate_limited"
@@ -201,6 +202,14 @@ def _post(url: str, body: bytes, content_type: str, token: str | None, cancel_ev
                 except OSError:
                     error_payload = None
                 evidence.update(_provider_error_diagnostic(error_payload, status))
+                diagnostic_messages = {
+                    "insufficient_balance": "模型服务账户余额不足",
+                    "payment_required": "模型服务要求满足付费条件",
+                    "parameter_error": "模型服务拒绝请求参数",
+                }
+                diagnosis = evidence.get("diagnosis")
+                if diagnosis in diagnostic_messages:
+                    code, message = diagnosis, diagnostic_messages[diagnosis]
             return None, None, _result(False, code, message, **evidence)
         finally:
             error.close()

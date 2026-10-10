@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 
-PROFILE = ('email', 'plan', 'name', 'name_source', 'profile_observed_at')
+PROFILE = ('email', 'plan', 'name', 'name_source', 'profile_observed_at', 'profile_status')
 USAGE = ('remaining_percent', 'resets_at', 'reset_cards', 'observed_at')
 ANALYSIS = ('status', 'confidence', 'predicted_reset_at', 'reset_card_likelihood',
             'evidence', 'observed_at', 'stale', 'error', 'model', 'scope',
@@ -64,15 +64,19 @@ class AccountSnapshot:
                 os.unlink(temporary)
 
     def migrate(self, account):
-        """首次从已确认邮箱对应的历史公开快照恢复；不迁移登录状态。"""
+        """首次从可证明同一主体的历史公开快照恢复；不迁移登录状态。"""
         if self.path(account, 'profile').exists() or not account.get('subject_id'):
             return
         profiles = self.read(self.directory / 'account-profiles.json').get('profiles', [])
-        emails = {p['identity'][2] for p in profiles if isinstance(p, dict)
-                  and p.get('view') == 'accounts' and isinstance(p.get('identity'), list)
-                  and len(p['identity']) == 3 and p['identity'][:2] == ['codex', account['id']]}
-        if account.get('expected_email'):
-            emails = {account['expected_email']}
+        subject_binding = hashlib.sha256(account['subject_id'].encode('utf-8')).hexdigest()
+        emails = {
+            p['identity'][2] for p in profiles
+            if isinstance(p, dict) and p.get('view') == 'accounts'
+            and isinstance(p.get('identity'), list)
+            and p['identity'][:2] == ['codex', account['id']]
+            and ((len(p['identity']) == 4 and p['identity'][3] == subject_binding)
+                 or (len(p['identity']) == 3 and p.get('verified_subject_binding') == subject_binding))
+        }
         if not emails:
             return
         contexts = self.read(self.directory / 'snapshots.json').get('contexts', {})
@@ -96,19 +100,6 @@ class AccountSnapshot:
             result['reset_analysis'] = analysis
         return result
 
-    def fresh_identity(self, account, seconds):
-        if not account.get('subject_id'):
-            return None
-        profile = self.get(account, 'profile')
-        try:
-            fresh = (datetime.now(timezone.utc) - datetime.fromisoformat(profile['checked_at'])).total_seconds() < seconds
-        except (KeyError, ValueError, TypeError):
-            fresh = False
-        if fresh and profile.get('email') and not profile.get('invalidated'):
-            return {'type': 'chatgpt', 'email': profile['email'], 'planType': profile.get('plan'),
-                    'name': profile.get('name') if profile.get('name_source') == 'official' else None}
-        return None
-
     def save_profile(self, account, item, observed_at=None):
         now = datetime.now(timezone.utc).isoformat()
         data = self.get(account, 'profile')
@@ -119,11 +110,28 @@ class AccountSnapshot:
         data['checked_at'] = observed_at or now
         self.write(account, 'profile', data)
 
-    def save_usage(self, account, item):
+    def save_usage(self, account, item, subject=None):
         # None 表示该字段此次未取得，0 是有效的新额度。
         data = self.get(account, 'usage')
+        # 不属于页面投影：记录本次官方额度读取所核验的主体摘要，供没有
+        # execution_accounts 主体的 current fallback 核验资料归属。
+        binding = hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject else None
+        metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
+        previous_binding = metadata.get('subject_binding') if isinstance(metadata.get('subject_binding'), str) else None
+        # 主体改变时旧额度的缺省字段也不再可信：先废弃整段数据，不能让
+        # 新主体的部分响应沿用旧主体的 weekly/reset_cards 等值。
+        if binding is not None and previous_binding is not None and previous_binding != binding:
+            data, metadata = {}, {}
         data.update({k: item[k] for k in USAGE if item.get(k) is not None})
+        if binding is not None:
+            data['metadata'] = {**metadata, 'subject_binding': binding}
         self.write(account, 'usage', data)
+
+    def usage_subject_binding(self, account):
+        """内部额度主体摘要；cached() 永不向页面投影该元数据。"""
+        metadata = self.get(account, 'usage').get('metadata')
+        binding = metadata.get('subject_binding') if isinstance(metadata, dict) else None
+        return binding if isinstance(binding, str) and binding else None
 
     def save_analysis(self, account, analysis):
         """保存独立预测；分析失败时调用方可保留旧值而不覆盖官方用量。"""

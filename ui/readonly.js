@@ -311,8 +311,10 @@ class Bridge{
  async captureProfile(view,id){
   if(!this.embedded)throw Error('请在 Codex 内嵌工作台点击“更新资料”，由 Codex 核对官网当前账户');
   await this.initialize();
-  const target=JSON.stringify({view,id});
-  const text=`请更新工作台账户资料 ${target}。先读取本地 workbench_state，核对目标账户；使用已有官方网页登录态，只读取官网可见的真实用户名、账户标识和头像。必须确认官网账户与目标账户一致；不一致或未登录时请用户在官网完成对应登录，绝不把当前浏览器另一个账户资料套用过来。用浏览器已观察图片下载能力保存真实头像为本地 data URI，调用 account_profile_import 保存；已确认官网没有的资料字段，通过 missing_fields 数组传入字段名（display_name、avatar_data_uri、account_identifier），清除旧值；尚未核对的字段省略并保留原值，不能把未观察到误判为不存在。不要提取 Cookie、Token 或重放私有接口。资料写入后仅用量由 Python 后台刷新，资料仅在首次登录及用户明确点击更新时改变。`;
+  const grant=await this.tool('account_profile_capture',{view,id});
+  if(!grant?.capture_id)throw Error('未取得资料更新授权，请重试');
+  const target=JSON.stringify({view,id,capture_id:grant.capture_id});
+  const text=`请更新工作台账户资料 ${target}。先读取本地 workbench_state，核对目标账户；使用已有官方网页登录态，只读取官网可见的真实用户名、账户标识和头像。必须确认官网账户与目标账户一致；不一致或未登录时请用户在官网完成对应登录，绝不把当前浏览器另一个账户资料套用过来。用浏览器已观察图片下载能力保存真实头像为本地 data URI，使用本次 capture_id 调用 account_profile_import 一次性保存全部已核对字段；授权十分钟有效，过期时请重新点击更新资料；已确认官网没有的资料字段，通过 missing_fields 数组传入字段名（display_name、avatar_data_uri、account_identifier），清除旧值；尚未核对的字段省略并保留原值，不能把未观察到误判为不存在。不要提取 Cookie、Token 或重放私有接口。资料写入后仅用量由 Python 后台刷新，资料仅在首次登录及用户明确点击更新时改变。`;
   const result=await this.rpc('ui/message',{role:'user',content:[{type:'text',text}]});
   if(result?.isError)throw Error('Codex 尚未接受资料采集，请稍后重试');
   watchProfileCapture(view,id);

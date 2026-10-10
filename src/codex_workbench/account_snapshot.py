@@ -64,15 +64,19 @@ class AccountSnapshot:
                 os.unlink(temporary)
 
     def migrate(self, account):
-        """首次从已确认邮箱对应的历史公开快照恢复；不迁移登录状态。"""
+        """首次从可证明同一主体的历史公开快照恢复；不迁移登录状态。"""
         if self.path(account, 'profile').exists() or not account.get('subject_id'):
             return
         profiles = self.read(self.directory / 'account-profiles.json').get('profiles', [])
-        emails = {p['identity'][2] for p in profiles if isinstance(p, dict)
-                  and p.get('view') == 'accounts' and isinstance(p.get('identity'), list)
-                  and len(p['identity']) == 3 and p['identity'][:2] == ['codex', account['id']]}
-        if account.get('expected_email'):
-            emails = {account['expected_email']}
+        subject_binding = hashlib.sha256(account['subject_id'].encode('utf-8')).hexdigest()
+        emails = {
+            p['identity'][2] for p in profiles
+            if isinstance(p, dict) and p.get('view') == 'accounts'
+            and isinstance(p.get('identity'), list)
+            and p['identity'][:2] == ['codex', account['id']]
+            and ((len(p['identity']) == 4 and p['identity'][3] == subject_binding)
+                 or (len(p['identity']) == 3 and p.get('verified_subject_binding') == subject_binding))
+        }
         if not emails:
             return
         contexts = self.read(self.directory / 'snapshots.json').get('contexts', {})
@@ -109,12 +113,17 @@ class AccountSnapshot:
     def save_usage(self, account, item, subject=None):
         # None 表示该字段此次未取得，0 是有效的新额度。
         data = self.get(account, 'usage')
-        data.update({k: item[k] for k in USAGE if item.get(k) is not None})
         # 不属于页面投影：记录本次官方额度读取所核验的主体摘要，供没有
         # execution_accounts 主体的 current fallback 核验资料归属。
         binding = hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject else None
+        metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
+        previous_binding = metadata.get('subject_binding') if isinstance(metadata.get('subject_binding'), str) else None
+        # 主体改变时旧额度的缺省字段也不再可信：先废弃整段数据，不能让
+        # 新主体的部分响应沿用旧主体的 weekly/reset_cards 等值。
+        if binding is not None and previous_binding is not None and previous_binding != binding:
+            data, metadata = {}, {}
+        data.update({k: item[k] for k in USAGE if item.get(k) is not None})
         if binding is not None:
-            metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
             data['metadata'] = {**metadata, 'subject_binding': binding}
         self.write(account, 'usage', data)
 

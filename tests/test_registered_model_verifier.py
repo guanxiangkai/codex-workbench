@@ -258,6 +258,22 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             value = json.loads(target.read_text())
         self.assertEqual("1. boundary", value["reviews"][0]["review"])
 
+    def test_review_reconciliation_clears_selected_failures_and_preserves_other_models(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            write_reviews(path, {"glm": "old glm", "other": "keep me"})
+            write_reviews(path, {"glm": "new glm"}, {"glm", "failed"})
+            value = json.loads((path / "registered-model-reviews.json").read_text())
+        reviews = {item["model_id"]: item["review"] for item in value["reviews"]}
+        self.assertEqual({"glm": "new glm", "other": "keep me"}, reviews)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            write_reviews(path, {"glm": "old glm", "other": "keep me"})
+            write_reviews(path, {}, {"glm"})
+            value = json.loads((path / "registered-model-reviews.json").read_text())
+        self.assertEqual(["other"], [item["model_id"] for item in value["reviews"]])
+
     def test_chat_review_is_not_part_of_safe_result(self):
         response = b'{"choices":[{"message":{"content":"1. first\\n2. usage\\n3. identity"}}]}'
         with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):

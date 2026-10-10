@@ -43,7 +43,7 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
     def test_only_explicit_account_actions_can_write(self):
-        writes={'account_create','account_login','account_status','account_default','account_profile_update','account_profile_import'}
+        writes={'account_create','account_login','account_status','account_default','account_profile_update','account_profile_capture','account_profile_import'}
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,{})
@@ -64,6 +64,58 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         self.assertEqual({'state': 'failed'}, result['account']['profile_refresh'])
         self.assertTrue(result['account']['profile_capture_required'])
 
+    def test_profile_import_requires_single_use_matching_capture(self):
+        account={'id':'one','provider_id':'minimax','usage_credential_id':'key-one'}
+        target={'view':'other_accounts','id':'one'}
+        with patch.object(self.service,'_other_accounts',return_value={'accounts':[account]}):
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**target,'capture_id':'forged','display_name':'Wrong'})
+            grant=self.service.call('account_profile_capture',target)
+            args={**target,'capture_id':grant['capture_id'],'display_name':'Verified'}
+            self.service.call('account_profile_import',args)
+            before=(self.root/'account-profiles.json').read_bytes()
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',args)
+            self.assertEqual(before,(self.root/'account-profiles.json').read_bytes())
+            grant=self.service.call('account_profile_capture',target)
+            account['usage_credential_id']='key-two'
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**args,'capture_id':grant['capture_id']})
+            self.assertEqual(before,(self.root/'account-profiles.json').read_bytes())
+
+    def test_profile_capture_expiry_and_replacement_reject_old_grants(self):
+        account={'id':'one','provider_id':'minimax','usage_credential_id':'key-one'}
+        target={'view':'other_accounts','id':'one'}
+        with patch.object(self.service,'_other_accounts',return_value={'accounts':[account]}):
+            with patch('codex_workbench.service.time.monotonic',return_value=100):
+                old=self.service.call('account_profile_capture',target)
+                new=self.service.call('account_profile_capture',target)
+                with self.assertRaises(ValueError):
+                    self.service.call('account_profile_import',{**target,'capture_id':old['capture_id'],'display_name':'Old'})
+            with patch('codex_workbench.service.time.monotonic',return_value=701):
+                with self.assertRaises(ValueError):
+                    self.service.call('account_profile_import',{**target,'capture_id':new['capture_id'],'display_name':'Expired'})
+            self.assertFalse((self.root/'account-profiles.json').exists())
+
+    def test_current_profile_grant_and_snapshot_follow_bound_subject(self):
+        account={'id':'current','email':'person@example.invalid'}
+        target={'view':'accounts','id':'current'}
+        with patch.object(self.native,'accounts',return_value=[account]), patch.object(self.native,'profile_subject_binding',return_value='a'*64,create=True) as binding:
+            grant=self.service.call('account_profile_capture',target)
+            self.service.call('account_profile_import',{**target,'capture_id':grant['capture_id'],'display_name':'First person'})
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+            current=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+            self.assertEqual('First person',current['display_name'])
+            self.assertNotIn('_verified_subject_binding',current)
+            grant=self.service.call('account_profile_capture',target)
+            binding.return_value='b'*64
+            with self.assertRaises(ValueError):
+                self.service.call('account_profile_import',{**target,'capture_id':grant['capture_id'],'display_name':'Wrong person'})
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+            current=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+            self.assertNotIn('display_name',current)
+            self.assertNotIn('_verified_subject_binding',current)
+
     def test_model_queries_preserve_database_and_hide_endpoint_secrets(self):
         db=self.root/'workbench.sqlite3'
         with sqlite3.connect(db) as c:
@@ -75,7 +127,7 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         self.assertEqual(before,hashlib.sha256(db.read_bytes()).hexdigest())
 
     def test_snapshot_refresh_does_not_restore_explicitly_removed_profile(self):
-        account={'id':'current','email':'person@example.invalid','name':'Old name','name_source':'official',
+        account={'id':'registered-one','email':'person@example.invalid','name':'Old name','name_source':'official',
                  'display_name':'Old name','avatar_data_uri':'old-avatar'}
         value={'view':'accounts','accounts':[account],'status':{'state':'ok'}}
         self.service.snapshots.put('fixture-context','accounts',value)

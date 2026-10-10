@@ -91,4 +91,33 @@ class AccountSnapshotTest(unittest.TestCase):
         self.assertEqual(0,self.cache.cached(self.account)['remaining_percent'])
         self.assertEqual(2,self.cache.cached(self.account)['reset_cards'])
 
+    def test_usage_subject_switch_discards_omitted_old_usage_fields(self):
+        self.cache.save_usage(self.account, {'remaining_percent': 25}, subject='subject-b')
+        cached = self.cache.cached(self.account)
+        self.assertEqual(25, cached['remaining_percent'])
+        for field in ('reset_cards', 'resets_at', 'observed_at'):
+            self.assertNotIn(field, cached)
+        self.assertEqual(__import__('hashlib').sha256(b'subject-b').hexdigest(),
+                         self.cache.usage_subject_binding(self.account))
+
+    def test_historical_snapshot_migration_requires_profile_subject_evidence(self):
+        account = {**self.account, 'id': 'migrated'}
+        binding = __import__('hashlib').sha256(b'subject-a').hexdigest()
+        historical = {'id': 'migrated', 'email': 'a@example.invalid', 'name': 'Historical', 'login_status': 'ready'}
+        snapshots = {'contexts': {'old': {'accounts': {
+            'updated_at': '2026-01-01T00:00:00+00:00', 'data': {'accounts': [historical]},
+        }}}}
+        (self.root / 'snapshots.json').write_text(json.dumps(snapshots))
+        profiles = self.root / 'account-profiles.json'
+        profiles.write_text(json.dumps({'version': 1, 'profiles': [{
+            'view': 'accounts', 'identity': ['codex', 'migrated', 'a@example.invalid'], 'source': 'official_page',
+        }]}))
+        self.cache.migrate(account)
+        self.assertFalse(self.cache.path(account, 'profile').exists())
+        profiles.write_text(json.dumps({'version': 1, 'profiles': [{
+            'view': 'accounts', 'identity': ['codex', 'migrated', 'a@example.invalid', binding], 'source': 'official_page',
+        }]}))
+        self.cache.migrate(account)
+        self.assertEqual('Historical', self.cache.cached(account)['name'])
+
 if __name__=='__main__':unittest.main()

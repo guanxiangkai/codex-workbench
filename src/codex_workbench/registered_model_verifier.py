@@ -504,8 +504,8 @@ def write_metadata(data_dir: Path, results: list[dict]) -> None:
     target.chmod(0o600)
 
 
-def write_reviews(data_dir: Path, reviews: dict[str, str]) -> None:
-    """将成功文本模型的审查正文单独写进本机 0600 文件，和探测元数据隔离。"""
+def write_reviews(data_dir: Path, reviews: dict[str, str], selected_model_ids: set[str] | None = None) -> None:
+    """更新本次选中模型的审查正文；失败模型清除旧值，未选模型保留。"""
     target = Path(data_dir) / "registered-model-reviews.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     previous: dict[str, dict] = {}
@@ -516,6 +516,8 @@ def write_reviews(data_dir: Path, reviews: dict[str, str]) -> None:
                         if isinstance(item, dict) and isinstance(item.get("model_id"), str)}
     except (OSError, ValueError, json.JSONDecodeError):
         pass
+    if selected_model_ids is not None:
+        previous = {model_id: item for model_id, item in previous.items() if model_id not in selected_model_ids}
     observed_at = int(time.time())
     for model_id, review in reviews.items():
         if isinstance(model_id, str) and isinstance(review, str) and review.strip():

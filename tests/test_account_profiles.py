@@ -8,6 +8,8 @@ from unittest.mock import patch
 from codex_workbench.account_profiles import apply_profiles, import_profile, _valid_avatar
 
 AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+SUBJECT_A = 'a' * 64
+SUBJECT_B = 'b' * 64
 
 
 class ProfileTests(unittest.TestCase):
@@ -40,7 +42,7 @@ class ProfileTests(unittest.TestCase):
     def test_partial_manual_update_preserves_other_confirmed_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'profiles.json'
-            account={'id':'current','email':'a@example.invalid'}
+            account={'id':'current','email':'a@example.invalid','_verified_subject_binding': SUBJECT_A}
             import_profile(path,'accounts',account,display_name='Alice',avatar_data_uri=AVATAR,account_identifier='subject-123')
             import_profile(path,'accounts',account,display_name='Alice New')
             profile=apply_profiles({'accounts':[account]},'accounts',path)['accounts'][0]
@@ -52,7 +54,7 @@ class ProfileTests(unittest.TestCase):
     def test_explicitly_missing_field_clears_but_omitted_field_is_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'
-            account = {'id': 'current', 'email': 'a@example.invalid'}
+            account = {'id': 'current', 'email': 'a@example.invalid', '_verified_subject_binding': SUBJECT_A}
             import_profile(path, 'accounts', account, display_name='Alice', avatar_data_uri=AVATAR,
                            account_identifier='subject-123')
             import_profile(path, 'accounts', account, missing_fields=['display_name', 'avatar_data_uri'])
@@ -78,6 +80,33 @@ class ProfileTests(unittest.TestCase):
         for value in ('====', 'a===b', 'YQ==', base64.b64encode(b'\x89PNG\r\n\x1a\nnot an image').decode()):
             self.assertFalse(_valid_avatar('data:image/png;base64,' + value))
         self.assertFalse(_valid_avatar(AVATAR.replace('image/png', 'image/jpeg')))
+
+    def test_current_profile_identity_never_reuses_same_email_after_subject_switch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            first = {'id': 'current', 'email': 'same@example.invalid', '_verified_subject_binding': SUBJECT_A}
+            second = {**first, '_verified_subject_binding': SUBJECT_B}
+            import_profile(path, 'accounts', first, display_name='Subject A')
+            self.assertNotIn('display_name', apply_profiles({'accounts': [second]}, 'accounts', path)['accounts'][0])
+            import_profile(path, 'accounts', second, display_name='Subject B')
+            self.assertEqual('Subject A', apply_profiles({'accounts': [first]}, 'accounts', path)['accounts'][0]['display_name'])
+            applied = apply_profiles({'accounts': [second]}, 'accounts', path)['accounts'][0]
+            self.assertEqual('Subject B', applied['display_name'])
+            self.assertNotIn('_verified_subject_binding', applied)
+
+    def test_current_legacy_profile_migrates_only_with_its_stored_subject_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            path.write_text(json.dumps({'version': 1, 'profiles': [{
+                'view': 'accounts', 'identity': ['codex', 'current', 'same@example.invalid'],
+                'verified_subject_binding': SUBJECT_A, 'source': 'official_page', 'display_name': 'Legacy A',
+            }]}))
+            account = {'id': 'current', 'email': 'same@example.invalid', '_verified_subject_binding': SUBJECT_A}
+            profile = import_profile(path, 'accounts', account, account_identifier='subject-a')
+            self.assertEqual(['codex', 'current', 'same@example.invalid', SUBJECT_A], profile['identity'])
+            document = json.loads(path.read_text())
+            self.assertEqual(1, len(document['profiles']))
+            self.assertEqual('Legacy A', document['profiles'][0]['display_name'])
 
     def test_identifier_only_observation_records_missing_display_fields(self):
         with tempfile.TemporaryDirectory() as directory:

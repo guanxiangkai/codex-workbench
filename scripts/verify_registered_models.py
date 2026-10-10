@@ -89,8 +89,9 @@ def main() -> int:
                         for model, (result, _, diagnostic) in zip(selected, outcomes)]
     reviews = {result["model_id"]: review for result, review, _ in outcomes if result["success"] and review}
     write_metadata(args.data_dir, metadata_results)
-    if reviews:
-        write_reviews(args.data_dir, reviews)
+    # Reconcile every selected model: a failed/invalid review must remove its
+    # previous success, while models outside this invocation remain untouched.
+    write_reviews(args.data_dir, reviews, {model["id"] for model in selected})
     record_results(args.data_dir, selected, results)
     for result in results:
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))

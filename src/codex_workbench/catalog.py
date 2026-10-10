@@ -34,9 +34,9 @@ def definition(name, title, description, properties=None, required=None, *, read
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
-    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default", "account_profile_update"):
+    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
-    if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_import"):
+    if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "account_profile_import"):
         result["annotations"]["readOnlyHint"] = False
     if name in ("account_create", "account_login"):
         result["annotations"]["idempotentHint"] = False
@@ -50,7 +50,8 @@ TOOLS = [
     definition("account_status", "核验 Codex 账户", "读取官方登录状态和额度，并登记已确认的账户主体。", {"id": ID}, ["id"]),
     definition("account_default", "设置默认账户", "设置已登记且身份核验通过的默认账户；所有会话下一次请求使用该账户。", {"id": ID, "expected_default_id": text(255, True)}, ["id", "expected_default_id"]),
     definition("account_profile_update", "更新账户资料", "仅在用户手动更新时读取 Codex 官方资料；不代表已采集网页头像。", {"id": ID}, ["id"]),
-    definition("account_profile_import", "保存官网账户资料", "仅保存已在官方可见页面核对为同一账户的真实昵称和本地头像；不读取或保存 Cookie、Token。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID, "display_name": text(200), "account_identifier": text(200), "avatar_data_uri": text(1048576), "missing_fields": {"type": "array", "items": {"type": "string", "enum": ["display_name", "avatar_data_uri", "account_identifier"]}, "uniqueItems": True, "maxItems": 3}, "observed_at": text(100)}, ["view", "id"]),
+    definition("account_profile_capture", "授权官网资料采集", "仅供工作台首次登录或用户点击更新资料后申请十分钟内有效的单次保存授权。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID}, ["view", "id"], idempotent=False),
+    definition("account_profile_import", "保存官网账户资料", "需要工作台发起的有效单次 capture_id；仅保存已在官方可见页面核对为同一账户的真实昵称和本地头像；不读取或保存 Cookie、Token。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID, "capture_id": text(128), "display_name": text(200), "account_identifier": text(200), "avatar_data_uri": text(1048576), "missing_fields": {"type": "array", "items": {"type": "string", "enum": ["display_name", "avatar_data_uri", "account_identifier"]}, "uniqueItems": True, "maxItems": 3}, "observed_at": text(100)}, ["view", "id", "capture_id"]),
     definition("open_workbench", "工作台", "打开账户、配置、知识和模型工作台。"),
     definition("workbench_state", "读取工作台", "按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS}),
     definition("workbench_sync", "同步工作台变化", "按修订返回后台快照差异；刷新仅排入后台采集，失败保留最后成功数据，不返回密钥。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS, "revision": text(64), "refresh": {"type": "boolean"}}, ["view"]),
@@ -67,7 +68,7 @@ TOOLS = [
 ]
 
 _OUTPUT_KEYS = {
-    "account_profile_update": ["account"], "account_profile_import": ["profile"],
+    "account_profile_update": ["account"], "account_profile_capture": ["capture_id", "expires_in_seconds"], "account_profile_import": ["profile"],
     "account_create": ["account"], "account_login": ["login"], "account_status": ["account", "login"],
     "account_default": ["default_account_id", "applies_to"], "open_workbench": ["view", "read_only", "status"],
     "workbench_state": ["view", "read_only", "status"], "workbench_sync": ["context", "revision", "base_revision", "unchanged"],

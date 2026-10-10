@@ -26,5 +26,8 @@ class AccountManagementCatalogTests(unittest.TestCase):
                     validate(name, {})
 
     def test_manual_profile_update_is_app_only(self):
-        tool = next(item for item in TOOLS if item['name'] == 'account_profile_update')
-        self.assertEqual(['app'], tool['_meta']['ui']['visibility'])
+        for name in ('account_profile_update', 'account_profile_capture'):
+            tool = next(item for item in TOOLS if item['name'] == name)
+            self.assertEqual(['app'], tool['_meta']['ui']['visibility'])
+        with self.assertRaises(ValueError):
+            validate('account_profile_import', {'view':'accounts','id':'current','display_name':'Name'})

@@ -13,12 +13,25 @@ import zlib
 MAX_PROFILE_BYTES = 4 * 1024 * 1024
 _PROFILE_LOCK = threading.RLock()
 _PROFILE_FIELDS = ('display_name', 'avatar_data_uri', 'account_identifier')
+_SUBJECT_BINDING = re.compile(r'[0-9a-f]{64}')
+
+
+def _verified_subject_binding(account):
+    """仅接收后台注入的单向主体摘要，绝不把该内部字段投影到页面。"""
+    value = account.get('_verified_subject_binding')
+    return value if isinstance(value, str) and _SUBJECT_BINDING.fullmatch(value) else None
 
 
 def profile_identity(view, account):
     """资料必须绑定到已确认的同一账户，不能按显示名称复用。"""
     if view == 'accounts' and account.get('email'):
-        return ['codex', account.get('id'), account.get('email')]
+        # ``current`` 跟随原生登录态切换，必须同时带上已核验主体摘要；其他
+        # execution_accounts 的 id 已由登记主体固定，保留既有 identity 使已
+        # 确认资料不因这次隔离升级而失配。
+        if account.get('id') == 'current':
+            binding = _verified_subject_binding(account)
+            return ['codex', 'current', account['email'], binding] if binding else None
+        return ['codex', account.get('id'), account['email']]
     if view == 'other_accounts' and all(account.get(key) for key in ('provider_id', 'id', 'usage_credential_id')):
         return ['provider', account['provider_id'], account['id'], account['usage_credential_id']]
     return None
@@ -128,10 +141,18 @@ def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=N
         raise ValueError('账户资料存储不可用') from error
     if not isinstance(document, dict) or document.get('version') != 1 or not isinstance(document.get('profiles'), list):
         raise ValueError('账户资料存储格式无效')
-    previous = next((item for item in document['profiles'] if isinstance(item, dict)
-                     and item.get('view') == view and item.get('identity') == identity), {})
+    def matching(item):
+        if not isinstance(item, dict) or item.get('view') != view:
+            return False
+        if item.get('identity') == identity:
+            return True
+        # 仅当旧资料自己已经保存过相同的内部主体摘要时，才允许从旧
+        # 三段 Codex identity 迁移；同邮箱本身不是主体证明。
+        legacy = identity[:3] if view == 'accounts' and len(identity) == 4 else None
+        return item.get('identity') == legacy and item.get('verified_subject_binding') == identity[3]
+    previous = next((item for item in document['profiles'] if matching(item)), {})
     profiles = [item for item in document['profiles'] if isinstance(item, dict)
-                and not (item.get('view') == view and item.get('identity') == identity)]
+                and not matching(item)]
     previous_missing = previous.get('missing_fields') if isinstance(previous.get('missing_fields'), list) else []
     # 官方页面明确不存在的结论是持久资料的一部分；后续只更新另一个字段
     # 不能让原始 RPC 值再次回退显示。只有本次获得该字段的新确认值才解除。
@@ -173,19 +194,21 @@ def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=N
 def apply_profiles(value, view, path):
     if view not in ('accounts', 'other_accounts'):
         return value
+    clean={**value,'accounts':[{key:item for key,item in account.items() if key != '_verified_subject_binding'} for account in value.get('accounts',[])]}
     try:
         path = Path(path)
         if path.is_symlink() or path.stat().st_size > MAX_PROFILE_BYTES:
-            return value
+            return clean
         document = json.loads(path.read_text(encoding='utf-8'))
         if not isinstance(document, dict) or document.get('version') != 1 or not isinstance(document.get('profiles'), list):
-            return value
+            return clean
     except (OSError, ValueError):
-        return value
+        return clean
     accounts = []
     for account in value.get('accounts', []):
         item = dict(account)
         identity = profile_identity(view, item)
+        item.pop('_verified_subject_binding', None)
         for profile in document['profiles']:
             if (not isinstance(profile, dict) or identity is None or profile.get('view') != view
                     or profile.get('identity') != identity or profile.get('source') != 'official_page'):

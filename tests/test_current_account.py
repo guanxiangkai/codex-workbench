@@ -157,12 +157,12 @@ class CurrentAccountTests(unittest.TestCase):
                 db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,subject_id TEXT)')
                 db.execute('INSERT INTO execution_accounts VALUES(?,?,?)', ('current', 'Current', 'subject-a'))
             account = {'id': 'current', 'subject_id': 'subject-a'}
-            AccountSnapshot(root).save_profile(account, {'name': 'Legacy profile', 'name_source': 'official',
-                                                         'profile_status': {'source': 'official_rpc', 'name': 'available', 'avatar': 'missing'}})
+            AccountSnapshot(root).save_profile(account, {'name': 'Legacy profile', 'name_source': 'official'})
             with patch('codex_workbench.readonly_sources.current_account_home', return_value=str(native)):
                 reader = NativeRead(database, 'unused', rpc_factory=FakeRpc, catalog=object())
                 self.assertEqual('Legacy profile', reader.accounts()[0]['name'])
                 self.assertEqual('Legacy profile', reader.accounts(cached_only=True)[0]['name'])
+                self.assertIsNotNone(reader.profile_subject_binding('current'))
 
     def test_subjectless_current_fallback_reuses_profile_only_after_matching_usage_check(self):
         from codex_workbench.account_snapshot import AccountSnapshot
@@ -176,10 +176,12 @@ class CurrentAccountTests(unittest.TestCase):
             snapshots.save_usage(account, {'remaining_percent': 80}, subject='subject-a')
             reader = NativeRead(database, 'unused', catalog=object())
             self.assertEqual('Confirmed fallback', reader.accounts(cached_only=True)[0]['name'])
+            self.assertEqual(_subject_binding('subject-a'), reader.profile_subject_binding('current'))
             snapshots.save_usage(account, {'remaining_percent': 20}, subject='subject-b')
             stale = reader.accounts(cached_only=True)[0]
             self.assertEqual('用户名未提供', stale['name'])
             self.assertNotIn('profile_status', stale)
+            self.assertIsNone(reader.profile_subject_binding('current'))
 
     def test_online_subject_switch_removes_previously_projected_fallback_profile(self):
         from codex_workbench.readonly_sources import NativeRead

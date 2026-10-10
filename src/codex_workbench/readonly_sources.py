@@ -172,13 +172,34 @@ class NativeRead:
             return False
         profile = self.account_snapshots.get(account, 'profile')
         status = profile.get('profile_status')
-        if not isinstance(status, dict) or status.get('subject_binding') is not None:
+        if not profile or profile.get('invalidated') or (isinstance(status, dict) and status.get('subject_binding') is not None):
             return False
         binding = _subject_binding(subject)
         if binding is None:
             return False
+        status = status if isinstance(status, dict) else {'source': 'legacy_snapshot'}
         self.account_snapshots.save_profile(account, {'profile_status': {**status, 'subject_binding': binding}})
         return True
+
+    def profile_subject_binding(self, account_id):
+        """供受控资料导入临时绑定使用；返回值是内部摘要，调用方不得投影页面。"""
+        if not isinstance(account_id, str) or not account_id:
+            return None
+        saved = rows(self.path, 'execution_accounts', ['id', 'codex_home', 'subject_id', 'expected_email'])
+        account = next((item for item in saved if item.get('id') == account_id), None)
+        if account is None and account_id == 'current':
+            account = {'id': 'current'}
+        if account is None:
+            return None
+        profile = self.account_snapshots.get(account, 'profile')
+        status = profile.get('profile_status') if isinstance(profile, dict) else None
+        binding = status.get('subject_binding') if isinstance(status, dict) else None
+        if not isinstance(binding, str) or not binding:
+            return None
+        registered = _subject_binding(account.get('subject_id'))
+        valid = binding == registered if registered is not None else (
+            binding == self.account_snapshots.usage_subject_binding(account))
+        return binding if valid else None
 
     def accounts(self, *, cached_only=False, profile_refresh_id=None, profile_first_only=False):
         """读取已登记账户，并在身份变化时丢弃不匹配的额度。"""

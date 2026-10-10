@@ -316,6 +316,7 @@ class Bridge{
   const text=`请更新工作台账户资料 ${target}。先读取本地 workbench_state，核对目标账户；使用已有官方网页登录态，只读取官网可见的真实用户名、账户标识和头像。必须确认官网账户与目标账户一致；不一致或未登录时请用户在官网完成对应登录，绝不把当前浏览器另一个账户资料套用过来。用浏览器已观察图片下载能力保存真实头像为本地 data URI，调用 account_profile_import 保存；可见页没有头像或昵称就保持缺失。不要提取 Cookie、Token 或重放私有接口。资料写入后仅用量由 Python 后台刷新，资料仅在首次登录及用户明确点击更新时改变。`;
   const result=await this.rpc('ui/message',{role:'user',content:[{type:'text',text}]});
   if(result?.isError)throw Error('Codex 尚未接受资料采集，请稍后重试');
+  watchProfileCapture(view,id);
  }
  async openDocumentation(url){if(!['https://developers.openai.com/api/reference/resources/images/methods/generate','https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create'].includes(url))throw Error('文档地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.click();}
  async open(url){if(!nativeUrl(url))throw Error('原生会话地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.click();}
@@ -411,8 +412,8 @@ function entryTitle(e){return chineseTitle(e.label||e.name||e.id,'配置');}
 function projectMeta(t){const p=A(s.data.projects).find(x=>x.id===t.project_id),sec=A(s.data.sections).find(x=>x.id===t.section_id);return [sec,p].filter(Boolean).map(entityTag).join('');}
 function sessionsFiltered(){return A(s.data.sessions).filter(x=>(!s.section||(s.section==='__none__'?!x.section_id:x.section_id===s.section))&&(!s.project||x.project_id===s.project));}
 function orderedAccounts(items){const sorted=newestRecords(items);return [...sorted.filter(a=>a.is_current),...sorted.filter(a=>!a.is_current)];}
-function profileUpdateButton(account,view){return `<button class="soft profile-refresh" data-profile-view="${view}" data-profile-id="${E(account.id)}" ${s.profileUpdating?'disabled':''}>${s.profileUpdating===account.id?'正在请求…':'更新资料'}</button>`;}
-async function updateProfile(view,id){if(s.profileUpdating)return;s.profileUpdating=id;s.error='';render();try{if(view==='accounts')await bridge.tool('account_profile_update',{id});await bridge.captureProfile(view,id);message('已请 Codex 核对官网资料；完成后会更新本地展示');}catch(error){s.error=error.message;}finally{s.profileUpdating=null;render();}}
+function profileUpdateButton(account,view){if(view==='other_accounts'&&!['provider_id','id','usage_credential_id'].every(key=>account[key]))return '';return `<button class="soft profile-refresh" data-profile-view="${view}" data-profile-id="${E(account.id)}" ${s.profileUpdating||s.profileCapture?'disabled':''}>${s.profileUpdating===account.id?'正在请求…':'更新资料'}</button>`;}
+async function updateProfile(view,id){if(s.profileUpdating||s.profileCapture)return;s.profileUpdating=id;s.error='';render();try{if(view==='accounts')await bridge.tool('account_profile_update',{id});await bridge.captureProfile(view,id);message('已请 Codex 核对官网资料；完成后会更新本地展示');}catch(error){s.error=error.message;}finally{s.profileUpdating=null;render();}}
 function usageRefreshButton(){return `<button id="refresh-usage" class="soft usage-refresh" aria-busy="${s.usageRefreshing}" ${s.usageRefreshing?'disabled':''}>${s.usageRefreshing?'刷新中...':'刷新用量'}</button>`;}
 const fmtResetDate=(v,minuteOnly=false)=>v==null?'未提供':new Date(typeof v==='number'?v*1000:v).toLocaleString('zh-CN',{hour12:false,timeZone:'Asia/Shanghai',...(minuteOnly?{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}:{})});
 function resetCountdown(value,now=Date.now()){
@@ -501,7 +502,7 @@ function otherAccountCard(a){
 }
 function otherAccountsView(data=s.data,query=s.query,selected=s.accountProvider){
  const accounts=A(data.accounts),providers=data.facets?.providers||accountProviders(accounts),provider=providers.some(p=>p.id===selected)?selected:'';
- const items=findText(accounts,query,['label','provider_name']).filter(a=>!provider||a.provider_id===provider);
+ const items=findText(accounts,query,['label','display_name','provider_name','account_identifier']).filter(a=>!provider||a.provider_id===provider);
  return `<div class="toolbar other-account-toolbar">${search()}${usageRefreshButton()}${listCount(items,'个账户')}</div>${providers.length?`<div class="provider-filters" role="group" aria-label="账户平台"><button id="provider-all" data-provider="" aria-pressed="${!provider}">全部平台 <span>${providers.reduce((n,p)=>n+p.count,0)||accounts.length}</span></button>${providers.map(p=>`<button id="provider-${E(p.id)}" data-provider="${E(p.id)}" style="${providerStyle(p.id)}" aria-pressed="${provider===p.id}">${E(p.name)} <span>${p.count}</span></button>`).join('')}</div>`:''}<div class="account-grid other-account-grid">${items.map(otherAccountCard).join('')||empty(accounts.length?'没有匹配的账户':'暂无其他账户，配置账户后会显示对应平台')}</div>`;
 }
 
@@ -561,7 +562,23 @@ function queueListSearch(event){
 }
 function pendingSnapshot(){const snapshot=s.data.status?.snapshot;return !snapshot?.updated_at&&['pending','error'].includes(snapshot?.state);}
 function clearSnapshotPoll(){clearTimeout(snapshotPollTimer);snapshotPollTimer=null;snapshotPollAttempts=0;}
-function scheduleSnapshotPoll(page){const snapshot=s.data.status?.snapshot;if((!snapshot||(!snapshot.refreshing&&snapshot.state!=='pending')||snapshotPollAttempts>=30)||document.hidden||s.detail||s.page!==page)return;clearTimeout(snapshotPollTimer);snapshotPollTimer=setTimeout(()=>{if(!document.hidden&&s.page===page&&!s.detail){snapshotPollAttempts++;load({poll:true});}},2000);}
+function watchProfileCapture(view,id){
+ const previous=A(s.data.accounts).find(account=>account.id===id)?.profile_observed_at;
+ s.profileCapture={view,id,previous,expiresAt:Date.now()+10*60*1000};
+ // 宿主接受请求不代表官网采集完成；只轮询本地快照，不重复请求资料或额度。
+ scheduleSnapshotPoll(s.page);
+}
+function scheduleSnapshotPoll(page){
+ const capture=s.profileCapture;
+ if(capture&&Date.now()>=capture.expiresAt){s.profileCapture=null;render();message('官网资料核对尚未完成；完成后可重新打开此页查看');}
+ if(s.profileCapture&&capture.view===page){
+  const account=A(s.data.accounts).find(account=>account.id===capture.id);
+  if(account?.profile_observed_at&&account.profile_observed_at!==capture.previous){s.profileCapture=null;render();message('官网资料已更新');}
+ }
+ const waiting=s.profileCapture?.view===page,snapshot=s.data.status?.snapshot;
+ if((!waiting&&(!snapshot||(!snapshot.refreshing&&snapshot.state!=='pending')||snapshotPollAttempts>=30))||document.hidden||s.detail||s.page!==page)return;
+ clearTimeout(snapshotPollTimer);snapshotPollTimer=setTimeout(()=>{if(!document.hidden&&s.page===page&&!s.detail){snapshotPollAttempts++;load({poll:true});}},waiting?5000:2000);
+}
 function render(){
  const focused=document.activeElement?.id,selection=document.activeElement?.selectionStart;
  const scrolls=[...document.querySelectorAll('.directories')].map(x=>[x.scrollTop,x.scrollLeft]);
@@ -655,7 +672,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   s.error=e.message;s.loading=false;s.syncing=false;s.usageRefreshing=false;
   // 临时网络失败保留已读取内容并明确报错；失效许可才清空账户缓存。
   if(e.clearCache){viewCache.clear();s.data={};cacheContext=null;}else{s.data=cached?.data||previous;}
-  clearSecrets();render();
+  clearSecrets();render();if(s.profileCapture?.view===page)scheduleSnapshotPoll(page);
  }finally{if(seq===s.seq){s.loading=false;s.syncing=false;s.usageRefreshing=false;}}
 }
 function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.detail=null;s.data={};s.query='';s.folder='';s.kind='';s.scope='global';s.accountProvider='';clearSecrets();load();}

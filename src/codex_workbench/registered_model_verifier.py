@@ -129,12 +129,18 @@ def _image_output(value: dict | None) -> bool:
     if isinstance(url, str) and url.startswith("https://"):
         return True
     encoded = first.get("b64_json")
+    return _valid_image_base64(encoded)
+
+
+def _valid_image_base64(encoded: object) -> bool:
+    """只接受可识别的 PNG、JPEG 或 WebP 容器，避免把任意 Base64 当作图片成功。"""
     if not isinstance(encoded, str) or len(encoded) > 2 * 1024 * 1024:
         return False
     try:
-        return len(base64.b64decode(encoded, validate=True)) > 32
+        image = base64.b64decode(encoded, validate=True)
     except ValueError:
         return False
+    return any(valid_media(image, suffix, "image") for suffix in (".png", ".jpeg", ".webp"))
 
 
 def _minimax_image_output(value: dict | None) -> bool:
@@ -152,12 +158,8 @@ def _minimax_image_output(value: dict | None) -> bool:
     if not isinstance(encoded, list):
         return False
     for image in encoded:
-        if isinstance(image, str) and len(image) <= 2 * 1024 * 1024:
-            try:
-                if len(base64.b64decode(image, validate=True)) > 32:
-                    return True
-            except ValueError:
-                continue
+        if _valid_image_base64(image):
+            return True
     return False
 
 
@@ -284,6 +286,25 @@ def _video_result(value: dict | None) -> tuple[str | None, bool]:
     return task_id, status in {"success", "succeeded", "completed"} and has_video
 
 
+def _video_terminal_failure(value: dict | None) -> bool:
+    """确认任务已经结束却没有有效视频时终止续查，防止下次运行重复恢复同一失败任务。"""
+    if not isinstance(value, dict):
+        return False
+    task = value.get("task")
+    if isinstance(task, dict):
+        status = str(task.get("status") or "").lower()
+        content = task.get("content")
+        has_video = isinstance(content, dict) and _downloadable_https_url(content.get("url"))
+    else:
+        status = str(value.get("task_status") or value.get("status") or "").lower()
+        output = value.get("video_result") or value.get("result") or value.get("data")
+        has_video = (isinstance(output, dict) and _downloadable_https_url(output.get("url") or output.get("video_url"))) or (
+            isinstance(output, list) and any(isinstance(item, dict) and _downloadable_https_url(item.get("url") or item.get("video_url")) for item in output))
+    failed = {"failed", "failure", "error", "cancelled", "canceled", "rejected", "expired"}
+    completed = {"success", "succeeded", "completed"}
+    return status in failed or (status in completed and not has_video)
+
+
 def _native_video(model: dict, token: str, timeout: float) -> dict:
     """视频生成受理不等于成功；两家官方异步协议都必须轮询得到 URL。"""
     deadline = time.monotonic() + timeout
@@ -300,9 +321,12 @@ def _native_video(model: dict, token: str, timeout: float) -> dict:
                                     response_timeout=timeout, error_diagnostics=True)
         if failure:
             return failure
-        task_id, done = _video_result(_json(payload))
+        response = _json(payload)
+        task_id, done = _video_result(response)
         if done:
             return {"success": True, "code": "verified"}
+        if _video_terminal_failure(response):
+            return {"success": False, "code": "task_failed"}
         if not task_id:
             return _response_failure(payload)
     task_path = quote(task_id, safe="")
@@ -328,9 +352,12 @@ def _native_video(model: dict, token: str, timeout: float) -> dict:
             evidence = failure.get("evidence") if isinstance(failure.get("evidence"), dict) else {}
             failure["evidence"] = {**evidence, "video_task_id": task_id}
             return failure
-        _, done = _video_result(_json(payload))
+        response = _json(payload)
+        _, done = _video_result(response)
         if done:
             return {"success": True, "code": "verified"}
+        if _video_terminal_failure(response):
+            return {"success": False, "code": "task_failed"}
         interval = min(interval * 1.5, 5.0)
     return {"success": False, "code": "task_pending", "evidence": {"video_task_id": task_id}}
 

@@ -94,7 +94,7 @@ def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=N
         raise ValueError('头像必须是受支持的本地图片 data URI')
     if account_identifier is not None and (not isinstance(account_identifier, str) or not re.fullmatch(r'[A-Za-z0-9._@+-]{1,200}', account_identifier)):
         raise ValueError('官方账户标识无效')
-    if display_name is None and avatar_data_uri is None:
+    if display_name is None and avatar_data_uri is None and account_identifier is None:
         raise ValueError('至少提供一个公开资料字段')
     if observed_at is not None:
         try:

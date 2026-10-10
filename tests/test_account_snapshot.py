@@ -35,6 +35,7 @@ class AccountSnapshotTest(unittest.TestCase):
             self.assertEqual('Alice',item['name']);self.assertEqual(80,item['remaining_percent'])
             self.assertEqual(self.item['observed_at'],item['observed_at'])
         self.assertEqual('failed',failed['usage_refresh']['state'])
+        self.assertEqual('failed', self.reader.accounts(cached_only=True)[0]['usage_refresh']['state'])
         # A restart still reads the separate JSON files without a network call.
         self.assertEqual('a@example.invalid',NativeRead(self.db,'unused',catalog=object()).accounts(cached_only=True)[0]['email'])
 
@@ -53,6 +54,18 @@ class AccountSnapshotTest(unittest.TestCase):
         self.assertEqual(['account/read','account/rateLimits/read','account/read'],calls)
         self.assertEqual(0,result['remaining_percent']);self.assertEqual('Alice',result['name'])
         self.assertEqual(before,path.read_bytes());self.assertEqual(stamp,path.stat().st_mtime_ns)
+        with patch.object(self.reader, 'rpc') as rpc:
+            cached = self.reader.accounts(cached_only=True)[0]
+            rpc.assert_not_called()
+        self.assertEqual('ready', cached['usage_refresh']['state'])
+        self.assertEqual('ready', cached['login_status'])
+        self.assertEqual(0, cached['remaining_percent'])
+
+    def test_refresh_status_cannot_cross_subject_binding(self):
+        self.cache.save_usage(self.account, {'login_status': 'ready', 'usage_refresh': {'state': 'ready'}}, subject='other-subject')
+        cached = self.reader.accounts(cached_only=True)[0]
+        self.assertEqual('cached', cached['usage_refresh']['state'])
+        self.assertEqual('unavailable', cached['login_status'])
 
     def test_repeated_login_status_preserves_profile_but_manual_update_changes_it(self):
         class Rpc:

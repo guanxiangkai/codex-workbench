@@ -33,7 +33,13 @@ def _subject_binding(subject):
 def _bound_current_profile(account, cached, usage_subject_binding=None):
     """current 资料需与登记主体，或 fallback 最近核验的额度主体一致。"""
     if account.get('id') != 'current':
-        return cached
+        # 非 current 已由登记主体约束，仍须从所有公开投影中移除内部摘要。
+        value = dict(cached)
+        status = value.get('profile_status')
+        if isinstance(status, dict):
+            value['profile_status'] = {key: field for key, field in status.items()
+                                       if key != 'subject_binding'}
+        return value
     status = cached.get('profile_status')
     observed = status.get('subject_binding') if isinstance(status, dict) else None
     registered = _subject_binding(account.get('subject_id'))

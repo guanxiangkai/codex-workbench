@@ -7,7 +7,7 @@ from codex_workbench.catalog import DEFAULT_VIEW, MODULES, TOOLS, validate
 class AccountManagementCatalogTests(unittest.TestCase):
     def test_only_confirmed_workbench_modules_are_exposed(self):
         self.assertEqual(
-            ['accounts', 'other_accounts', 'config', 'agents', 'knowledge', 'models'],
+            ['accounts', 'other_accounts', 'config', 'knowledge', 'models'],
             [module['id'] for module in MODULES],
         )
         self.assertEqual('accounts', DEFAULT_VIEW)
@@ -15,7 +15,7 @@ class AccountManagementCatalogTests(unittest.TestCase):
 
     def test_work_records_planning_and_standalone_connections_are_not_modules(self):
         exposed = {tool['name'] for tool in TOOLS}
-        self.assertIn('skill_detail', exposed)
+        self.assertNotIn('skill_detail', exposed)
         self.assertIn('knowledge_list', exposed)
         self.assertIn('knowledge_detail', exposed)
         self.assertNotIn('connections', [module['id'] for module in MODULES])
@@ -24,3 +24,10 @@ class AccountManagementCatalogTests(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):
                     validate(name, {})
+
+    def test_manual_profile_update_is_app_only(self):
+        for name in ('account_profile_update', 'account_profile_capture'):
+            tool = next(item for item in TOOLS if item['name'] == name)
+            self.assertEqual(['app'], tool['_meta']['ui']['visibility'])
+        with self.assertRaises(ValueError):
+            validate('account_profile_import', {'view':'accounts','id':'current','display_name':'Name'})

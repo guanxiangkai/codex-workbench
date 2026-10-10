@@ -182,3 +182,19 @@ main[data-module="accounts"] .account-grid .account-add{background:linear-gradie
 main[data-module="accounts"] .account:not(.account-add){min-height:340px;padding:24px;gap:14px}main[data-module="accounts"] .account .identity h2{font-size:21px;line-height:30px}main[data-module="accounts"] .account .identity p{font-size:14px}main[data-module="accounts"] .account .quota{font-size:40px}main[data-module="accounts"] .account .metrics strong{font-size:16px;line-height:24px}
 
 .avatar{border-radius:50%}.profile-refresh{font-size:12px}.profile-note{font-size:12px;color:var(--muted)}
+
+/* 配置列表占满剩余视口：目录停留原位，列表与目录各自滚动。 */
+body:has(main[data-module="config"] .config-layout){overflow:hidden}
+body:has(main[data-module="config"] .config-layout) #app{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+body:has(main[data-module="config"] .config-layout) .top,
+body:has(main[data-module="config"] .config-layout) .subnav{flex-shrink:0}
+main[data-module="config"]:has(.config-layout){flex:1;min-height:0;overflow:hidden}
+main[data-module="config"] .config-layout{height:100%;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+main[data-module="config"] .directories{position:static;align-self:stretch;height:100%;max-height:none;min-height:0}
+main[data-module="config"] .config-main{height:100%;min-height:0;min-width:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:2px 4px 12px 2px}
+.config-description{margin:0;font-size:13px;line-height:1.7;color:var(--muted);overflow-wrap:anywhere}
+.config-no-tags{font-size:12px}
+@media(max-width:700px){
+ main[data-module="config"] .config-layout{grid-template-rows:minmax(100px,22dvh) minmax(0,1fr);gap:16px}
+ main[data-module="config"] .directories{height:100%;max-height:none}
+}

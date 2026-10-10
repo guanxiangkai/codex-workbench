@@ -25,6 +25,42 @@ def timestamp():
     return datetime.now(UTC).isoformat()
 
 
+def _subject_binding(subject):
+    """快照只保留主体的单向绑定，供离线资料复用核验而不向页面公开官方主体值。"""
+    return hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject else None
+
+
+def _bound_current_profile(account, cached, usage_subject_binding=None):
+    """current 资料需与登记主体，或 fallback 最近核验的额度主体一致。"""
+    if account.get('id') != 'current':
+        return cached
+    status = cached.get('profile_status')
+    observed = status.get('subject_binding') if isinstance(status, dict) else None
+    registered = _subject_binding(account.get('subject_id'))
+    valid = observed is not None and (
+        observed == registered if registered is not None else observed == usage_subject_binding
+    )
+    if valid:
+        value = dict(cached)
+        value['profile_status'] = {key: field for key, field in status.items() if key != 'subject_binding'}
+        return value
+    return {key: value for key, value in cached.items()
+            if key not in ('email', 'plan', 'name', 'name_source', 'profile_observed_at', 'profile_status')}
+
+
+def _apply_bound_current_profile(item, account, snapshots):
+    """以受主体校验的快照替换 current 资料，不能把先前投影残留在结果里。"""
+    bound = _bound_current_profile(account, snapshots.cached(account), snapshots.usage_subject_binding(account))
+    if account.get('id') == 'current':
+        for key in ('name', 'name_source', 'profile_observed_at', 'profile_status'):
+            item.pop(key, None)
+    item.update(bound)
+    if account.get('id') == 'current':
+        item.setdefault('name', '用户名未提供')
+        item.setdefault('name_source', 'unavailable')
+    return item
+
+
 @contextmanager
 def connection(path):
     """仅打开已存在的数据库；禁止 SQL 写入及隐式建库。"""
@@ -130,6 +166,20 @@ class NativeRead:
         value = rpc.request('account/read', {'refreshToken':False}) or {}
         return value.get('account')
 
+    def _bind_legacy_current_profile(self, account, subject):
+        """首次重新核验主体时仅补充旧快照的绑定，不读取或覆盖任何官网资料字段。"""
+        if account.get('id') != 'current' or not account.get('subject_id') or subject != account.get('subject_id'):
+            return False
+        profile = self.account_snapshots.get(account, 'profile')
+        status = profile.get('profile_status')
+        if not isinstance(status, dict) or status.get('subject_binding') is not None:
+            return False
+        binding = _subject_binding(subject)
+        if binding is None:
+            return False
+        self.account_snapshots.save_profile(account, {'profile_status': {**status, 'subject_binding': binding}})
+        return True
+
     def accounts(self, *, cached_only=False, profile_refresh_id=None, profile_first_only=False):
         """读取已登记账户，并在身份变化时丢弃不匹配的额度。"""
         saved = rows(self.path,'execution_accounts', ['id','name','display_name','expected_email','codex_home','kind','subject_id'])
@@ -150,7 +200,7 @@ class NativeRead:
                   'resets_at':None,'reset_cards':None,'observed_at':timestamp()}
             if not cached_only:
                 self.account_snapshots.migrate(a)
-            item.update(self.account_snapshots.cached(a))
+            _apply_bound_current_profile(item, a, self.account_snapshots)
             if cached_only:
                 item['usage_refresh']={'state':'cached','message':'显示上次成功数据，后台更新额度'}
                 result.append(item);continue
@@ -176,15 +226,17 @@ class NativeRead:
                     if a.get('subject_id') and subject!=a['subject_id']:
                         self.account_snapshots.invalidate(a)
                         item={'id':a['id'],'is_current':is_current,'is_default':a['id']==default_id,'login_status':'identity_mismatch'};result.append(item);continue
+                    if self._bind_legacy_current_profile(a, subject):
+                        _apply_bound_current_profile(item, a, self.account_snapshots)
                     # 只有显式资料更新才写 profile。定时额度刷新不得覆盖首次确认的资料。
                     if profile_refresh_id == a['id'] and (not profile_first_only or not self.account_snapshots.get(a, 'profile').get('checked_at')):
                         profile_item={'email':identity.get('email'),'plan':identity.get('planType')}
                         display=next((identity[k] for k in ('username','displayName','name') if isinstance(identity.get(k),str) and identity[k].strip() and '@' not in identity[k]),None)
                         if display:profile_item.update(name=display.strip(),name_source='official')
                         profile_item['profile_status']={'source':'official_rpc','name':'available' if display else 'missing',
-                                                        'avatar':'missing'}
+                                                        'avatar':'missing','subject_binding':_subject_binding(subject)}
                         self.account_snapshots.save_profile(a,profile_item)
-                        item.update(self.account_snapshots.cached(a))
+                        _apply_bound_current_profile(item, a, self.account_snapshots)
                     now=datetime.now(UTC); normalized=normalize_account(usage,observed_at=now,current_account_id=subject,now=now)
                     # 周窗口从官方桶中选择，只有明确 Codex 主桶时展示，不借用 Spark 的额度。
                     limits=usage.get('rateLimitsByLimitId') or {}
@@ -202,11 +254,8 @@ class NativeRead:
                     item.update(email=identity.get('email'),plan=identity.get('planType'),login_status=status,
                                 remaining_percent=max(0,min(100,100-percent)) if percent is not None else None,
                                 resets_at=number(window.get('resetsAt')) if window else None,reset_cards=normalized.get('resetCredits'))
-                    prior=self.account_snapshots.cached(a)
-                    item['name']=prior.get('name','用户名未提供')
-                    item['name_source']=prior.get('name_source','unavailable')
-                    self.account_snapshots.save_usage(a,item)
-                    item.update(self.account_snapshots.cached(a))
+                    self.account_snapshots.save_usage(a, item, subject=subject)
+                    _apply_bound_current_profile(item, a, self.account_snapshots)
                     item['usage_refresh']={'state':'ready'} if percent is not None else {'state':'failed','message':'未取得本次周额度，保留上次成功数据'}
             except (OSError,ValueError,sqlite3.Error):
                 item['login_status']='unavailable'

@@ -126,7 +126,7 @@ def _image_output(value: dict | None) -> bool:
     if not isinstance(first, dict):
         return False
     url = first.get("url")
-    if isinstance(url, str) and url.startswith("https://"):
+    if _downloadable_https_url(url):
         return True
     encoded = first.get("b64_json")
     return _valid_image_base64(encoded)
@@ -152,7 +152,7 @@ def _minimax_image_output(value: dict | None) -> bool:
     if not isinstance(data, dict):
         return False
     urls = data.get("image_urls")
-    if isinstance(urls, list) and any(isinstance(url, str) and url.startswith("https://") for url in urls):
+    if isinstance(urls, list) and any(_downloadable_https_url(url) for url in urls):
         return True
     encoded = data.get("image_base64")
     if not isinstance(encoded, list):

@@ -7,7 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_workbench.model_probe import _PNG, _provider_error_diagnostic
-from codex_workbench.registered_model_verifier import (_video_result, configuration_fingerprint, verify_model,
+from codex_workbench.registered_model_verifier import (_downloadable_https_url, _image_output, _minimax_image_output,
+                                                       _video_result, configuration_fingerprint, verify_model,
                                                        verify_model_with_review, write_metadata, write_reviews)
 
 
@@ -148,6 +149,25 @@ class RegisteredModelVerifierTests(unittest.TestCase):
                 self.assertFalse(verified)
         _, verified = _video_result({"task_id": "task-1", "status": "success", "video_result": {"url": "https://cdn.example/video.mp4?signature=abc"}})
         self.assertTrue(verified)
+
+    def test_image_urls_require_a_valid_downloadable_https_url(self):
+        for url in ("https://", "https://user@cdn.example/image.png", " https://cdn.example/image.png",
+                    "https://cdn.example/image.png bad"):
+            with self.subTest(url=url):
+                self.assertFalse(_downloadable_https_url(url))
+        for checker, response in ((_image_output, {"data": [{"url": "https://user@cdn.example/image.png"}]}),
+                                  (_minimax_image_output, {"base_resp": {"status_code": 0},
+                                                           "data": {"image_urls": ["https://"]}})):
+            self.assertFalse(checker(response))
+
+    def test_structured_target_must_match_every_selected_endpoint(self):
+        script = _verification_script()
+        selected = [{"base_url": "https://api.minimax.cn/v1/image_generation"},
+                    {"base_url": "https://api.minimax.cn/v1/t2a_v2"}]
+        credential = json.dumps({"api_key": "synthetic-key", "target":
+                                 {"base_url": selected[0]["base_url"]}}).encode()
+        with self.assertRaisesRegex(ValueError, "credential_target"):
+            script._decode_selected_credential(credential, selected)
 
     def test_minimax_video_requires_polled_terminal_content_url(self):
         model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",

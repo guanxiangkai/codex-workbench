@@ -26,8 +26,12 @@ def _decode_selected_credential(payload: bytes, selected: list[dict]) -> str | N
         target = record.get("target") if isinstance(record, dict) else None
         base_url = target.get("base_url") if isinstance(target, dict) else None
         if base_url is not None:
+            # One stdin credential is sent to every selected model.  It is only
+            # safe when its explicit target matches every destination exactly;
+            # accepting the union would leak it to a different base_url.
             endpoints = {str(model.get("base_url") or "").strip().rstrip("/") for model in selected}
-            if not isinstance(base_url, str) or base_url.strip().rstrip("/") not in endpoints:
+            if (not isinstance(base_url, str) or len(endpoints) != 1
+                    or base_url.strip().rstrip("/") not in endpoints):
                 raise ValueError("credential_target")
     return decode_credential(payload, expected_base_url=None)
 

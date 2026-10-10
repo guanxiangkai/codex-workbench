@@ -18,7 +18,11 @@ class AccountSnapshotTest(unittest.TestCase):
             db.execute('INSERT INTO execution_accounts VALUES(:id,:codex_home,:subject_id,:expected_email)',self.account)
         self.cache=AccountSnapshot(self.root)
         self.item={'email':'a@example.invalid','name':'Alice','name_source':'official','plan':'pro','remaining_percent':80,'reset_cards':2,'resets_at':2000000000,'observed_at':'2026-01-01T00:00:00+00:00'}
-        self.cache.save_profile(self.account,self.item);self.cache.save_usage(self.account,self.item)
+        self.cache.save_profile(self.account,{**self.item, 'profile_status': {
+            'source': 'official_rpc',
+            'subject_binding': __import__('hashlib').sha256(b'subject-a').hexdigest(),
+        }})
+        self.cache.save_usage(self.account,self.item,subject='subject-a')
         self.current_home=patch('codex_workbench.readonly_sources.current_account_home',return_value=str(self.root))
         self.current_home.start();self.addCleanup(self.current_home.stop)
         self.reader=NativeRead(self.db,'unused',catalog=object())

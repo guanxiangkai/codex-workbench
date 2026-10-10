@@ -278,6 +278,8 @@ class Workbench:
             if self.source_versions.context()!=context:return False
             existing=self.snapshots.get(context,view)
             value=self._merge_account_fields(view,value,existing.get('data') if existing else None)
+            # 失败回退合并不能恢复已由官网明确清除的资料字段。
+            value=apply_profiles(value,view,self.data_dir/'account-profiles.json')
             value={**value,'status':{k:v for k,v in value.get('status',{}).items() if k!='snapshot'}}
             self.snapshots.put(context,view,value)
             self.snapshot_errors.pop((context,view),None)
@@ -350,7 +352,6 @@ class Workbench:
                         account['reset_analysis'] = dict(analysis)
                     else:
                         account.pop('reset_analysis', None)
-        elif view=='agents':result['skills']=self.native.skills()
         elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
@@ -450,6 +451,7 @@ class Workbench:
             profile=import_profile(self.data_dir/'account-profiles.json', view, account,
                                    display_name=args.get('display_name'), avatar_data_uri=args.get('avatar_data_uri'),
                                    account_identifier=args.get('account_identifier'),
+                                   missing_fields=args.get('missing_fields'),
                                    observed_at=args.get('observed_at'))
             if self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch(view,refresh=True)
@@ -460,10 +462,6 @@ class Workbench:
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
         if name=='module_list':return {'modules':MODULES,'read_only':False}
-        if name=='skill_detail':
-            item=next((skill for skill in self.native.skills() if skill['id']==args['id']),None)
-            if item is None:raise ValueError('技能不存在或不可访问')
-            return {'skill':item}
         if name=='knowledge_list':
             scope=args.get('scope','global')
             value=self.state('knowledge',scope=scope,query=args.get('query',''))

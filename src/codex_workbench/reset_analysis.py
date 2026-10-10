@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover - exercised only by older runtimes
 import re
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -54,13 +55,17 @@ def _model_config(model: Mapping[str, Any]) -> dict[str, Any]:
         reference = "vault:" + credential
     else:
         reference = ""
-    return {
+    config = {
         "model_type": "reasoning",
         "base_url": model.get("base_url", ""),
         "model": model.get("model", ""),
         "protocol": "openai-chat" if model.get("api_profile", "openai_chat") == "openai_chat" else model.get("protocol", "openai-chat"),
         "credential_ref": reference,
     }
+    # 与已通过的 GLM 5.3 验证保持一致；默认 max 推理会耗尽小时任务的时限。
+    if model.get("provider_id") == "bigmodel" and str(model.get("model", "")).startswith("glm-5.3"):
+        config["reasoning_effort"] = "low"
+    return config
 
 
 def _parse_model_text(text: Any) -> dict[str, Any] | None:
@@ -127,7 +132,8 @@ class RegisteredModelClient:
             config_path, request_path = root / "model.json", root / "request.json"
             config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
             request_path.write_text(json.dumps({"tool": "reasoning_chat", "model_id": config["model"],
-                                                "messages": messages, "max_tokens": 8192}, ensure_ascii=False), encoding="utf-8")
+                                                "messages": messages, "max_tokens": 8192,
+                                                "timeout_seconds": self.timeout - 5}, ensure_ascii=False), encoding="utf-8")
             command = [sys.executable, "-I", str(worker), str(config_path), str(request_path)]
             reference = config.get("credential_ref") or ""
             if reference:
@@ -135,13 +141,22 @@ class RegisteredModelClient:
             environment = {key: value for key, value in os.environ.items()
                            if key not in {"OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "PYTHONPATH", "PYTHONHOME"}}
             environment["PYTHONDONTWRITEBYTECODE"] = "1"
-            process = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL, env=environment,
-                                     timeout=self.timeout, check=False)
-            if process.returncode != 0:
-                raise ValueError("model_unavailable")
+            with subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, env=environment, start_new_session=True) as process:
+                try:
+                    output, _ = process.communicate(timeout=self.timeout)
+                except subprocess.TimeoutExpired:
+                    # 保险库包装器和 HTTP 消费者一起收尾，避免下一轮任务留下孤立请求。
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    process.communicate()
+                    raise ValueError("model_timeout") from None
+                if process.returncode != 0:
+                    raise ValueError("model_unavailable")
             try:
-                value = json.loads(process.stdout.decode("utf-8"))
+                value = json.loads(output.decode("utf-8"))
             except (UnicodeDecodeError, ValueError) as exc:
                 raise ValueError("response_invalid") from exc
             if not isinstance(value, dict) or value.get("success") is not True:

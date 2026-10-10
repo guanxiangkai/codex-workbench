@@ -42,17 +42,38 @@ class AccountSnapshotTest(unittest.TestCase):
             def __exit__(self,*args):pass
             def request(self,method,*args):
                 calls.append(method)
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid','planType':'pro'}}
                 return {'accountId':'subject-a','rateLimits':{'limitId':'codex','primary':{'usedPercent':100,'windowDurationMins':10080,'resetsAt':2000000001}}}
         with patch.object(self.reader,'rpc',return_value=Rpc()):result=self.reader.accounts()[0]
-        self.assertEqual(['account/rateLimits/read'],calls)
+        self.assertEqual(['account/read','account/rateLimits/read','account/read'],calls)
         self.assertEqual(0,result['remaining_percent']);self.assertEqual('Alice',result['name'])
         self.assertEqual(before,path.read_bytes());self.assertEqual(stamp,path.stat().st_mtime_ns)
+
+    def test_repeated_login_status_preserves_profile_but_manual_update_changes_it(self):
+        class Rpc:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def request(self,method,*args):
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid','name':'Updated Alice','planType':'pro'}}
+                return {'accountId':'subject-a','rateLimits':{'limitId':'codex','primary':{'usedPercent':25,'windowDurationMins':10080}}}
+        path=self.cache.path(self.account,'profile');before=path.read_bytes()
+        with patch.object(self.reader,'rpc',return_value=Rpc()):
+            self.reader.refresh_profile('current',only_missing=True)
+            self.assertEqual(before,path.read_bytes())
+            result=self.reader.refresh_profile('current')
+        self.assertEqual('Updated Alice',result['name'])
+        self.assertNotEqual(before,path.read_bytes())
 
     def test_changed_subject_invalidates_old_data(self):
         class Rpc:
             def __enter__(self):return self
             def __exit__(self,*args):pass
-            def request(self,*args):return {'accountId':'different'}
+            def request(self,method,*args):
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid'}}
+                return {'accountId':'different'}
         with patch.object(self.reader,'rpc',return_value=Rpc()):result=self.reader.accounts()[0]
         self.assertEqual('identity_mismatch',result['login_status']);self.assertIsNone(result.get('email'))
         self.assertFalse(self.cache.cached(self.account))

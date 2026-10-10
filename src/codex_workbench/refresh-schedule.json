@@ -22,8 +22,7 @@
   "views": {
     "accounts": {
       "active_seconds": 60,
-      "idle_seconds": 300,
-      "profile_seconds": 86400
+      "idle_seconds": 300
     },
     "other_accounts": {
       "active_seconds": 300,

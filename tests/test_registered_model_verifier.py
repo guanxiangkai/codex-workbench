@@ -1,0 +1,191 @@
+import base64
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from codex_workbench.model_probe import _provider_error_diagnostic
+from codex_workbench.registered_model_verifier import verify_model, verify_model_with_review, write_metadata, write_reviews
+
+
+class RegisteredModelVerifierTests(unittest.TestCase):
+    def model(self, **changes):
+        value = {
+            "id": "glm", "provider_id": "bigmodel", "model_type": "reasoning", "model": "glm-5.3",
+            "base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        }
+        return {**value, **changes}
+
+    def test_only_registered_https_host_can_receive_a_credential(self):
+        for url in ("http://open.bigmodel.cn/api/paas/v4/chat/completions", "https://elsewhere.invalid/v1"):
+            with patch("codex_workbench.registered_model_verifier._native_probe") as probe:
+                result = verify_model(self.model(base_url=url), "synthetic-key")
+            self.assertEqual({"model_id": "glm", "success": False, "status": "skipped", "error_code": "unregistered_https_endpoint"}, result)
+            probe.assert_not_called()
+
+    def test_native_ocr_and_asr_send_documented_generated_fixture_payloads(self):
+        ocr = self.model(model_type="multimodal", base_url="https://open.bigmodel.cn/api/paas/v4/layout_parsing")
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(b'{"md_results":"# OK"}', "application/json", None)) as post:
+            self.assertTrue(verify_model(ocr, "synthetic-key")["success"])
+        body = json.loads(post.call_args.args[1])
+        self.assertEqual("glm-5.3", body["model"])
+        self.assertIsInstance(body["file"], str)
+        self.assertTrue(body["file"].startswith("data:image/png;base64,"))
+
+        asr = self.model(provider_id="minimax", model_type="speech_to_text", model="asr-1.0",
+                         base_url="https://api.minimax.cn/v1/speech_to_text")
+        with patch("codex_workbench.registered_model_verifier.Path.read_bytes", return_value=b"RIFFfixture"), \
+             patch("codex_workbench.registered_model_verifier._post", return_value=(b'{"text":"OK"}', "application/json", None)) as post:
+            self.assertTrue(verify_model(asr, "synthetic-key")["success"])
+        self.assertIn(b'name="model"', post.call_args.args[1])
+        self.assertIn(b'asr-1.0', post.call_args.args[1])
+        self.assertIn("multipart/form-data", post.call_args.args[2])
+
+    def test_minimax_native_tts_and_image_follow_official_shapes(self):
+        tts = self.model(provider_id="minimax", model_type="text_to_speech", model="speech-2.8-hd",
+                         base_url="https://api.minimax.cn/v1/t2a_v2")
+        audio = b"not-real-mp3"
+        response = json.dumps({"base_resp": {"status_code": 0}, "data": {"audio": base64.b64encode(audio).decode()}}).encode()
+        with patch("codex_workbench.registered_model_verifier._audio_bytes", return_value=True), \
+             patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)) as post:
+            self.assertTrue(verify_model(tts, "synthetic-key")["success"])
+        body = json.loads(post.call_args.args[1])
+        self.assertEqual("English_Graceful_Lady", body["voice_setting"]["voice_id"])
+        self.assertEqual("mp3", body["audio_setting"]["format"])
+
+        image = self.model(provider_id="minimax", model_type="image_generation", model="image-01",
+                           base_url="https://api.minimax.cn/v1/image_generation")
+        response = b'{"base_resp":{"status_code":0},"data":{"image_base64":["aGVsbG8gd29ybGQgaW1hZ2UgcGF5bG9hZCBmb3IgdGVzdA=="]}}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)) as post:
+            self.assertTrue(verify_model(image, "synthetic-key")["success"])
+        body = json.loads(post.call_args.args[1])
+        self.assertEqual("1:1", body["aspect_ratio"])
+        self.assertEqual("base64", body["response_format"])
+
+    def test_bigmodel_tts_uses_documented_voice_and_wav_response(self):
+        tts = self.model(model_type="text_to_speech", model="glm-tts",
+                         base_url="https://open.bigmodel.cn/api/paas/v4/audio/speech")
+        with patch("codex_workbench.registered_model_verifier.valid_media", return_value=True), \
+             patch("codex_workbench.registered_model_verifier._post", return_value=(b"RIFFfixture", "audio/wav", None)) as post:
+            self.assertTrue(verify_model(tts, "synthetic-key")["success"])
+        body = json.loads(post.call_args.args[1])
+        self.assertEqual({"model": "glm-tts", "input": "模型能力验证。", "voice": "tongtong", "response_format": "wav"}, body)
+        self.assertEqual("audio/wav, application/json", post.call_args.kwargs["accept"])
+
+    def test_video_task_acceptance_never_records_success(self):
+        model = self.model(id="video", model_type="video_generation", model="cogvideox-3",
+                           base_url="https://open.bigmodel.cn/api/paas/v4/videos/generations")
+        accepted = json.dumps({"task_id": "task-1", "status": "processing"}).encode()
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(accepted, "application/json", None)), \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(accepted, None)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            result = verify_model(model, "synthetic-key", timeout=2)
+        self.assertEqual({"model_id": "video", "success": False, "status": "failed", "error_code": "task_pending"}, result)
+
+    def test_video_requires_terminal_result_url(self):
+        model = self.model(id="video", model_type="video_generation", model="cogvideox-3",
+                           base_url="https://open.bigmodel.cn/api/paas/v4/videos/generations")
+        accepted = json.dumps({"task_id": "task-1", "status": "processing"}).encode()
+        completed = json.dumps({"task_id": "task-1", "status": "success", "video_result": {"url": "https://cdn.example/video.mp4"}}).encode()
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(accepted, "application/json", None)), \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(completed, None)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            result = verify_model(model, "synthetic-key", timeout=2)
+        self.assertEqual({"model_id": "video", "success": True, "status": "verified", "error_code": "verified"}, result)
+
+    def test_minimax_video_requires_polled_terminal_content_url(self):
+        model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
+                           base_url="https://api.minimax.cn/v2/video_generation")
+        accepted = b'{"task_id":"task-1"}'
+        completed = b'{"task":{"id":"task-1","status":"succeeded","content":{"url":"https://cdn.example/video.mp4"}}}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(accepted, "application/json", None)) as post, \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(completed, None)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
+        body = json.loads(post.call_args.args[1])
+        self.assertEqual([{"type": "text", "text": body["content"][0]["text"]}], body["content"])
+        self.assertEqual(4, body["duration"])
+
+    def test_pending_video_task_is_resumed_without_a_second_submission(self):
+        model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
+                           base_url="https://api.minimax.cn/v2/video_generation", _verification_task_id="task-1")
+        completed = b'{"task":{"id":"task-1","status":"succeeded","content":{"url":"https://cdn.example/video.mp4"}}}'
+        with patch("codex_workbench.registered_model_verifier._post") as post, \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(completed, None)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
+        post.assert_not_called()
+
+    def test_video_poll_failure_keeps_task_id_for_a_safe_resume(self):
+        model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
+                           base_url="https://api.minimax.cn/v2/video_generation")
+        accepted = b'{"task_id":"task-1"}'
+        failure = {"success": False, "code": "network_error"}
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(accepted, "application/json", None)), \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(None, failure)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            safe, _, diagnostic = verify_model_with_review(model, "synthetic-key", timeout=2, include_diagnostics=True)
+        self.assertEqual("network_error", safe["error_code"])
+        self.assertEqual({"video_task_id": "task-1"}, diagnostic)
+
+    def test_metadata_has_no_response_or_credential(self):
+        with tempfile.TemporaryDirectory() as directory:
+            write_metadata(Path(directory), [{"model_id": "glm", "success": True, "status": "verified", "error_code": "verified"}])
+            write_metadata(Path(directory), [{"model_id": "minimax", "success": False, "status": "skipped", "error_code": "official_contract_unavailable"}])
+            value = (Path(directory) / "registered-model-verifications.json").read_text()
+        self.assertIn("account_profile_freeze", value)
+        self.assertIn("glm", value)
+        self.assertIn("minimax", value)
+        self.assertNotIn("synthetic-key", value)
+        self.assertNotIn("response", value)
+
+    def test_reviews_are_separate_private_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            write_reviews(Path(directory), {"glm": "1. boundary"})
+            target = Path(directory) / "registered-model-reviews.json"
+            self.assertEqual(0o600, target.stat().st_mode & 0o777)
+            value = json.loads(target.read_text())
+        self.assertEqual("1. boundary", value["reviews"][0]["review"])
+
+    def test_chat_review_is_not_part_of_safe_result(self):
+        response = b'{"choices":[{"message":{"content":"1. first\\n2. usage\\n3. identity"}}]}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):
+            result, review = verify_model_with_review(self.model(), "synthetic-key")
+        self.assertEqual({"model_id": "glm", "success": True, "status": "verified", "error_code": "verified"}, result)
+        self.assertEqual("1. first\n2. usage\n3. identity", review)
+
+    def test_bigmodel_review_uses_supported_reasoning_effort_and_requested_timeout(self):
+        response = b'{"choices":[{"message":{"content":"1. first"}}]}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)) as post:
+            verify_model_with_review(self.model(), "synthetic-key", timeout=45)
+        request = json.loads(post.call_args.args[1])
+        self.assertNotIn("thinking", request)
+        self.assertEqual("low", request["reasoning_effort"])
+        self.assertEqual(2048, request["max_completion_tokens"])
+        self.assertEqual(45, post.call_args.kwargs["response_timeout"])
+
+    def test_provider_diagnostics_classify_official_codes_without_messages(self):
+        quota = _provider_error_diagnostic(b'{"base_resp":{"status_code":1008,"status_msg":"secret"}}', 200)
+        parameter = _provider_error_diagnostic(b'{"error":{"code":2013,"message":"request details"}}', 400)
+        unsupported = _provider_error_diagnostic(b'{"error":{"message":"not found"}}', 404)
+        payment = _provider_error_diagnostic(b'{"error":{"message":"billing details"}}', 402)
+        self.assertEqual({"diagnosis": "insufficient_balance", "http_status": 200, "provider_error_code": "1008"}, quota)
+        self.assertEqual({"diagnosis": "parameter_error", "http_status": 400, "provider_error_code": "2013"}, parameter)
+        self.assertEqual({"diagnosis": "endpoint_or_model_unsupported", "http_status": 404}, unsupported)
+        self.assertEqual({"diagnosis": "payment_required", "http_status": 402}, payment)
+        self.assertNotIn("secret", json.dumps(quota))
+
+    def test_in_band_provider_error_is_available_only_to_private_metadata_path(self):
+        model = self.model(provider_id="minimax", model_type="image_generation", model="image-01",
+                           base_url="https://api.minimax.cn/v1/image_generation")
+        response = b'{"base_resp":{"status_code":1008,"status_msg":"balance details"}}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):
+            safe, review, diagnostic = verify_model_with_review(model, "synthetic-key", include_diagnostics=True)
+        self.assertIsNone(review)
+        self.assertEqual({"model_id": "glm", "success": False, "status": "failed", "error_code": "insufficient_balance"}, safe)
+        self.assertEqual({"diagnosis": "insufficient_balance", "http_status": 200, "provider_error_code": "1008"}, diagnostic)
+
+
+if __name__ == "__main__":
+    unittest.main()

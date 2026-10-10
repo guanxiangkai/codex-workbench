@@ -16,6 +16,7 @@ from .accounts import normalize_account
 from .account_snapshot import AccountSnapshot
 from .codex_rpc import AccountRpc, RpcError
 from .credentials import CredentialCatalog
+from .configuration_metadata import read_organization
 from .native_catalog import NativeCatalog
 from .titles import safe_display_title
 
@@ -98,8 +99,9 @@ def rows(path, table, fields):
 
 class ReadonlyCredentials(CredentialCatalog):
     """复用目录解析逻辑，连接强制只读；不调用父类数据库初始化。"""
-    def __init__(self, path, vault_command=None):
+    def __init__(self, path, vault_command=None, organization_path=None):
         self.db_path = Path(path)
+        self.organization_path = organization_path
         self.command = vault_command or Path.home() / '.codex/scripts/key-vault/key-vault.sh'
         self.poll_seconds = 0  # 仅用户读取时刷新；不启动轮询器。
         self._cache = None
@@ -110,19 +112,27 @@ class ReadonlyCredentials(CredentialCatalog):
         with connection(self.db_path) as db:
             yield db
 
-    def _folders(self):
-        return rows(self.db_path, 'credential_folders', ['id','name','parent_id','color'])
+    def _folders(self, organization=None):
+        organization = organization if organization is not None else read_organization(self.organization_path)
+        folders = {f['id']: f for f in organization['folders']}
+        folders.update({f['id']: f for f in rows(self.db_path, 'credential_folders', ['id','name','parent_id','color'])})
+        return list(folders.values())
 
-    def _entry_views(self, snapshot):
+    def _entry_views(self, snapshot, organization=None):
         """保留和当前密文版本匹配的字段索引，绝不按标题猜测类型。"""
-        saved = {r['entry_id']: r for r in rows(self.db_path, 'credential_organizer',
-                 ['entry_id','label','folder_id','tags_json','color','organization_source'])}
+        organization = organization if organization is not None else read_organization(self.organization_path)
+        saved = dict(organization['entries'])
+        # 已有本机登记优先；缺失的展示字段仍可从持久配置读取。
+        for row in rows(self.db_path, 'credential_organizer',
+                        ['entry_id','label','description','display_type','folder_id','tags_json','color','organization_source']):
+            saved[row['entry_id']] = {**saved.get(row['entry_id'], {}), **row}
         structures = {r['entry_id']: r for r in rows(self.db_path, 'credential_structure',
                       ['entry_id','revision','generation','source','structure_json'])}
         result = []
         for entry in snapshot['entries']:
             key = entry['entry_id']; meta = saved.get(key, {})
             value = {'id':key, 'reference':'vault:'+key, 'label':meta.get('label') or key,
+                     'description':meta.get('description'), 'display_type':meta.get('display_type'),
                      'folder_id':meta.get('folder_id'), 'color':meta.get('color'),
                      'tags':self._decode_list(meta.get('tags_json','[]'),12,'标签'),
                      'organization_source':meta.get('organization_source') or 'unorganized'}
@@ -130,6 +140,13 @@ class ReadonlyCredentials(CredentialCatalog):
             value.update({k:v for k,v in entry.items() if k!='entry_id'})
             result.append(value)
         return result
+
+    def list(self):
+        """一次读取展示配置，只展示当前保险库中实际存在的条目。"""
+        snapshot = self._snapshot()
+        organization = read_organization(self.organization_path)
+        return {'folders': self._folders(organization), 'entries': self._entry_views(snapshot, organization),
+                'status': dict(snapshot['status'])}
 
 
 class ReadRpc(AccountRpc):

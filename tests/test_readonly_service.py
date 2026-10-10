@@ -36,7 +36,7 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','connections','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','agents','models','config']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})

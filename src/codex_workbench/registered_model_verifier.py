@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import base64
+from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
+import os
 import struct
+import tempfile
 import time
 import zlib
 from pathlib import Path
@@ -349,6 +353,8 @@ def _native_video(model: dict, token: str, timeout: float) -> dict:
         payload, failure = _get(poll_url, token, deadline, error_diagnostics=True)
         polls += 1
         if failure:
+            if failure.get("code") == "task_missing":
+                return failure
             evidence = failure.get("evidence") if isinstance(failure.get("evidence"), dict) else {}
             failure["evidence"] = {**evidence, "video_task_id": task_id}
             return failure
@@ -372,7 +378,8 @@ def _get(url: str, token: str, deadline: float, *, error_diagnostics: bool = Fal
                                          timeout=min(remaining, 15))
     except HTTPError as error:
         try:
-            code = "redirect_blocked" if error.code in {301, 302, 303, 307, 308} else "server_error"
+            code = ("task_missing" if error.code in {404, 410} else
+                    "redirect_blocked" if error.code in {301, 302, 303, 307, 308} else "server_error")
             result = {"success": False, "code": code}
             if error_diagnostics:
                 try:
@@ -487,43 +494,69 @@ def verify_model_with_review(model: dict, token: str, *, timeout: float = 30,
     return (safe, review[:12000], {}) if include_diagnostics else (safe, review[:12000])
 
 
-def write_metadata(data_dir: Path, results: list[dict]) -> None:
-    """供人工验收的脱敏结果，不保存模型输出、响应正文或凭据。"""
-    target = Path(data_dir) / "registered-model-verifications.json"
+@contextmanager
+def _locked_document(target: Path):
+    """Lock a stable sibling inode across read/merge/replace in every process."""
     target.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(target.with_suffix(target.suffix + ".lock"),
+                         os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "a") as lock:
+        os.fchmod(lock.fileno(), 0o600)
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            if target.is_symlink():
+                raise ValueError("Verification document cannot be a symlink")
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _saved_rows(target: Path, key: str) -> dict[str, dict]:
     previous: dict[str, dict] = {}
     try:
         saved = json.loads(target.read_text(encoding="utf-8"))
-        if isinstance(saved, dict) and isinstance(saved.get("results"), list):
-            previous = {item["model_id"]: item for item in saved["results"]
+        if isinstance(saved, dict) and isinstance(saved.get(key), list):
+            previous = {item["model_id"]: item for item in saved[key]
                         if isinstance(item, dict) and isinstance(item.get("model_id"), str)}
     except (OSError, ValueError, json.JSONDecodeError):
         pass
-    previous.update({item["model_id"]: item for item in results})
-    target.write_text(json.dumps({"review_task": "account_profile_freeze", "results": list(previous.values())}, ensure_ascii=False), encoding="utf-8")
-    target.chmod(0o600)
+    return previous
+
+
+def _replace_rows(target: Path, key: str, rows: dict[str, dict]) -> None:
+    descriptor, name = tempfile.mkstemp(prefix="." + target.name + "-", dir=target.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump({"review_task": "account_profile_freeze", key: list(rows.values())}, stream, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def write_metadata(data_dir: Path, results: list[dict]) -> None:
+    """供人工验收的脱敏结果，不保存模型输出、响应正文或凭据。"""
+    target = Path(data_dir) / "registered-model-verifications.json"
+    with _locked_document(target):
+        previous = _saved_rows(target, "results")
+        previous.update({item["model_id"]: item for item in results})
+        _replace_rows(target, "results", previous)
 
 
 def write_reviews(data_dir: Path, reviews: dict[str, str], selected_model_ids: set[str] | None = None) -> None:
     """更新本次选中模型的审查正文；失败模型清除旧值，未选模型保留。"""
     target = Path(data_dir) / "registered-model-reviews.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    previous: dict[str, dict] = {}
-    try:
-        saved = json.loads(target.read_text(encoding="utf-8"))
-        if isinstance(saved, dict) and isinstance(saved.get("reviews"), list):
-            previous = {item["model_id"]: item for item in saved["reviews"]
-                        if isinstance(item, dict) and isinstance(item.get("model_id"), str)}
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    if selected_model_ids is not None:
-        previous = {model_id: item for model_id, item in previous.items() if model_id not in selected_model_ids}
-    observed_at = int(time.time())
-    for model_id, review in reviews.items():
-        if isinstance(model_id, str) and isinstance(review, str) and review.strip():
-            previous[model_id] = {"model_id": model_id, "observed_at": observed_at, "review": review[:12000]}
-    target.write_text(json.dumps({"review_task": "account_profile_freeze", "reviews": list(previous.values())}, ensure_ascii=False), encoding="utf-8")
-    target.chmod(0o600)
+    with _locked_document(target):
+        previous = _saved_rows(target, "reviews")
+        if selected_model_ids is not None:
+            previous = {model_id: item for model_id, item in previous.items() if model_id not in selected_model_ids}
+        observed_at = int(time.time())
+        for model_id, review in reviews.items():
+            if isinstance(model_id, str) and isinstance(review, str) and review.strip():
+                previous[model_id] = {"model_id": model_id, "observed_at": observed_at, "review": review[:12000]}
+        _replace_rows(target, "reviews", previous)
 
 
 def record_results(data_dir: Path, selected: list[dict], results: list[dict]) -> None:

@@ -296,7 +296,7 @@ class Bridge{
  /** 原生读取先完成宿主握手；首屏缓存可提前渲染，不能提前调用工具。 */
  async initialize(){
   if(!this.embedded)return;
-  if(!this.ready)this.ready=this.rpc('ui/initialize',{appInfo:{name:'codex-workbench-ui',version:'0.10.3'},appCapabilities:{},protocolVersion:'2026-01-26'}).then(()=>{parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');}).catch(error=>{this.ready=null;throw error;});
+  if(!this.ready)this.ready=this.rpc('ui/initialize',{appInfo:{name:'codex-workbench-ui',version:'0.10.4'},appCapabilities:{},protocolVersion:'2026-01-26'}).then(()=>{parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');}).catch(error=>{this.ready=null;throw error;});
   return this.ready;
  }
  async tool(name,args={},signal){

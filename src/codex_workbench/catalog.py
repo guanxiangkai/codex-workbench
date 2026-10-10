@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-VERSION = "0.10.3"
+VERSION = "0.10.4"
 UI_URIS = {"open_workbench": "ui://codex-workbench/v7/workbench.html"}
 PAGES = {"workbench": ("codex-workbench", "open_workbench", "工作台")}
 MODULES = [

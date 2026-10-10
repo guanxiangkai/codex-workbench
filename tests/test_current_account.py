@@ -51,7 +51,8 @@ class CurrentAccountTests(unittest.TestCase):
                 self.assertEqual('unavailable',result[0]['name_source'])
                 self.assertEqual('sample@example.invalid',result[0]['email'])
                 with patch.object(reader,'identity',return_value={'type':'chatgpt','email':'sample@example.invalid','displayName':'示例姓名','planType':'pro'}):
-                    named=reader.accounts()[0]
+                    self.assertEqual('用户名未提供',reader.accounts()[0]['name'])
+                    named=reader.refresh_profile('current')
                 self.assertEqual('示例姓名',named['name']);self.assertEqual('official',named['name_source'])
 
     def test_current_environment_does_not_inherit_another_home_or_tokens(self):

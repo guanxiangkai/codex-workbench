@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import tempfile
 
-PROFILE = ('email', 'plan', 'name', 'name_source', 'profile_observed_at')
+PROFILE = ('email', 'plan', 'name', 'name_source', 'profile_observed_at', 'profile_status')
 USAGE = ('remaining_percent', 'resets_at', 'reset_cards', 'observed_at')
 ANALYSIS = ('status', 'confidence', 'predicted_reset_at', 'reset_card_likelihood',
             'evidence', 'observed_at', 'stale', 'error', 'model', 'scope',
@@ -95,19 +95,6 @@ class AccountSnapshot:
         if analysis:
             result['reset_analysis'] = analysis
         return result
-
-    def fresh_identity(self, account, seconds):
-        if not account.get('subject_id'):
-            return None
-        profile = self.get(account, 'profile')
-        try:
-            fresh = (datetime.now(timezone.utc) - datetime.fromisoformat(profile['checked_at'])).total_seconds() < seconds
-        except (KeyError, ValueError, TypeError):
-            fresh = False
-        if fresh and profile.get('email') and not profile.get('invalidated'):
-            return {'type': 'chatgpt', 'email': profile['email'], 'planType': profile.get('plan'),
-                    'name': profile.get('name') if profile.get('name_source') == 'official' else None}
-        return None
 
     def save_profile(self, account, item, observed_at=None):
         now = datetime.now(timezone.utc).isoformat()

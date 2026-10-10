@@ -27,7 +27,7 @@ DEFAULT_SCHEDULE = {
         "manual_reset": {"interval_seconds": 3600, "phase_seconds": 720},
     },
     "views": {
-        "accounts": {"active_seconds": 60, "idle_seconds": 300, "profile_seconds": 86400},
+        "accounts": {"active_seconds": 60, "idle_seconds": 300},
         "other_accounts": {"active_seconds": 300, "idle_seconds": 1800},
         "config": {"active_seconds": 300, "idle_seconds": 1800},
         "models": {"active_seconds": 600, "idle_seconds": 3600},
@@ -70,8 +70,7 @@ def load_schedule(path: Path | None) -> dict:
         for name, rule in value["views"].items():
             if name not in result["views"] or not isinstance(rule, dict):
                 continue
-            for key in ("active_seconds", "idle_seconds", "profile_seconds"):
-                if key == "profile_seconds" and name != "accounts":continue
+            for key in ("active_seconds", "idle_seconds"):
                 if isinstance(rule.get(key), int) and rule[key] > 0:
                     result["views"][name][key] = rule[key]
     return result
@@ -150,8 +149,6 @@ class SnapshotScheduler:
 
     def __init__(self, service, schedule_path: Path | None = None, clock=time.monotonic):
         self.service, self.schedule, self.clock = service, load_schedule(schedule_path), clock
-        if hasattr(service.native, "profile_refresh_seconds"):
-            service.native.profile_refresh_seconds = self.schedule["views"]["accounts"]["profile_seconds"]
         self.lock = threading.Condition()
         self.last_access: dict[str, float] = {}
         self.last_attempt: dict[tuple[str, str], float] = {}

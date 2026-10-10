@@ -28,7 +28,7 @@ from .account_runtime import current_account_home
 from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
-from .account_profiles import apply_profiles
+from .account_profiles import apply_profiles, import_profile, profile_identity
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
@@ -419,9 +419,37 @@ class Workbench:
             return {'login':self._accounts().login(args['id'])}
         if name=='account_status':
             result=self._accounts().status(args['id'],refresh=True)
+            if result.get('login',{}).get('status')=='ready':
+                # 首次完成官方登录时采集资料；后续调度只更新额度。
+                account=self.native.refresh_profile(args['id'], only_missing=True)
+                profile=apply_profiles({'accounts':[account]}, 'accounts', self.data_dir/'account-profiles.json')['accounts'][0]
+                result.setdefault('account',{})['profile_capture_required']=profile.get('profile_status',{}).get('source') != 'official_page'
             if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch('accounts',refresh=True)
             return result
+        if name=='account_profile_update':
+            account = self.native.refresh_profile(args['id'])
+            if self.snapshot_scheduler is not None:
+                self.snapshot_scheduler.touch('accounts',refresh=True)
+            return {'account': account}
+        if name=='account_profile_import':
+            view=args['view']
+            if view == 'accounts':
+                candidates=self.native.accounts(cached_only=True)
+            elif view == 'other_accounts':
+                candidates=self._other_accounts(refresh=False)['accounts']
+            else:
+                raise ValueError('资料导入不支持该视图')
+            account=next((item for item in candidates if item.get('id') == args['id']), None)
+            if account is None or profile_identity(view, account) is None:
+                raise ValueError('账户不存在或身份尚未确认')
+            profile=import_profile(self.data_dir/'account-profiles.json', view, account,
+                                   display_name=args.get('display_name'), avatar_data_uri=args.get('avatar_data_uri'),
+                                   account_identifier=args.get('account_identifier'),
+                                   observed_at=args.get('observed_at'))
+            if self.snapshot_scheduler is not None:
+                self.snapshot_scheduler.touch(view,refresh=True)
+            return {'profile': profile}
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)

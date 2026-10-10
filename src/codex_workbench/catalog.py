@@ -1,17 +1,18 @@
-"""账户管理工作台的 MCP 契约。"""
+"""工作台的 MCP 契约。"""
 from __future__ import annotations
 
 from typing import Any
 
-VERSION = "0.10.0"
+VERSION = "0.10.1"
 UI_URIS = {"open_workbench": "ui://codex-workbench/v7/workbench.html"}
-PAGES = {"workbench": ("codex-workbench", "open_workbench", "账户管理")}
+PAGES = {"workbench": ("codex-workbench", "open_workbench", "工作台")}
 MODULES = [
-    {"id": "accounts", "name": "Codex 账户", "group": "账户管理"},
-    {"id": "other_accounts", "name": "其他账户", "group": "账户管理"},
-    {"id": "models", "name": "模型目录", "group": "账户管理"},
-    {"id": "config", "name": "配置中心", "group": "账户管理"},
-    {"id": "connections", "name": "工具连接", "group": "账户管理"},
+    {"id": "accounts", "name": "Codex 账户", "group": "账户与配置"},
+    {"id": "other_accounts", "name": "其他账户", "group": "账户与配置"},
+    {"id": "config", "name": "配置中心", "group": "账户与配置"},
+    {"id": "agents", "name": "技能助手", "group": "能力与知识"},
+    {"id": "knowledge", "name": "知识中心", "group": "能力与知识"},
+    {"id": "models", "name": "模型目录", "group": "能力与知识"},
 ]
 DEFAULT_VIEW = "accounts"
 UI_VIEWS = frozenset(module["id"] for module in MODULES)
@@ -34,7 +35,7 @@ def definition(name, title, description, properties=None, required=None, *, read
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global"}]}}
-    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default"):
+    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
     if name in ("account_create", "account_login", "account_status", "account_default"):
         result["annotations"]["readOnlyHint"] = False
@@ -49,10 +50,13 @@ TOOLS = [
     definition("account_login", "登录 Codex 账户", "打开官方 OpenAI 登录页面，登录完成后自动核验账户状态。", {"id": ID}, ["id"]),
     definition("account_status", "核验 Codex 账户", "读取官方登录状态和额度，并登记已确认的账户主体。", {"id": ID}, ["id"]),
     definition("account_default", "设置默认账户", "设置已登记且身份核验通过的默认账户；所有会话下一次请求使用该账户。", {"id": ID, "expected_default_id": text(255, True)}, ["id", "expected_default_id"]),
-    definition("open_workbench", "账户管理", "打开账户、模型、配置和连接管理工作台。"),
-    definition("workbench_state", "读取账户管理", "按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS}),
-    definition("workbench_sync", "同步账户管理变化", "按修订返回后台快照差异；刷新仅排入后台采集，失败保留最后成功数据，不返回密钥。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS, "revision": text(64), "refresh": {"type": "boolean"}}, ["view"]),
-    definition("module_list", "读取账户管理模块", "读取用户可见的账户管理模块目录。"),
+    definition("open_workbench", "工作台", "打开账户、配置、技能、知识和模型工作台。"),
+    definition("workbench_state", "读取工作台", "按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS}),
+    definition("workbench_sync", "同步工作台变化", "按修订返回后台快照差异；刷新仅排入后台采集，失败保留最后成功数据，不返回密钥。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS, "revision": text(64), "refresh": {"type": "boolean"}}, ["view"]),
+    definition("module_list", "读取工作台模块", "读取用户可见的工作台模块目录。"),
+    definition("skill_detail", "读取技能详情", "只读展示官方已发现技能的能力信息。", {"id": ID}, ["id"]),
+    definition("knowledge_list", "读取知识目录", "读取已审核知识的范围和目录，不创建、审核或修改知识。", {"scope": text(200), "query": text(300)}),
+    definition("knowledge_detail", "阅读知识", "读取指定范围内已审核且有效的知识，不创建或修改知识。", {"scope": text(200), "key": text(200)}, ["scope", "key"]),
     definition("model_list", "读取模型目录", "读取已经登记的模型与验证快照，不发起验证。"),
     definition("model_detail", "读取模型详情", "读取指定模型的公开配置与保险库条目引用。", {"id": ID}, ["id"]),
     definition("credential_list", "读取配置目录", "仅展示非秘密目录与匹配当前修订的结构索引。"),
@@ -66,7 +70,7 @@ _OUTPUT_KEYS = {
     "account_create": ["account"], "account_login": ["login"], "account_status": ["account", "login"],
     "account_default": ["default_account_id", "applies_to"], "open_workbench": ["view", "read_only", "status"],
     "workbench_state": ["view", "read_only", "status"], "workbench_sync": ["context", "revision", "base_revision", "unchanged"],
-    "module_list": ["modules", "read_only"], "model_list": ["models"], "model_detail": ["model", "credential"],
+    "module_list": ["modules", "read_only"], "skill_detail": ["skill"], "knowledge_list": ["scopes", "knowledge", "selected_scope"], "knowledge_detail": ["knowledge"], "model_list": ["models"], "model_detail": ["model", "credential"],
     "credential_list": ["entries", "folders", "status"],
     "credential_details": ["entry_id", "revision", "generation", "request_id", "public_key_sha256", "wrapped_key", "iv", "ciphertext"],
     "service_list": ["services"], "service_detail": ["service"], "connection_list": ["connections", "source_errors"],

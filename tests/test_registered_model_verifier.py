@@ -1,13 +1,16 @@
 import base64
 import importlib.util
+import io
 import json
+import multiprocessing
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from codex_workbench.model_probe import _PNG, _provider_error_diagnostic
-from codex_workbench.registered_model_verifier import (_downloadable_https_url, _image_output, _minimax_image_output,
+from codex_workbench.registered_model_verifier import (_downloadable_https_url, _image_output, _minimax_image_output, _locked_document,
                                                        _video_result, configuration_fingerprint, verify_model,
                                                        verify_model_with_review, write_metadata, write_reviews)
 
@@ -22,7 +25,86 @@ def _verification_script():
     return module
 
 
+def _write_verification_process(directory, kind, model_id, ready, finished):
+    ready.set()
+    if kind == "results":
+        write_metadata(Path(directory), [{"model_id": model_id, "video_task_id": "task-" + model_id}])
+    else:
+        write_reviews(Path(directory), {model_id: "review " + model_id}, {model_id})
+    finished.set()
+
+
 class RegisteredModelVerifierTests(unittest.TestCase):
+    def test_private_documents_serialize_processes_and_preserve_disjoint_results(self):
+        context = multiprocessing.get_context("spawn")
+        for kind, filename in (("results", "registered-model-verifications.json"),
+                               ("reviews", "registered-model-reviews.json")):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / filename
+                processes = []
+                try:
+                    with _locked_document(target):
+                        for model_id in ("glm", "minimax"):
+                            ready, finished = context.Event(), context.Event()
+                            process = context.Process(target=_write_verification_process,
+                                args=(directory, kind, model_id, ready, finished))
+                            process.start()
+                            processes.append(process)
+                            self.assertTrue(ready.wait(10))
+                            self.assertFalse(finished.wait(0.1), "writer ignored another process's lock")
+                    for process in processes:
+                        process.join(10)
+                        self.assertEqual(0, process.exitcode)
+                    rows = json.loads(target.read_text())[kind]
+                    self.assertEqual({"glm", "minimax"}, {row["model_id"] for row in rows})
+                    self.assertEqual(0o600, target.stat().st_mode & 0o777)
+                finally:
+                    for process in processes:
+                        if process.is_alive():
+                            process.terminate()
+                        process.join(10)
+
+    def test_failed_atomic_replace_keeps_previous_document(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "registered-model-verifications.json"
+            write_metadata(Path(directory), [{"model_id": "glm", "video_task_id": "keep-task"}])
+            before = target.read_bytes()
+            with patch("codex_workbench.registered_model_verifier.os.replace", side_effect=OSError("failed")), self.assertRaises(OSError):
+                write_metadata(Path(directory), [{"model_id": "minimax"}])
+            self.assertEqual(before, target.read_bytes())
+            self.assertEqual([], list(Path(directory).glob(".registered-model-verifications.json-*")))
+
+    def test_selection_failure_is_reported_before_reading_credentials(self):
+        script = _verification_script()
+        for requested in (("unknown",), ("glm", "unknown")):
+            argv = ["verify", "--resources-dir", "/unused", "--data-dir", "/unused",
+                    "--provider", "bigmodel", "--credential-id", "test"]
+            for model_id in requested:
+                argv.extend(["--model-id", model_id])
+            output = io.StringIO()
+            with self.subTest(requested=requested), patch("sys.argv", argv), patch("sys.stdout", output), \
+                 patch.object(script, "configured_models", return_value=[self.model(credential_id="test")]), \
+                 patch.object(script, "_decode_selected_credential") as decode:
+                self.assertEqual(2, script.main())
+            decode.assert_not_called()
+            rows = [json.loads(line) for line in output.getvalue().splitlines()]
+            self.assertEqual(set(requested), {row["model_id"] for row in rows})
+            self.assertTrue(all(row["error_code"] == "model_selection" for row in rows))
+
+    def test_missing_video_task_stops_resume_without_resubmitting(self):
+        model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
+                           base_url="https://api.minimax.cn/v2/video_generation", _verification_task_id="task-gone")
+        for status in (404, 410):
+            error = HTTPError("https://api.minimax.cn/v2/query/video_generation/task-gone", status, "gone", {}, io.BytesIO(b'{}'))
+            with self.subTest(status=status), patch("codex_workbench.registered_model_verifier._post") as post, \
+                 patch("codex_workbench.registered_model_verifier._opener_for") as opener, \
+                 patch("codex_workbench.registered_model_verifier.time.sleep"):
+                opener.return_value.open.side_effect = error
+                safe, _, diagnostic = verify_model_with_review(model, "synthetic-key", timeout=2, include_diagnostics=True)
+            self.assertEqual("task_missing", safe["error_code"])
+            self.assertNotIn("video_task_id", diagnostic)
+            post.assert_not_called()
+
     def model(self, **changes):
         value = {
             "id": "glm", "provider_id": "bigmodel", "model_type": "reasoning", "model": "glm-5.3",

@@ -246,7 +246,7 @@ class NativeRead:
                 self.account_snapshots.migrate(a)
             _apply_bound_current_profile(item, a, self.account_snapshots)
             if cached_only:
-                item['usage_refresh']={'state':'cached','message':'显示上次成功数据，后台更新额度'}
+                item.setdefault('usage_refresh', {'state':'cached','message':'显示上次成功数据，后台更新额度'})
                 result.append(item);continue
             try:
                 home=current_account_home() if is_current else validate_account_home(a.get('codex_home'))
@@ -298,12 +298,15 @@ class NativeRead:
                     item.update(email=identity.get('email'),plan=identity.get('planType'),login_status=status,
                                 remaining_percent=max(0,min(100,100-percent)) if percent is not None else None,
                                 resets_at=number(window.get('resetsAt')) if window else None,reset_cards=normalized.get('resetCredits'))
+                    item['usage_refresh']={'state':'ready'} if percent is not None else {'state':'failed','message':'未取得本次周额度，保留上次成功数据'}
                     self.account_snapshots.save_usage(a, item, subject=subject)
                     _apply_bound_current_profile(item, a, self.account_snapshots)
-                    item['usage_refresh']={'state':'ready'} if percent is not None else {'state':'failed','message':'未取得本次周额度，保留上次成功数据'}
             except (OSError,ValueError,sqlite3.Error):
                 item['login_status']='unavailable'
                 item['usage_refresh']={'state':'failed','message':'额度更新失败，保留上次成功数据'}
+                # Persist the outcome without inventing a new observation time
+                # or changing the last successful quota/profile values.
+                self.account_snapshots.save_usage(a, {key:item[key] for key in ('login_status', 'usage_refresh')})
             result.append(item)
         return result
 

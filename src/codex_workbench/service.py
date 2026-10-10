@@ -113,7 +113,6 @@ class Workbench:
         self.snapshots=snapshot_store or SnapshotStore(self.data_dir)
         self.snapshot_scheduler=None
         self.snapshot_errors={}
-        self._scheduled_accounts = None
         self._profile_captures = {}
         self._closing=False;self.lock=threading.RLock()
 
@@ -177,8 +176,8 @@ class Workbench:
                 raise ValueError('manual_reset_analysis_unavailable')
             seed = cached_accounts[0] if cached_accounts else {}
             analysis = self.reset_analyzer.force_refresh(seed)
-            self._scheduled_accounts = [dict(account, reset_analysis=analysis) for account in cached_accounts]
-            published = self.collect_snapshot('accounts')
+            accounts = [dict(account, reset_analysis=analysis) for account in cached_accounts]
+            published = self.collect_snapshot('accounts', accounts=accounts)
             state = 'error' if analysis.get('error') and not analysis.get('last_success_at') else ('stale' if analysis.get('error') else 'ready')
             if analysis.get('error') or not published:
                 raise ValueError('manual_reset_analysis_unavailable')
@@ -188,8 +187,7 @@ class Workbench:
             # account snapshot persistence. Refresh once, then publish the
             # resulting accounts view for the scheduled page/API readers.
             accounts = self.native.accounts()
-            self._scheduled_accounts = accounts
-            published = self.collect_snapshot('accounts')
+            published = self.collect_snapshot('accounts', accounts=accounts)
             if not published or not accounts or any(a.get('usage_refresh', {}).get('state') != 'ready' for a in accounts):
                 raise ValueError('provider_usage_unavailable')
             return {'provider': provider, 'refreshed': len(accounts)}
@@ -216,7 +214,7 @@ class Workbench:
         import hashlib
         return hashlib.sha256(encoded(stable(value))).hexdigest()
 
-    def _snapshot_state(self,view,context=None):
+    def _snapshot_state(self,view,context=None,provider=None):
         context=context if context is not None else self.source_versions.context()
         entry=self.snapshots.get(context,view)
         if view=='accounts' and isinstance(self.native,NativeRead):
@@ -225,9 +223,14 @@ class Workbench:
                 value=self._apply_profiles({'view':view,'read_only':True,'accounts':cached,'status':{'state':'ok'}},view)
                 entry={'data':value,'updated_at':max((a.get('observed_at') or '' for a in cached),default='') or None}
         refreshing=False
+        providers = {'codex'} if view == 'accounts' else ({'bigmodel', 'minimax'} if view == 'other_accounts' else set())
+        if provider in providers:providers = {provider}
+        provider_error = False
         if self.snapshot_scheduler is not None:
             with self.snapshot_scheduler.lock:
                 refreshing=(context,view) in self.snapshot_scheduler.requested or (context,view) in self.snapshot_scheduler.running
+                refreshing = refreshing or bool(providers & (self.snapshot_scheduler.provider_requested | self.snapshot_scheduler.provider_running))
+                provider_error = any(self.snapshot_scheduler.provider_errors.get(p) for p in providers)
         if entry is None:
             if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view)
             error=self.snapshot_errors.get((context,view))
@@ -236,8 +239,10 @@ class Workbench:
             return {'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp(),
                     'snapshot':snapshot}}
         value=entry['data']
-        error=self.snapshot_errors.get((context,view))
-        account_failure=view=='accounts' and any(a.get('usage_refresh',{}).get('state') in ('failed','cached') for a in value.get('accounts',[]))
+        error=self.snapshot_errors.get((context,view)) or ('用量刷新失败，已保留原数据' if provider_error else None)
+        account_failure=view in ('accounts', 'other_accounts') and any(
+            a.get('usage_refresh',{}).get('state') in ('failed','cached')
+            for a in value.get('accounts',[]) if view == 'accounts' or not provider or a.get('provider_id') == provider)
         state='stale' if error or account_failure else 'ready'
         snapshot={'state':state,'updated_at':entry.get('updated_at'),'refreshing':refreshing}
         if error:snapshot['error']=error
@@ -273,12 +278,12 @@ class Workbench:
             merged.append({**item,**retained})
         return {**value,'accounts':merged}
 
-    def collect_snapshot(self,view):
+    def collect_snapshot(self,view,*,accounts=None):
         """后台唯一来源读取入口；失败绝不覆盖最后成功快照。"""
         if self._closing:return False
         context=self.source_versions.context()
         try:
-            value=self._collect_state(view)
+            value=self._collect_state(view,accounts=accounts)
             if self.source_versions.context()!=context:return False
             existing=self.snapshots.get(context,view)
             value=self._merge_account_fields(view,value,existing.get('data') if existing else None)
@@ -342,13 +347,13 @@ class Workbench:
             value={**value,'accounts':[self._profile_candidate(view,item) for item in value.get('accounts',[])]}
         return apply_profiles(value,view,self.data_dir/'account-profiles.json')
 
-    def _collect_state(self,view):
+    def _collect_state(self,view,*,accounts=None):
         """仅供后台采集调用；页面请求不得经过此方法。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
         if view=='accounts':
-            if self._scheduled_accounts is not None:
-                result['accounts'] = self._scheduled_accounts
+            if accounts is not None:
+                result['accounts'] = accounts
             else:
                 cached_accounts = self.native.accounts(cached_only=True)
                 result['accounts'] = cached_accounts
@@ -362,7 +367,6 @@ class Workbench:
                         # Preserve the last result only for the same bound identity.
                         account['login_status'] = prior.get('login_status', account.get('login_status'))
                         account['usage_refresh'] = prior.get('usage_refresh', account['usage_refresh'])
-            self._scheduled_accounts = None
             if self.reset_analyzer is not None:
                 analysis = self.reset_analyzer.cached()
                 for account in result['accounts']:
@@ -396,7 +400,7 @@ class Workbench:
     def state(self,view=DEFAULT_VIEW,*,snapshot_context=None,**filters):
         """页面状态只投影本机快照；首次读取排入后台采集。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
-        result=self._snapshot_state(view,snapshot_context)
+        result=self._snapshot_state(view,snapshot_context,provider=filters.get('provider'))
         return _page_view(result,**filters)
 
     def sync(self,view,revision=None,refresh=False,**filters):
@@ -405,18 +409,26 @@ class Workbench:
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()
-        requested_provider = filters.get('provider') if refresh else None
+        requested_provider = (filters.get('provider') or None) if refresh else None
+        requested_providers = []
         if requested_provider is not None:
             expected = 'accounts' if requested_provider in {'codex', 'manual_reset'} else 'other_accounts'
             if requested_provider not in {'codex', 'bigmodel', 'minimax', 'manual_reset'} or view != expected:
                 raise ValueError('额度刷新视图与供应商不匹配')
-            if self.snapshot_scheduler is not None:self.snapshot_scheduler.request_provider(requested_provider)
-        if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch(view,refresh=refresh and requested_provider is None)
+            requested_providers = [requested_provider]
+        elif refresh and view == 'accounts':
+            requested_providers = ['codex']
+        elif refresh and view == 'other_accounts':
+            directory = other_accounts(self.resources_dir/'accounts/catalog.json')
+            requested_providers = sorted({a.get('provider_id') for a in directory.get('accounts', [])} & {'bigmodel', 'minimax'})
+        if self.snapshot_scheduler is not None:
+            for provider in requested_providers:self.snapshot_scheduler.request_provider(provider)
+            self.snapshot_scheduler.touch(view,refresh=refresh and not requested_providers)
         value=self.state(view,snapshot_context=context,**filters)
         if self.source_versions.context()!=context:raise ValueError('账户环境已变化，请重新读取')
         current=self._snapshot_revision(value)
         result={'context':context,'revision':current,'base_revision':revision,'unchanged':revision==current,'checked_at_age_seconds':0}
-        if requested_provider:result['provider_refresh']={'provider':requested_provider,'queued':True}
+        if len(requested_providers) == 1:result['provider_refresh']={'provider':requested_providers[0],'queued':True}
         if self.snapshot_scheduler is not None:
             result['provider_tasks'] = self.snapshot_scheduler.provider_tasks()
         if not result['unchanged']:

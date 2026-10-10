@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
 const primitives=fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8');
-const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s,load,pageChange};window.__workbenchReadonlyTest={');
+const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s,load,pageChange,updateProfile};window.__workbenchReadonlyTest={');
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 function boot({embedded=false,bootstrap=null,page='models',fieldPayload=null}={}){
  const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map();let timerId=0;
@@ -34,7 +34,7 @@ const stale=boot();await flush();await stale.event('pagehide');await stale.event
 const bodyStall=boot();await flush();bodyStall.requests[0].response({ok:true,json:()=>new Promise(()=>{})});await flush();await bodyStall.expire();assert.match(bodyStall.root.innerHTML,/超时/);assert.doesNotMatch(bodyStall.root.innerHTML,/aria-busy="true"/);
 const host=boot({embedded:true});await flush();await host.reply(host.messages[0],{});const call=host.messages.find(x=>x.method==='tools/call');assert(call);
 // 冷入口只带页面标记，不能抢占正在读取的真实数据或写入空缓存。
-await host.hostResult({structuredContent:{view:'agents',_bootstrap_pending:true}});
+await host.hostResult({structuredContent:{view:'models',_bootstrap_pending:true}});
 assert.equal(host.fields.s.syncing,true);assert.equal(Object.keys(host.fields.s.data).length,0);
 await host.visibility(true);await host.reply(call,data('host-result'));assert.match(host.root.innerHTML,/host-result/);
 await host.visibility(false);assert.equal(host.messages.filter(x=>x.method==='tools/call').length,1);await host.expire();assert.doesNotMatch(host.root.innerHTML,/超时/);assert.doesNotMatch(host.root.innerHTML,/aria-busy="true"/);
@@ -46,7 +46,7 @@ await cached.visibility(true);await cached.visibility(false);assert.match(cached
 assert.equal(cached.requests.length,1);cached.fields.load();await flush();const request=JSON.parse(cached.requests[1].options.body);assert.equal(request.name,'workbench_sync');assert.equal(request.arguments.revision,'cached-result');
 cached.requests[1].resolve({context:'test-account',revision:'cached-result',unchanged:true});await flush();assert.equal(cached.root.renders,rendered);
 cached.fields.load();await flush();assert.equal(JSON.parse(cached.requests.at(-1).options.body).arguments.refresh,false);
-cached.requests.at(-1).resolve({context:'another-account',revision:'another',reset:true,data:{skills:[]}});await flush();assert.doesNotMatch(cached.root.innerHTML,/cached-result/);
+cached.requests.at(-1).resolve({context:'another-account',revision:'another',reset:true,data:{models:[]}});await flush();assert.doesNotMatch(cached.root.innerHTML,/cached-result/);
 console.log('页面缓存：保留可见数据、携带版本、不重建未变 DOM、自动同步、换号清理通过');
 
 const otherAccounts=boot({page:'other_accounts'});await flush();
@@ -153,3 +153,54 @@ navigation.requests[0].resolve(data('obsolete-page'));await flush();
 assert.equal(navigation.fields.s.page,'accounts');assert.doesNotMatch(navigation.root.innerHTML,/obsolete-page/);
 await navigation.visibility(true);await navigation.visibility(false);assert.equal(navigation.requests.length,2);
 console.log('按页加载：只请求目标页、同页点击和窗口聚焦不请求、旧响应隔离通过');
+
+// ui/message 只表示宿主已受理；官网导入完成之前持续读本地快照，不重复触发来源刷新。
+const captured=boot({embedded:true,page:'other_accounts'});await flush();
+await captured.reply(captured.messages[0],{});
+const captureData=(revision,name,observed)=>({context:'capture-test',revision,reset:true,data:{view:'other_accounts',accounts:[{id:'one',provider_id:'minimax',provider_name:'MiniMax',usage_credential_id:'key-ref',display_name:name,profile_observed_at:observed}],status:{snapshot:{state:'ready',refreshing:false}}}});
+await captured.reply(captured.messages.find(x=>x.method==='tools/call'),{structuredContent:captureData('old','旧名称','before')});
+const updating=captured.fields.updateProfile('other_accounts','one');await flush();
+const captureGrant=captured.messages.filter(x=>x.method==='tools/call').at(-1);
+assert.equal(captureGrant.params.name,'account_profile_capture');
+assert(!captured.messages.some(x=>x.method==='ui/message'));
+await captured.reply(captureGrant,{structuredContent:{capture_id:'test-capture-grant',expires_in_seconds:600}});await flush();
+const captureRequest=captured.messages.find(x=>x.method==='ui/message');assert(captureRequest);
+assert.match(captureRequest.params.content[0].text,/test-capture-grant/);
+await captured.reply(captureRequest,{});await updating;
+assert.match(captured.root.innerHTML,/旧名称/);
+async function runCapturePoll(result){
+ const timer=[...captured.timers].find(([,timer])=>timer.ms===5000);assert(timer);
+ captured.timers.delete(timer[0]);timer[1].fn();await flush();
+ const call=captured.messages.filter(x=>x.method==='tools/call').at(-1);
+ assert.equal(call.params.name,'workbench_sync');assert.equal(call.params.arguments.refresh,false);
+ await captured.reply(call,{structuredContent:result});
+}
+await runCapturePoll(captureData('waiting','旧名称','before'));
+assert(captured.fields.s.profileCapture);
+await runCapturePoll(captureData('new','官网新名称','after'));
+assert.match(captured.root.innerHTML,/官网新名称/);assert.equal(captured.fields.s.profileCapture,null);
+assert(![...captured.timers.values()].some(timer=>timer.ms===5000));
+assert.equal(captured.messages.filter(x=>x.method==='ui/message').length,1);
+console.log('官网资料更新：宿主受理后只轮询本地快照，导入完成自动显示并结束轮询');
+
+// 搜索旧昵称时，改名可以让账户离开当前列表，但不能让采集状态永远等待。
+const filteredCapture=boot({embedded:true,page:'other_accounts'});await flush();
+await filteredCapture.reply(filteredCapture.messages[0],{});
+await filteredCapture.reply(filteredCapture.messages.find(x=>x.method==='tools/call'),{structuredContent:captureData('filtered-old','旧名称','before')});
+filteredCapture.fields.s.query='旧名称';filteredCapture.fields.s.accountProvider='minimax';
+const filteredUpdating=filteredCapture.fields.updateProfile('other_accounts','one');await flush();
+await filteredCapture.reply(filteredCapture.messages.filter(x=>x.method==='tools/call').at(-1),{structuredContent:{capture_id:'filtered-grant',expires_in_seconds:600}});await flush();
+await filteredCapture.reply(filteredCapture.messages.find(x=>x.method==='ui/message'),{});await filteredUpdating;
+const filteredTimer=[...filteredCapture.timers].find(([,timer])=>timer.ms===5000);assert(filteredTimer);
+filteredCapture.timers.delete(filteredTimer[0]);filteredTimer[1].fn();await flush();
+const filteredCall=filteredCapture.messages.filter(x=>x.method==='tools/call').at(-1);
+assert.deepEqual(Object.keys(filteredCall.params.arguments).sort(),['refresh','view']);
+assert.equal(filteredCall.params.arguments.refresh,false);
+await filteredCapture.reply(filteredCall,{structuredContent:captureData('filtered-new','官网新名称','after')});
+assert.equal(filteredCapture.fields.s.profileCapture,null);
+assert.equal(filteredCapture.fields.s.query,'旧名称');
+assert.equal(filteredCapture.fields.s.accountProvider,'minimax');
+assert.doesNotMatch(filteredCapture.root.innerHTML,/<h2[^>]*>官网新名称/);
+assert.equal(filteredCapture.fields.s.data.accounts[0].display_name,'官网新名称');
+assert(![...filteredCapture.timers.values()].some(timer=>timer.ms===5000));
+console.log('官网资料更新：搜索与供应商筛选不影响完成判定，仍保留用户的筛选条件');

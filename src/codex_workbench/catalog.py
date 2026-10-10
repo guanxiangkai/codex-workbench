@@ -3,14 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
-VERSION = "0.10.4"
+VERSION = "0.10.5"
 UI_URIS = {"open_workbench": "ui://codex-workbench/v7/workbench.html"}
 PAGES = {"workbench": ("codex-workbench", "open_workbench", "工作台")}
 MODULES = [
     {"id": "accounts", "name": "Codex 账户", "group": "账户与配置"},
     {"id": "other_accounts", "name": "其他账户", "group": "账户与配置"},
     {"id": "config", "name": "配置中心", "group": "账户与配置"},
-    {"id": "agents", "name": "技能助手", "group": "能力与知识"},
     {"id": "knowledge", "name": "知识中心", "group": "能力与知识"},
     {"id": "models", "name": "模型目录", "group": "能力与知识"},
 ]
@@ -35,9 +34,9 @@ def definition(name, title, description, properties=None, required=None, *, read
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
-    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default"):
+    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
-    if name in ("account_create", "account_login", "account_status", "account_default"):
+    if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "account_profile_import"):
         result["annotations"]["readOnlyHint"] = False
     if name in ("account_create", "account_login"):
         result["annotations"]["idempotentHint"] = False
@@ -50,11 +49,13 @@ TOOLS = [
     definition("account_login", "登录 Codex 账户", "打开官方 OpenAI 登录页面，登录完成后自动核验账户状态。", {"id": ID}, ["id"]),
     definition("account_status", "核验 Codex 账户", "读取官方登录状态和额度，并登记已确认的账户主体。", {"id": ID}, ["id"]),
     definition("account_default", "设置默认账户", "设置已登记且身份核验通过的默认账户；所有会话下一次请求使用该账户。", {"id": ID, "expected_default_id": text(255, True)}, ["id", "expected_default_id"]),
-    definition("open_workbench", "工作台", "打开账户、配置、技能、知识和模型工作台。"),
+    definition("account_profile_update", "更新账户资料", "仅在用户手动更新时读取 Codex 官方资料；不代表已采集网页头像。", {"id": ID}, ["id"]),
+    definition("account_profile_capture", "授权官网资料采集", "仅供工作台首次登录或用户点击更新资料后申请十分钟内有效的单次保存授权。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID}, ["view", "id"], idempotent=False),
+    definition("account_profile_import", "保存官网账户资料", "需要工作台发起的有效单次 capture_id；仅保存已在官方可见页面核对为同一账户的真实昵称和本地头像；不读取或保存 Cookie、Token。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID, "capture_id": text(128), "display_name": text(200), "account_identifier": text(200), "avatar_data_uri": text(1048576), "missing_fields": {"type": "array", "items": {"type": "string", "enum": ["display_name", "avatar_data_uri", "account_identifier"]}, "uniqueItems": True, "maxItems": 3}, "observed_at": text(100)}, ["view", "id", "capture_id"]),
+    definition("open_workbench", "工作台", "打开账户、配置、知识和模型工作台。"),
     definition("workbench_state", "读取工作台", "按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS}),
     definition("workbench_sync", "同步工作台变化", "按修订返回后台快照差异；刷新仅排入后台采集，失败保留最后成功数据，不返回密钥。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS, "revision": text(64), "refresh": {"type": "boolean"}}, ["view"]),
     definition("module_list", "读取工作台模块", "读取用户可见的工作台模块目录。"),
-    definition("skill_detail", "读取技能详情", "只读展示官方已发现技能的能力信息。", {"id": ID}, ["id"]),
     definition("knowledge_list", "读取知识目录", "读取已审核知识的范围和目录，不创建、审核或修改知识。", {"scope": text(200), "query": text(300)}),
     definition("knowledge_detail", "阅读知识", "读取指定范围内已审核且有效的知识，不创建或修改知识。", {"scope": text(200), "key": text(200)}, ["scope", "key"]),
     definition("model_list", "读取模型目录", "读取已经登记的模型与验证快照，不发起验证。"),
@@ -67,10 +68,11 @@ TOOLS = [
 ]
 
 _OUTPUT_KEYS = {
+    "account_profile_update": ["account"], "account_profile_capture": ["capture_id", "expires_in_seconds"], "account_profile_import": ["profile"],
     "account_create": ["account"], "account_login": ["login"], "account_status": ["account", "login"],
     "account_default": ["default_account_id", "applies_to"], "open_workbench": ["view", "read_only", "status"],
     "workbench_state": ["view", "read_only", "status"], "workbench_sync": ["context", "revision", "base_revision", "unchanged"],
-    "module_list": ["modules", "read_only"], "skill_detail": ["skill"], "knowledge_list": ["scopes", "knowledge", "selected_scope"], "knowledge_detail": ["knowledge"], "model_list": ["models"], "model_detail": ["model", "credential"],
+    "module_list": ["modules", "read_only"], "knowledge_list": ["scopes", "knowledge", "selected_scope"], "knowledge_detail": ["knowledge"], "model_list": ["models"], "model_detail": ["model", "credential"],
     "credential_list": ["entries", "folders", "status"],
     "credential_details": ["entry_id", "revision", "generation", "request_id", "public_key_sha256", "wrapped_key", "iv", "ciphertext"],
     "service_list": ["services"], "service_detail": ["service"], "connection_list": ["connections", "source_errors"],

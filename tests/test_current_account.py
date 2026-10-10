@@ -94,3 +94,31 @@ class CurrentAccountTests(unittest.TestCase):
             with patch('codex_workbench.readonly_sources.validate_account_home',return_value=str(root)),patch.object(NativeRead,'rpc',return_value=FakeRpc(current=True)):
                 accounts=NativeRead(database,'unused',catalog=object()).accounts()
             self.assertEqual(['current'], [account['id'] for account in accounts])
+
+    def test_targeted_profile_refresh_only_opens_requested_account_rpc(self):
+        import sqlite3
+        from codex_workbench.readonly_sources import NativeRead
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); database = root / 'accounts.sqlite'; other_home = root / 'other'; other_home.mkdir()
+            with sqlite3.connect(database) as db:
+                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,display_name TEXT,expected_email TEXT,codex_home TEXT,kind TEXT,subject_id TEXT)')
+                db.execute('INSERT INTO execution_accounts VALUES(?,?,?,?,?,?,?)',
+                           ('other', 'Other', None, 'other@example.invalid', str(other_home), 'isolated', 'subject-other'))
+                db.execute('CREATE TABLE preferences(singleton INTEGER,default_execution_account_id TEXT)')
+            opened = []
+            class OtherRpc:
+                def __init__(self, _codex, home, _lease, *, current, timeout):
+                    opened.append((home, current, timeout))
+                def __enter__(self): return self
+                def __exit__(self, *args): pass
+                def request(self, method, _params=None):
+                    if method == 'account/read':
+                        return {'account': {'type': 'chatgpt', 'email': 'other@example.invalid', 'name': 'Other'}}
+                    if method == 'account/rateLimits/read':
+                        return {'accountId': 'subject-other', 'rateLimits': {'limitId': 'codex', 'primary': {'usedPercent': 20, 'windowDurationMins': 10080}}}
+                    raise AssertionError(method)
+            with patch('codex_workbench.readonly_sources.current_account_home', return_value=str(root)), \
+                 patch('codex_workbench.readonly_sources.validate_account_home', return_value=str(other_home)):
+                account = NativeRead(database, 'unused', rpc_factory=OtherRpc, catalog=object()).refresh_profile('other')
+            self.assertEqual('other', account['id'])
+            self.assertEqual([(str(other_home), False, 15)], opened)

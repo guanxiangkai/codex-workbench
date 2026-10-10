@@ -421,9 +421,13 @@ class Workbench:
             result=self._accounts().status(args['id'],refresh=True)
             if result.get('login',{}).get('status')=='ready':
                 # 首次完成官方登录时采集资料；后续调度只更新额度。
-                account=self.native.refresh_profile(args['id'], only_missing=True)
-                profile=apply_profiles({'accounts':[account]}, 'accounts', self.data_dir/'account-profiles.json')['accounts'][0]
-                result.setdefault('account',{})['profile_capture_required']=profile.get('profile_status',{}).get('source') != 'official_page'
+                try:
+                    account=self.native.refresh_profile(args['id'], only_missing=True)
+                    profile=apply_profiles({'accounts':[account]}, 'accounts', self.data_dir/'account-profiles.json')['accounts'][0]
+                    result.setdefault('account',{})['profile_capture_required']=profile.get('profile_status',{}).get('source') != 'official_page'
+                except (OSError, ValueError, sqlite3.Error):
+                    # 已确认的登录成功不能被可重试的资料读取失败回退。
+                    result.setdefault('account',{}).update(profile_capture_required=True, profile_refresh={'state':'failed'})
             if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch('accounts',refresh=True)
             return result

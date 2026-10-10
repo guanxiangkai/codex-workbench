@@ -140,6 +140,8 @@ class NativeRead:
         default_id=preference.get('default_execution_account_id') if preference is not None else next((a['id'] for a in saved if a.get('id')=='current'),None)
         current = next((a for a in saved if a.get('id')=='current'), {'id':'current','name':'Codex','kind':'current'})
         records = [current] + [a for a in saved if a.get('id')!='current']
+        if profile_refresh_id is not None:
+            records = [a for a in records if a['id'] == profile_refresh_id]
         result=[]
         for a in records:
             is_current = a['id']=='current'

@@ -6,7 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_workbench.model_probe import _provider_error_diagnostic
-from codex_workbench.registered_model_verifier import verify_model, verify_model_with_review, write_metadata, write_reviews
+from codex_workbench.registered_model_verifier import (_video_result, configuration_fingerprint, verify_model,
+                                                       verify_model_with_review, write_metadata, write_reviews)
 
 
 class RegisteredModelVerifierTests(unittest.TestCase):
@@ -63,6 +64,25 @@ class RegisteredModelVerifierTests(unittest.TestCase):
         self.assertEqual("1:1", body["aspect_ratio"])
         self.assertEqual("base64", body["response_format"])
 
+    def test_minimax_malformed_base_response_fails_without_aborting(self):
+        image = self.model(provider_id="minimax", model_type="image_generation", model="image-01",
+                           base_url="https://api.minimax.cn/v1/image_generation")
+        tts = self.model(provider_id="minimax", model_type="text_to_speech", model="speech-2.8-hd",
+                         base_url="https://api.minimax.cn/v1/t2a_v2")
+        for model, response in ((image, b'{"base_resp":null,"data":{}}'),
+                                (tts, b'{"base_resp":"failed","data":{"audio":"52494646"}}')):
+            with self.subTest(model=model["id"]), \
+                 patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):
+                self.assertFalse(verify_model(model, "synthetic-key")["success"])
+
+    def test_minimax_tts_tries_hex_audio_before_base64(self):
+        tts = self.model(provider_id="minimax", model_type="text_to_speech", model="speech-2.8-hd",
+                         base_url="https://api.minimax.cn/v1/t2a_v2")
+        response = b'{"base_resp":{"status_code":0},"data":{"audio":"52494646"}}'
+        with patch("codex_workbench.registered_model_verifier._audio_bytes", side_effect=lambda value: value == b"RIFF"), \
+             patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):
+            self.assertTrue(verify_model(tts, "synthetic-key")["success"])
+
     def test_bigmodel_tts_uses_documented_voice_and_wav_response(self):
         tts = self.model(model_type="text_to_speech", model="glm-tts",
                          base_url="https://open.bigmodel.cn/api/paas/v4/audio/speech")
@@ -93,6 +113,15 @@ class RegisteredModelVerifierTests(unittest.TestCase):
              patch("codex_workbench.registered_model_verifier.time.sleep"):
             result = verify_model(model, "synthetic-key", timeout=2)
         self.assertEqual({"model_id": "video", "success": True, "status": "verified", "error_code": "verified"}, result)
+
+    def test_video_requires_a_valid_downloadable_https_url(self):
+        for url in ("", "http://cdn.example/video.mp4", "https://", "https://user@cdn.example/video.mp4", "https://cdn.example/video.mp4 bad"):
+            with self.subTest(url=url):
+                task_id, verified = _video_result({"task_id": "task-1", "status": "success", "video_result": {"url": url}})
+                self.assertEqual("task-1", task_id)
+                self.assertFalse(verified)
+        _, verified = _video_result({"task_id": "task-1", "status": "success", "video_result": {"url": "https://cdn.example/video.mp4?signature=abc"}})
+        self.assertTrue(verified)
 
     def test_minimax_video_requires_polled_terminal_content_url(self):
         model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
@@ -128,6 +157,19 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             safe, _, diagnostic = verify_model_with_review(model, "synthetic-key", timeout=2, include_diagnostics=True)
         self.assertEqual("network_error", safe["error_code"])
         self.assertEqual({"video_task_id": "task-1"}, diagnostic)
+
+    def test_configuration_fingerprint_binds_resume_to_model_endpoint_and_credential_identity(self):
+        model = self.model(id="video", model_type="video_generation", model="MiniMax-H3",
+                           provider_id="minimax", credential_id="credential-a",
+                           base_url="https://api.minimax.cn/v2/video_generation")
+        fingerprint = configuration_fingerprint(model, "token-a")
+        self.assertEqual(fingerprint, configuration_fingerprint(dict(model), "token-a"))
+        for change in ({"base_url": "https://api.minimax.cn/v2/video_generation_alt"},
+                       {"model": "MiniMax-H3-alt"}, {"credential_id": "credential-b"}):
+            self.assertNotEqual(fingerprint, configuration_fingerprint({**model, **change}, "token-a"))
+        self.assertNotEqual(fingerprint, configuration_fingerprint(model, "token-b"))
+        self.assertNotIn("credential-a", fingerprint)
+        self.assertNotIn("token-a", fingerprint)
 
     def test_metadata_has_no_response_or_credential(self):
         with tempfile.TemporaryDirectory() as directory:

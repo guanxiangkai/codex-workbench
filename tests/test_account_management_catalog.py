@@ -24,3 +24,7 @@ class AccountManagementCatalogTests(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):
                     validate(name, {})
+
+    def test_manual_profile_update_is_app_only(self):
+        tool = next(item for item in TOOLS if item['name'] == 'account_profile_update')
+        self.assertEqual(['app'], tool['_meta']['ui']['visibility'])

@@ -1,10 +1,17 @@
 """首次官网采集的本机账户公开资料；严格绑定账户，不保存登录材料。"""
 from datetime import datetime, timezone
+import base64
+import binascii
 import json
 import os
 import re
 from pathlib import Path
 import tempfile
+import threading
+import zlib
+
+MAX_PROFILE_BYTES = 4 * 1024 * 1024
+_PROFILE_LOCK = threading.RLock()
 
 
 def profile_identity(view, account):
@@ -21,12 +28,63 @@ def _valid_name(value):
 
 
 def _valid_avatar(value):
-    return isinstance(value, str) and len(value) <= 1024 * 1024 and bool(
-        re.fullmatch(r'data:image/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+', value))
+    if not isinstance(value, str) or len(value) > 1024 * 1024:
+        return False
+    match = re.fullmatch(r'data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})', value)
+    if not match:
+        return False
+    try:
+        data = base64.b64decode(match[2], validate=True)
+    except (ValueError, binascii.Error):
+        return False
+    if match[1] == 'png':
+        if not data.startswith(b'\x89PNG\r\n\x1a\n'):
+            return False
+        offset, kinds = 8, []
+        while offset + 12 <= len(data):
+            size = int.from_bytes(data[offset:offset + 4], 'big')
+            kind = data[offset + 4:offset + 8]
+            end = offset + 12 + size
+            if end > len(data) or zlib.crc32(data[offset + 4:end - 4]) != int.from_bytes(data[end - 4:end], 'big'):
+                return False
+            if not kinds and (kind != b'IHDR' or size != 13 or not all(int.from_bytes(data[p:p + 4], 'big') for p in (offset + 8, offset + 12))):
+                return False
+            kinds.append(kind)
+            offset = end
+            if kind == b'IEND':
+                return size == 0 and offset == len(data) and b'IDAT' in kinds
+        return False
+    if match[1] == 'jpeg':
+        if not data.startswith(b'\xff\xd8') or not data.endswith(b'\xff\xd9'):
+            return False
+        offset, frame = 2, False
+        while offset + 4 <= len(data):
+            if data[offset] != 255:
+                return False
+            marker = data[offset + 1]
+            size = int.from_bytes(data[offset + 2:offset + 4], 'big')
+            if size < 2 or offset + 2 + size > len(data):
+                return False
+            if marker in (0xc0, 0xc1, 0xc2):
+                frame = size >= 8 and all(int.from_bytes(data[p:p + 2], 'big') for p in (offset + 5, offset + 7))
+            if marker == 0xda:
+                return frame and offset + 2 + size < len(data) - 2
+            offset += 2 + size
+        return False
+    return (len(data) >= 30 and data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+            and int.from_bytes(data[4:8], 'little') + 8 == len(data)
+            and data[12:16] in (b'VP8 ', b'VP8L', b'VP8X')
+            and 0 < int.from_bytes(data[16:20], 'little') <= len(data) - 20)
 
 
 def import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None, observed_at=None):
     """保存用户在官方页面确认过的公开资料；不接受客户端声明的认证状态。"""
+    with _PROFILE_LOCK:
+        return _import_profile(path, view, account, display_name=display_name, avatar_data_uri=avatar_data_uri,
+                               account_identifier=account_identifier, observed_at=observed_at)
+
+
+def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None, observed_at=None):
     identity = profile_identity(view, account)
     if identity is None:
         raise ValueError('账户身份尚未确认，不能导入资料')
@@ -48,6 +106,8 @@ def import_profile(path, view, account, *, display_name=None, avatar_data_uri=No
     path = Path(path)
     if path.is_symlink():
         raise ValueError('账户资料不能为符号链接')
+    if path.exists() and path.stat().st_size > MAX_PROFILE_BYTES:
+        raise ValueError('账户资料超过存储上限')
     try:
         document = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'version': 1, 'profiles': []}
     except (OSError, ValueError, json.JSONDecodeError) as error:
@@ -70,12 +130,15 @@ def import_profile(path, view, account, *, display_name=None, avatar_data_uri=No
         if key not in profile and key in previous:
             profile[key] = previous[key]
     profiles.append(profile)
+    payload = json.dumps({'version': 1, 'profiles': profiles}, ensure_ascii=False).encode('utf-8')
+    if len(payload) > MAX_PROFILE_BYTES:
+        raise ValueError('账户资料超过存储上限，请缩小头像后重试')
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, temporary = tempfile.mkstemp(prefix='.account-profile-', dir=path.parent)
     try:
-        with os.fdopen(fd, 'w') as output:
+        with os.fdopen(fd, 'wb') as output:
             os.fchmod(output.fileno(), 0o600)
-            json.dump({'version': 1, 'profiles': profiles}, output, ensure_ascii=False)
+            output.write(payload)
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, path)
@@ -90,7 +153,7 @@ def apply_profiles(value, view, path):
         return value
     try:
         path = Path(path)
-        if path.is_symlink() or path.stat().st_size > 4 * 1024 * 1024:
+        if path.is_symlink() or path.stat().st_size > MAX_PROFILE_BYTES:
             return value
         document = json.loads(path.read_text(encoding='utf-8'))
         if not isinstance(document, dict) or document.get('version') != 1 or not isinstance(document.get('profiles'), list):

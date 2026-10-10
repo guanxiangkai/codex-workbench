@@ -51,6 +51,18 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         for name,args in [('workbench_state',{'view':'accounts','codex_home':'/tmp/other'}),('credential_details',{'id':'x','public_key':'k','request_id':'r','refreshToken':True})]:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,args)
 
+    def test_ready_account_status_survives_optional_profile_refresh_failure(self):
+        account_service = type('Accounts', (), {
+            'status': lambda self, identifier, refresh: {'login': {'status': 'ready'}},
+            'close': lambda self: None,
+        })()
+        self.service._account_service = account_service
+        with patch.object(self.native, 'refresh_profile', side_effect=ValueError('temporary profile failure'), create=True):
+            result = self.service.call('account_status', {'id': 'current'})
+        self.assertEqual('ready', result['login']['status'])
+        self.assertEqual({'state': 'failed'}, result['account']['profile_refresh'])
+        self.assertTrue(result['account']['profile_capture_required'])
+
     def test_model_queries_preserve_database_and_hide_endpoint_secrets(self):
         db=self.root/'workbench.sqlite3'
         with sqlite3.connect(db) as c:

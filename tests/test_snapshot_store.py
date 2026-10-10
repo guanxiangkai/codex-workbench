@@ -10,6 +10,24 @@ from codex_workbench.snapshot_store import SnapshotStore, SnapshotScheduler, loa
 
 
 class SnapshotStoreTest(unittest.TestCase):
+    def test_account_snapshot_waits_for_provider_and_exposes_failure(self):
+        with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease'):
+            versions=Mock();versions.context.return_value='account-a'
+            board=Workbench(Path(directory),Path(directory)/'resources',native_reader=Mock(),source_versions=versions)
+            board.snapshot_scheduler=SnapshotScheduler(board)
+            self.addCleanup(board.close)
+            board.snapshots.put('account-a','accounts',{'accounts':[{'usage_refresh':{'state':'ready'}}]})
+            board.sync('accounts',refresh=True)
+            self.assertTrue(board.state('accounts')['status']['snapshot']['refreshing'])
+            scheduler=board.snapshot_scheduler
+            scheduler.provider_requested.clear();scheduler.provider_running.add('codex')
+            self.assertTrue(board.state('accounts')['status']['snapshot']['refreshing'])
+            scheduler.provider_running.clear();scheduler.provider_errors['codex']='provider_usage_unavailable'
+            failed=board.state('accounts')['status']['snapshot']
+            self.assertFalse(failed['refreshing']);self.assertEqual('stale',failed['state'])
+            scheduler.provider_errors.clear()
+            self.assertEqual('ready',board.state('accounts')['status']['snapshot']['state'])
+
     def test_restored_views_are_scheduled_and_survive_restart(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision = 'test'

@@ -7,7 +7,7 @@ import tempfile
 from readonly_fixture import Fixture as ReadonlyFixture
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from codex_workbench.service import Workbench
 from codex_workbench.store import StoreError
@@ -57,10 +57,10 @@ class WorkbenchServiceTest(unittest.TestCase):
     def test_failed_reset_analysis_retains_shared_history_metadata(self):
         previous={'scope':'official_manual_reset','observed_at':'2026-09-27T07:00:00Z','summary':'last success'}
         retained=dict(previous,signal='unknown',stale=True,error='analyzer_unavailable',last_success_at=previous['observed_at'],history_summary={'reported_count':55,'tracked_count':1})
-        self.board._scheduled_accounts=[{'id':'a','remaining_percent':70,'reset_analysis':previous}]
+        accounts=[{'id':'a','remaining_percent':70,'reset_analysis':previous}]
         self.board.reset_analyzer=Mock()
         self.board.reset_analyzer.cached.return_value=retained
-        account=self.board._collect_state('accounts')['accounts'][0]
+        account=self.board._collect_state('accounts', accounts=accounts)['accounts'][0]
         self.assertEqual(70,account['remaining_percent'])
         self.assertEqual(retained,account['reset_analysis'])
         self.board.reset_analyzer.force_refresh.assert_not_called()
@@ -82,7 +82,7 @@ class WorkbenchServiceTest(unittest.TestCase):
             self.assertEqual(expected,task['state'])
             self.assertEqual(expected=='error',bool(task['error']))
             self.assertIsNotNone(task['last_completed_at'])
-            self.assertEqual(analysis,self.board._scheduled_accounts[0]['reset_analysis'])
+            self.assertEqual(analysis,self.board.collect_snapshot.call_args.kwargs['accounts'][0]['reset_analysis'])
         self.assertEqual(2,self.board.collect_snapshot.call_count)
         self.assertTrue(all(c.kwargs=={'cached_only':True} for c in self.board.native.accounts.call_args_list))
 
@@ -92,6 +92,23 @@ class WorkbenchServiceTest(unittest.TestCase):
         self.board.sync('accounts',provider='manual_reset',refresh=True)
         self.board.snapshot_scheduler.request_provider.assert_called_once_with('manual_reset')
         self.board.snapshot_scheduler.touch.assert_called_once_with('accounts',refresh=False)
+
+    def test_account_refresh_without_provider_queues_official_rpc(self):
+        self.board.snapshot_scheduler=Mock()
+        self.board.state=Mock(return_value={'accounts':[]})
+        result=self.board.sync('accounts',refresh=True)
+        self.board.snapshot_scheduler.request_provider.assert_called_once_with('codex')
+        self.board.snapshot_scheduler.touch.assert_called_once_with('accounts',refresh=False)
+        self.assertEqual('codex',result['provider_refresh']['provider'])
+
+    def test_all_other_account_refresh_accepts_empty_provider_filter(self):
+        self.board.snapshot_scheduler=Mock()
+        self.board.state=Mock(return_value={'accounts':[]})
+        with patch('codex_workbench.service.other_accounts', return_value={'accounts':[
+            {'provider_id':'minimax'}, {'provider_id':'bigmodel'}, {'provider_id':'minimax'}]}):
+            self.board.sync('other_accounts',provider='',refresh=True)
+        self.assertEqual(['bigmodel','minimax'],[c.args[0] for c in self.board.snapshot_scheduler.request_provider.call_args_list])
+        self.board.snapshot_scheduler.touch.assert_called_once_with('other_accounts',refresh=False)
 
 
 

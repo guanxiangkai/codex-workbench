@@ -14,7 +14,6 @@ from .credential_details import read_details
 from .model_contracts import contract_for
 from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
 from .ui_release import UiRelease
-from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
 from .model_catalog import configured_models
@@ -30,8 +29,6 @@ from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
 from .account_profiles import apply_profiles
 
-LOCAL_PLANNING_VIEWS=frozenset(('planning',))
-
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
 
@@ -45,14 +42,9 @@ def _model_search_text(model):
 
 def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', **_ignored):
     """在完整公开快照上筛选并计算分类；列表一次返回全部匹配项。"""
-    key=next((k for k in ('accounts','skills','models','entries','knowledge','services','connections','projects') if isinstance(value.get(k),list)),None)
+    key=next((k for k in ('accounts','models','entries','services','connections') if isinstance(value.get(k),list)),None)
     if key is None:return value
     items=[x for x in value[key] if isinstance(x,dict)]
-    if key=='knowledge':
-        if 'scopes' in value and scope not in {x['id'] for x in value['scopes']}:raise ValueError('知识范围不存在或不可访问')
-        items=[x for x in items if x.get('scope_key')==scope]
-        value={**value,'selected_scope':scope,'limit_reached':scope in value.get('limited_scopes',[])}
-        value.pop('limited_scopes',None)
     directory={str(x['id']):x for x in value.get('folders',[]) if isinstance(x,dict) and x.get('id')}
     def ancestors(identifier):
         seen=set()
@@ -74,7 +66,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
     selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or ''))))]
     # 没有时间戳时保持源顺序，有时间戳时用标识消除并列顺序的不确定性。
     if any(x.get('updated_at') or x.get('created_at') for x in selected):
-        selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or x.get('knowledge_key') or '')),reverse=True)
+        selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or '')),reverse=True)
     if key=='accounts':
         selected.sort(key=lambda x:(not bool(x.get('is_current')),not bool(x.get('is_default'))))
     # 平台汇总只保留元数据，避免通过嵌套账户泄露额外列表。
@@ -96,10 +88,9 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
 class Workbench:
     """MCP 和 HTTP 共用工具白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
-                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None, output_root=None):
+                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None, output_root=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
         self.codex=codex;self.lease_fd=lease_fd
-        self.output_root=Path(output_root) if output_root else Path.home()/'Documents'/'输出'
         # 登录服务只在用户发起账户操作时构造。这样打开只读页面不会创建或迁移业务库。
         self._account_service=None
         self.db=self.data_dir/'workbench.sqlite3'
@@ -107,7 +98,6 @@ class Workbench:
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
         self.credentials=credential_catalog or ReadonlyCredentials(self.db)
         self.credential_reader=credential_reader or read_details
-        self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
@@ -119,47 +109,7 @@ class Workbench:
         self.snapshot_scheduler=None
         self.snapshot_errors={}
         self._scheduled_accounts = None
-        self._planning=None
         self._closing=False;self.lock=threading.RLock()
-
-    def _planning_service(self):
-        """计划与资料仅在首次使用时打开本机业务库。"""
-        with self.lock:
-            if self._planning is None:
-                from .planning import Planning
-                from .executor import CodexExecutor
-                from .planning_models import PlanningModels
-                from .planning_context import PlanningContext
-                router=PlanningModels(self._models, self._other_accounts)
-                context=PlanningContext(cache_path=self.data_dir/'planning-context-cache.sqlite3')
-                def embed(texts):
-                    response=router.call('embedding',{'input':texts},external_allowed=True,purpose='planning_context')
-                    vectors=response.get('vectors')
-                    if not isinstance(vectors,list) or not vectors or not vectors[0]:
-                        raise ValueError('embedding_response_invalid')
-                    dimensions=len(vectors[0])
-                    if any(len(vector)!=dimensions for vector in vectors):raise ValueError('embedding_dimension_mismatch')
-                    # Establish a binding only from the registered adapter's actual response.
-                    binding={'model_id':response['model_id'],'dimensions':dimensions}
-                    if context.embedding_binding and context.embedding_binding!=binding:
-                        raise ValueError('embedding_binding_changed')
-                    context.embedding_binding=binding
-                    return {**response,'dimensions':dimensions}
-                def rerank(query,documents):
-                    response=router.call('rerank',{'query':query,'documents':[item['content'] for item in documents]},external_allowed=True,purpose='planning_context')
-                    binding={'model_id':response['model_id']}
-                    if context.rerank_binding and context.rerank_binding!=binding:raise ValueError('rerank_binding_changed')
-                    context.rerank_binding=binding
-                    return response
-                context.embedding=embed;context.rerank=rerank
-                self._planning=Planning(self.data_dir,executor=CodexExecutor((self.codex,),lease_fd=self.lease_fd),
-                    knowledge_reader=self.knowledge.detail,output_root=self.output_root,context_engine=context,model_router=router)
-            return self._planning
-
-    def _planning_state(self,view):
-        data=self._planning_service().snapshot(view=view)
-        if not isinstance(data,dict):raise ValueError('本机计划状态不可用')
-        return {'view':view,'read_only':False,'status':{'state':'ok','observed_at':timestamp()},**data}
 
     def manifest(self,page,known_revision=None):
         """读取 UI/工具发布快照，不访问账户和业务对象。"""
@@ -169,13 +119,12 @@ class Workbench:
         """把公开缓存带入首屏；发布文件本身不保存任何运行数据或临时许可。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         if self._closing:raise ValueError('工作台正在关闭')
-        local_view=view in LOCAL_PLANNING_VIEWS
-        epoch='local-planning' if local_view else self.source_versions.context()
+        epoch=self.source_versions.context()
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
-        if not local_view and epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
+        if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        snapshot=(self._planning_state(view) if self._planning is not None else None) if local_view else self._snapshot_state(view)
-        if snapshot is not None and (local_view or snapshot['status']['snapshot']['state'] != 'pending'):
+        snapshot=self._snapshot_state(view)
+        if snapshot is not None and snapshot['status']['snapshot']['state'] != 'pending':
             value={'args':{'view':view},'revision':self._snapshot_revision(snapshot),'data':snapshot}
             length=len(json.dumps(value,ensure_ascii=False).encode())
             if length <= 700_000:
@@ -189,12 +138,11 @@ class Workbench:
         return {'html':html.replace('__WORKBENCH_RESOURCE_URI__',manifest['resource_uri']),'csp':csp}
 
     def close(self):
-        """关闭后台采集、账户操作和计划执行器。"""
+        """关闭后台采集和账户操作。"""
         with self.lock:
-            self._closing=True;self.view_cache.clear();planning=self._planning
+            self._closing=True;self.view_cache.clear()
         if self.snapshot_scheduler is not None:self.snapshot_scheduler.close()
         if self._account_service is not None:self._account_service.close()
-        if planning is not None:planning.close()
 
     def start_snapshots(self):
         """仅由 runtime 启动后台采集，测试构造服务不创建线程。"""
@@ -255,7 +203,6 @@ class Workbench:
         return {'provider': provider, 'refreshed': refreshed}
 
     def has_snapshot(self,view):
-        if view in LOCAL_PLANNING_VIEWS:return False
         return self.snapshots.get(self.source_versions.context(),view) is not None
 
     def _snapshot_revision(self,value):
@@ -369,49 +316,12 @@ class Workbench:
                 account.update(self.account_usage.cached(account))
         return result
 
-    def _catalog(self):
-        snapshot=self.native.snapshot()
-        for session in snapshot.get('sessions',[]):
-            session.pop('name_token',None)
-        return snapshot
-
-    def project_state(self):
-        """原生项目只做关联聚合，不创建独立项目记录。"""
-        catalog=self._catalog()
-        return {'projects':[{**p,'session_count':sum(x.get('project_id')==p['id'] for x in catalog['sessions'])} for p in catalog['projects']],
-                'sections':catalog['sections'],'sessions':catalog['sessions'],'truncated':catalog.get('status',{}).get('truncated',False)}
-
     def service_state(self):
         """服务和秘密共享原引用，避免重复登记和解密列表。"""
         return {'services':services(self._models(),self.credentials.list()['entries'])}
 
-    def search(self,query,scope='global'):
-        """显式提交后搜索非秘密摘要；逐源错误不会伪装成空结果。"""
-        query=query.strip()
-        if not query:return {'results':[],'source_errors':[]}
-        result=[{'module':m['id'],'id':m['id'],'title':m['name'],'summary':m['group'],'entity_type':'module'} for m in MODULES if query.casefold() in m['name'].casefold()];errors=[]
-        sources=[('agents',lambda:self._snapshot_state('agents').get('skills',[]),'id','display_name','description'),
-                 ('models',lambda:self._snapshot_state('models').get('models',[]),'id','name','provider_name'),
-                 ('config',lambda:self._snapshot_state('config').get('entries',[]),'id','label','kind'),
-                 ('other_accounts',lambda:self._snapshot_state('other_accounts').get('accounts',[]),'id','label','provider_name'),
-                 ('knowledge',lambda:self.state('knowledge',scope=scope).get('knowledge',[]),'knowledge_key','title','summary')]
-        for module,read,key,title,summary in sources:
-            if module not in {m['id'] for m in MODULES}:continue
-            try:
-                count=0
-                for item in read():
-                    name=item.get(title) or item.get('name') or item[key];snippet=item.get(summary) or ''
-                    searchable=_model_search_text(item) if module=='models' else (str(name)+' '+str(snippet)).casefold()
-                    if query.casefold() not in searchable:continue
-                    result.append({'module':module,'id':item[key],'title':name,'summary':str(snippet)[:300],
-                                   **({'scope':item.get('scope_key',scope)} if module=='knowledge' else {})});count+=1
-                    if count>=10:break
-            except (ValueError,OSError,sqlite3.Error):errors.append(module)
-        return {'results':result,'source_errors':errors}
-
     def _collect_state(self,view):
         """仅供后台采集调用；页面请求不得经过此方法。"""
-        if view in LOCAL_PLANNING_VIEWS:raise ValueError('本机计划视图不参与快照采集')
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
                 'runtime':{'version':VERSION,'ui_revision':self.ui_release.revision}}
         if view=='accounts':
@@ -438,16 +348,15 @@ class Workbench:
                         account['reset_analysis'] = dict(analysis)
                     else:
                         account.pop('reset_analysis', None)
-        elif view=='agents':result['skills']=self.native.skills()
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
-        elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='config':
             catalog=self.credentials.list();result.update(catalog);result['status']={**catalog['status'],'state':'ok','observed_at':timestamp()}
             result['configuration_schema']=configuration_schema()
             models=self._models();other=self._other_accounts(refresh=False)
             result['entries']=configuration_entries(catalog['entries'],models,other['accounts'])
             result['other_account_providers']=[{'id':provider['id'],'name':provider['name']} for provider in other['providers']]
+        elif view=='connections':result.update(self.connections.listing())
         else:raise ValueError('页面不存在')
         # 官网首次确认的公开资料仅补齐当前来源未提供的字段，身份键由适配器严格校验。
         return apply_profiles(result,view,self.data_dir/'account-profiles.json')
@@ -464,24 +373,14 @@ class Workbench:
     def state(self,view=DEFAULT_VIEW,*,snapshot_context=None,**filters):
         """页面状态只投影本机快照；首次读取排入后台采集。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
-        if view in LOCAL_PLANNING_VIEWS:
-            if filters:raise ValueError('当前视图不接受这些筛选参数')
-            return self._planning_state(view)
         result=self._snapshot_state(view,snapshot_context)
         return _page_view(result,**filters)
 
     def sync(self,view,revision=None,refresh=False,**filters):
         """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
-        allowed={'query','kind','provider','tag','folder'}|({'scope'} if view=='knowledge' else set())
+        allowed={'query','kind','provider','tag','folder'}
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
-        if view in LOCAL_PLANNING_VIEWS:
-            if filters:raise ValueError('当前视图不接受这些筛选参数')
-            value=self.state(view)
-            current=self._snapshot_revision(value)
-            result={'context':'local-planning','revision':current,'base_revision':revision,'unchanged':revision==current,'checked_at_age_seconds':0}
-            if not result['unchanged']:result.update(reset=True,data=value)
-            return result
         context=self.source_versions.context()
         requested_provider = filters.get('provider') if refresh else None
         if requested_provider is not None:
@@ -519,73 +418,21 @@ class Workbench:
             if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch('accounts',refresh=True)
             return result
-        if name=='planning_create':return {'item':self._planning_service().create(**args)}
-        if name=='planning_update':return {'item':self._planning_service().update(**args)}
-        if name=='planning_start':return {'item':self._planning_service().start(**args)}
-        if name=='planning_stop':return {'item':self._planning_service().stop(**args)}
-        if name=='planning_archive':return {'item':self._planning_service().archive(**args)}
-        if name=='planning_delete':return {'item':self._planning_service().remove(**args)}
-        if name=='planning_followup':return {'item':self._planning_service().followup(**args)}
-        if name=='planning_intake':return {'draft':self._planning_service().intake(models_provider=self._models, **args)}
-        if name=='planning_intake_save':return self._planning_service().intake_save(**args)
-        if name=='planning_knowledge_link':return {'item':self._planning_service().link_knowledge(**args)}
-        if name=='planning_export':
-            plan=self._planning_service()
-            result=plan.export(task_id=args['task_id'])
-            if args.get('include_knowledge',True):
-                from .planning_notes import PlanningNotes
-                records=[self.knowledge.detail(ref['scope'],ref['key'])['knowledge'] for ref in plan.detail(task_id=args['task_id']).get('knowledge_refs',[])]
-                if records:
-                    result['knowledge']=PlanningNotes(self.output_root,plan.db,plan.lock).export_knowledge(records)
-            return {'item':result}
-        if name=='planning_detail':return {'item':self._planning_service().detail(**args)}
-        if name=='planning_delivery':return {'item':self._planning_service().delivery_action(**args)}
-        if name=='planning_context':return {'item':self._planning_service().context(**args)}
-        if name=='planning_knowledge_candidates':return {'items':self._planning_service().knowledge_candidates(**args)}
-        if name in {'planning_output_filter','planning_output_source'}:
-            from .planning_output import PlanningOutput
-            output=PlanningOutput(self.data_dir/'planning-output-cache')
-            return {'item':output.filter(**args) if name=='planning_output_filter' else output.read(**args)}
-        if name=='planning_draft':
-            from .planning_draft import PlanningDraft
-            return {'draft':PlanningDraft(self._models).generate(args['text'])}
-        if name=='library_upload':return {'item':self._planning_service().upload(**args)}
-        if name=='library_upload_begin':return {'item':self._planning_service().upload_begin(**args)}
-        if name=='library_upload_chunk':return {'item':self._planning_service().upload_chunk(**args)}
-        if name=='library_upload_commit':return {'item':self._planning_service().upload_commit(**args)}
-        if name=='library_link':return {'item':self._planning_service().link(**args)}
-        if name=='library_list':return {'item':self._planning_service().library_list(**args)}
-        if name=='library_content':return {'item':self._planning_service().asset_content(**args)}
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
-            # 冷入口只打开页面；计划存储由页面的异步同步初始化。
-            if DEFAULT_VIEW in LOCAL_PLANNING_VIEWS and self._planning is None:
-                return {'view':DEFAULT_VIEW,'_bootstrap_pending':True}
             initial=self.sync(DEFAULT_VIEW)
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
         if name=='module_list':return {'modules':MODULES,'read_only':False}
-        if name=='project_list':return self.project_state()
-        if name=='project_detail':
-            data=self.project_state();item=next((x for x in data['projects'] if x['id']==args['id']),None)
-            if item is None:raise ValueError('项目不存在或不可访问')
-            return {'project':item,'sessions':[x for x in data['sessions'] if x.get('project_id')==item['id']]}
-        if name=='knowledge_list':return self.state('knowledge',scope=args.get('scope','global'),query=args.get('query',''))
-        if name=='knowledge_detail':return self.knowledge.detail(args['scope'],args['key'])
         if name=='service_list':return self.service_state()
         if name=='service_detail':
             item=next((x for x in self.service_state()['services'] if x['id']==args['id']),None)
             if item is None:raise ValueError('服务引用不存在或已变化')
             return {'service':item}
         if name=='connection_list':return self.connections.listing()
-        if name=='global_search':return self.search(args['query'],args.get('scope','global'))
         if name=='model_list':return {'models':self._models()}
         if name=='credential_list':return self.credentials.list()
         if name=='credential_details':return self.credential_reader(self.credentials,args['id'],args['public_key'],args['request_id'])
-        if name=='skill_detail':
-            item=next((s for s in self.native.skills() if s['id']==args['id']),None)
-            if item is None:raise ValueError('技能不存在或不可访问')
-            return {'skill':item}
         if name=='model_detail':
             item=next((m for m in self._models() if m['id']==args['id']),None)
             if item is None:raise ValueError('模型不存在')

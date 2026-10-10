@@ -41,7 +41,7 @@ class WorkbenchServiceTest(unittest.TestCase):
         self.board.call('open_workbench',{});self.board.close()
         self.assertEqual(before,hashlib.sha256(db.read_bytes()).hexdigest());self.assertEqual('保留规则',rules.read_text())
     def test_no_settings_export_or_resource_initialization(self):
-        self.board.call('workbench_state',{'view':'agents'})
+        self.board.call('workbench_state',{'view':'connections'})
         self.assertFalse((self.fixture.root/'resources').exists())
     def test_close_is_idempotent_and_has_no_validator(self):
         self.assertFalse(hasattr(self.board,'validator'));self.board.close();self.board.close()

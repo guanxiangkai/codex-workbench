@@ -76,7 +76,10 @@ class SnapshotFilterTest(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
         self.native=Mock()
-        self.native.skills=Mock(return_value=[{'id':str(i),'display_name':str(i)} for i in range(25)])
+        self.native.accounts=Mock(return_value=[{
+            'id':str(i), 'email':f'{i}@example.invalid', 'login_status':'ready',
+            'usage_refresh':{'state':'ready'},
+        } for i in range(25)])
         self.src=Mock(context=Mock(return_value='ctx'))
         self.patch=patch('codex_workbench.service.UiRelease')
         self.patch.start().return_value.revision='test'
@@ -87,21 +90,21 @@ class SnapshotFilterTest(unittest.TestCase):
         self.service.close(); self.patch.stop(); self.tmp.cleanup()
 
     def test_sync_reads_only_persisted_snapshot(self):
-        pending=self.service.call('workbench_sync',{'view':'agents'})
+        pending=self.service.call('workbench_sync',{'view':'accounts'})
         self.assertEqual('pending',pending['data']['status']['snapshot']['state'])
-        self.assertEqual(0,self.native.skills.call_count)
-        self.service.collect_snapshot('agents')
-        self.service.call('workbench_sync',{'view':'agents'})
-        self.service.call('workbench_sync',{'view':'agents','query':'2'})
-        self.assertEqual(1,self.native.skills.call_count)
+        self.assertEqual(0,self.native.accounts.call_count)
+        self.service.collect_snapshot('accounts')
+        self.service.call('workbench_sync',{'view':'accounts'})
+        self.service.call('workbench_sync',{'view':'accounts','query':'2'})
+        self.assertEqual(1,self.native.accounts.call_count)
 
     def test_context_switch_does_not_reuse_snapshot(self):
-        self.service.collect_snapshot('agents')
-        self.service.call('workbench_sync',{'view':'agents'})
+        self.service.collect_snapshot('accounts')
+        self.service.call('workbench_sync',{'view':'accounts'})
         self.src.context.return_value='other'
-        result=self.service.call('workbench_sync',{'view':'agents'})
+        result=self.service.call('workbench_sync',{'view':'accounts'})
         self.assertEqual('pending',result['data']['status']['snapshot']['state'])
-        self.assertEqual(1,self.native.skills.call_count)
+        self.assertEqual(1,self.native.accounts.call_count)
 
 
 if __name__ == '__main__':

@@ -124,12 +124,20 @@ def execute(model: dict[str, Any], request: dict[str, Any], token: str | None) -
         return _fail("manifest_invalid")
     timeout = 120
     if tool == "reasoning_chat":
+        timeout = request.get("timeout_seconds", timeout)
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or not 5 <= timeout <= 120:
+            return _fail("request_invalid")
+        effort = model.get("reasoning_effort")
+        if effort is not None and (not isinstance(effort, str) or effort not in {"low", "high", "max"} or protocol != "openai-chat"):
+            return _fail("manifest_invalid")
         messages = _messages(request.get("messages"))
         maximum = request.get("max_tokens", 1024)
         if messages is None or not isinstance(maximum, int) or isinstance(maximum, bool) or not 1 <= maximum <= 8192:
             return _fail("request_invalid")
         body = ({"model": model_id, "messages": messages, "max_completion_tokens": maximum} if protocol == "openai-chat"
                 else {"model": model_id, "input": messages[-1]["content"], "max_output_tokens": maximum})
+        if effort is not None:
+            body["reasoning_effort"] = effort
         # Non-streaming reasoning may not return headers within a probe's 15 seconds.
         payload, _, failure = _post(endpoint, _json_body(body), "application/json", token, None, __import__("time").monotonic() + timeout, response_timeout=timeout)
         if failure:

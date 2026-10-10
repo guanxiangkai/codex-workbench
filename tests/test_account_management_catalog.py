@@ -20,4 +20,3 @@ class AccountManagementCatalogTests(unittest.TestCase):
             with self.subTest(name=name):
                 with self.assertRaises(ValueError):
                     validate(name, {})
-

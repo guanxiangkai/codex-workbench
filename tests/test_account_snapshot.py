@@ -18,7 +18,11 @@ class AccountSnapshotTest(unittest.TestCase):
             db.execute('INSERT INTO execution_accounts VALUES(:id,:codex_home,:subject_id,:expected_email)',self.account)
         self.cache=AccountSnapshot(self.root)
         self.item={'email':'a@example.invalid','name':'Alice','name_source':'official','plan':'pro','remaining_percent':80,'reset_cards':2,'resets_at':2000000000,'observed_at':'2026-01-01T00:00:00+00:00'}
-        self.cache.save_profile(self.account,self.item);self.cache.save_usage(self.account,self.item)
+        self.cache.save_profile(self.account,{**self.item, 'profile_status': {
+            'source': 'official_rpc',
+            'subject_binding': __import__('hashlib').sha256(b'subject-a').hexdigest(),
+        }})
+        self.cache.save_usage(self.account,self.item,subject='subject-a')
         self.current_home=patch('codex_workbench.readonly_sources.current_account_home',return_value=str(self.root))
         self.current_home.start();self.addCleanup(self.current_home.stop)
         self.reader=NativeRead(self.db,'unused',catalog=object())
@@ -42,17 +46,38 @@ class AccountSnapshotTest(unittest.TestCase):
             def __exit__(self,*args):pass
             def request(self,method,*args):
                 calls.append(method)
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid','planType':'pro'}}
                 return {'accountId':'subject-a','rateLimits':{'limitId':'codex','primary':{'usedPercent':100,'windowDurationMins':10080,'resetsAt':2000000001}}}
         with patch.object(self.reader,'rpc',return_value=Rpc()):result=self.reader.accounts()[0]
-        self.assertEqual(['account/rateLimits/read'],calls)
+        self.assertEqual(['account/read','account/rateLimits/read','account/read'],calls)
         self.assertEqual(0,result['remaining_percent']);self.assertEqual('Alice',result['name'])
         self.assertEqual(before,path.read_bytes());self.assertEqual(stamp,path.stat().st_mtime_ns)
+
+    def test_repeated_login_status_preserves_profile_but_manual_update_changes_it(self):
+        class Rpc:
+            def __enter__(self):return self
+            def __exit__(self,*args):pass
+            def request(self,method,*args):
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid','name':'Updated Alice','planType':'pro'}}
+                return {'accountId':'subject-a','rateLimits':{'limitId':'codex','primary':{'usedPercent':25,'windowDurationMins':10080}}}
+        path=self.cache.path(self.account,'profile');before=path.read_bytes()
+        with patch.object(self.reader,'rpc',return_value=Rpc()):
+            self.reader.refresh_profile('current',only_missing=True)
+            self.assertEqual(before,path.read_bytes())
+            result=self.reader.refresh_profile('current')
+        self.assertEqual('Updated Alice',result['name'])
+        self.assertNotEqual(before,path.read_bytes())
 
     def test_changed_subject_invalidates_old_data(self):
         class Rpc:
             def __enter__(self):return self
             def __exit__(self,*args):pass
-            def request(self,*args):return {'accountId':'different'}
+            def request(self,method,*args):
+                if method == 'account/read':
+                    return {'account': {'type':'chatgpt','email':'a@example.invalid'}}
+                return {'accountId':'different'}
         with patch.object(self.reader,'rpc',return_value=Rpc()):result=self.reader.accounts()[0]
         self.assertEqual('identity_mismatch',result['login_status']);self.assertIsNone(result.get('email'))
         self.assertFalse(self.cache.cached(self.account))
@@ -65,5 +90,34 @@ class AccountSnapshotTest(unittest.TestCase):
         self.cache.save_usage(self.account,{'remaining_percent':0,'reset_cards':None})
         self.assertEqual(0,self.cache.cached(self.account)['remaining_percent'])
         self.assertEqual(2,self.cache.cached(self.account)['reset_cards'])
+
+    def test_usage_subject_switch_discards_omitted_old_usage_fields(self):
+        self.cache.save_usage(self.account, {'remaining_percent': 25}, subject='subject-b')
+        cached = self.cache.cached(self.account)
+        self.assertEqual(25, cached['remaining_percent'])
+        for field in ('reset_cards', 'resets_at', 'observed_at'):
+            self.assertNotIn(field, cached)
+        self.assertEqual(__import__('hashlib').sha256(b'subject-b').hexdigest(),
+                         self.cache.usage_subject_binding(self.account))
+
+    def test_historical_snapshot_migration_requires_profile_subject_evidence(self):
+        account = {**self.account, 'id': 'migrated'}
+        binding = __import__('hashlib').sha256(b'subject-a').hexdigest()
+        historical = {'id': 'migrated', 'email': 'a@example.invalid', 'name': 'Historical', 'login_status': 'ready'}
+        snapshots = {'contexts': {'old': {'accounts': {
+            'updated_at': '2026-01-01T00:00:00+00:00', 'data': {'accounts': [historical]},
+        }}}}
+        (self.root / 'snapshots.json').write_text(json.dumps(snapshots))
+        profiles = self.root / 'account-profiles.json'
+        profiles.write_text(json.dumps({'version': 1, 'profiles': [{
+            'view': 'accounts', 'identity': ['codex', 'migrated', 'a@example.invalid'], 'source': 'official_page',
+        }]}))
+        self.cache.migrate(account)
+        self.assertFalse(self.cache.path(account, 'profile').exists())
+        profiles.write_text(json.dumps({'version': 1, 'profiles': [{
+            'view': 'accounts', 'identity': ['codex', 'migrated', 'a@example.invalid', binding], 'source': 'official_page',
+        }]}))
+        self.cache.migrate(account)
+        self.assertEqual('Historical', self.cache.cached(account)['name'])
 
 if __name__=='__main__':unittest.main()

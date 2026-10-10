@@ -8,10 +8,8 @@ import fcntl
 import hashlib
 import json
 import os
-import struct
 import tempfile
 import time
-import zlib
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
@@ -36,32 +34,9 @@ _REVIEW_PROMPT = (
 _MEDIA_PROMPT = "一张纯红色方形图标，白色字母 OK，简洁清晰。"
 
 
-def _ocr_probe_png() -> str:
-    """Create a local high-contrast ``OK`` image so OCR has real glyphs to parse."""
-    glyphs = {
-        "O": ("01110", "10001", "10001", "10001", "10001", "10001", "01110"),
-        "K": ("10001", "10010", "10100", "11000", "10100", "10010", "10001"),
-    }
-    scale, width, height = 16, 224, 144
-    pixels = bytearray(b"\xff\xff\xff" * width * height)
-    for letter_index, letter in enumerate("OK"):
-        for row, bits in enumerate(glyphs[letter]):
-            for column, bit in enumerate(bits):
-                if bit != "1":
-                    continue
-                for y in range(24 + row * scale, 24 + (row + 1) * scale):
-                    for x in range(24 + letter_index * 96 + column * scale, 24 + letter_index * 96 + (column + 1) * scale):
-                        offset = (y * width + x) * 3
-                        pixels[offset:offset + 3] = b"\x00\x00\x00"
-    raw = b"".join(b"\x00" + pixels[row * width * 3:(row + 1) * width * 3] for row in range(height))
-    def chunk(kind: bytes, payload: bytes) -> bytes:
-        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff)
-    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
-    png += chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
-    return base64.b64encode(png).decode("ascii")
-
-
-_OCR_PNG = _ocr_probe_png()
+# The provider's documented public fixture succeeds on its production parser.
+# The previous generated PNG is rejected with 1214 even though it decodes locally.
+_OCR_FIXTURE_URL = "https://cdn.bigmodel.cn/static/logo/introduction.png"
 
 
 def safe_result(model_id: str, success: bool, status: str, error_code: str) -> dict:
@@ -232,8 +207,8 @@ def _native_asr(model: dict, token: str, timeout: float) -> dict:
 
 
 def _native_ocr(model: dict, token: str, timeout: float) -> dict:
-    """GLM-OCR accepts an image/PDF URL or base64; use a generated red PNG, never a remote fixture."""
-    body = {"model": model["model"], "file": "data:image/png;base64," + _OCR_PNG, "return_crop_images": False,
+    """Use the public sample from the GLM-OCR API documentation; never upload user files."""
+    body = {"model": model["model"], "file": _OCR_FIXTURE_URL, "return_crop_images": False,
             "need_layout_visualization": False}
     payload, _, failure = _post(model["base_url"], _json_body(body), "application/json", token, None, time.monotonic() + timeout,
                                 response_timeout=timeout, error_diagnostics=True)
@@ -428,7 +403,8 @@ def _verify_model(model: dict, token: str, *, timeout: float = 30) -> tuple[dict
     except (OSError, ValueError, TypeError):
         result = {"success": False, "code": "probe_error"}
     success = result.get("success") is True
-    return (safe_result(model_id, success, "verified" if success else "failed", str(result.get("code") or "probe_error")),
+    status = "verified" if success else "validating" if result.get("code") == "task_pending" else "failed"
+    return (safe_result(model_id, success, status, str(result.get("code") or "probe_error")),
             _diagnostics(result))
 
 
@@ -564,5 +540,7 @@ def record_results(data_dir: Path, selected: list[dict], results: list[dict]) ->
     by_id = {item["model_id"]: item for item in results}
     for model in selected:
         result = by_id[model["id"]]
-        if result["status"] != "skipped":
+        if result["status"] == "validating":
+            store.record_pending(model, source="probe")
+        elif result["status"] != "skipped":
             store.record(model, success=result["success"], source="probe")

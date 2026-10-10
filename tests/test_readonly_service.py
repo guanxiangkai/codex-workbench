@@ -36,18 +36,13 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','agents','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','connections','models','config']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
-    def test_only_explicit_account_planning_and_library_actions_can_write(self):
-        writes={'account_create','account_login','account_status','account_default',
-                'planning_create','planning_update','planning_start','planning_stop',
-                'planning_archive','planning_delete','planning_followup','planning_knowledge_link',
-                'planning_export','planning_draft','planning_intake','planning_intake_save',
-                'planning_delivery','planning_knowledge_candidates','library_upload','library_upload_begin',
-                'library_upload_chunk','library_upload_commit','library_link'}
+    def test_only_explicit_account_actions_can_write(self):
+        writes={'account_create','account_login','account_status','account_default'}
         self.assertTrue(all(t['annotations']['readOnlyHint'] is (t['name'] not in writes) for t in TOOLS))
         for name in ['task_create','task_update','task_start','run_cancel','account_login','account_default','agent_update','model_validate','credential_update','section_create']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.service.call(name,{})

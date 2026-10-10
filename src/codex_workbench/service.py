@@ -14,6 +14,7 @@ from .credential_details import read_details
 from .model_contracts import contract_for
 from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
 from .ui_release import UiRelease
+from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
 from .model_catalog import configured_models
@@ -42,7 +43,7 @@ def _model_search_text(model):
 
 def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', **_ignored):
     """在完整公开快照上筛选并计算分类；列表一次返回全部匹配项。"""
-    key=next((k for k in ('accounts','models','entries','services','connections') if isinstance(value.get(k),list)),None)
+    key=next((k for k in ('accounts','skills','knowledge','models','entries','services','connections') if isinstance(value.get(k),list)),None)
     if key is None:return value
     items=[x for x in value[key] if isinstance(x,dict)]
     directory={str(x['id']):x for x in value.get('folders',[]) if isinstance(x,dict) and x.get('id')}
@@ -63,7 +64,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
         text=' '.join(parts).casefold()
         return text+(' minmax' if key=='models' and 'minimax' in text else '')
     q=str(query or '').casefold()
-    selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or ''))))]
+    selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or '')))) and (key!='knowledge' or scope in ('', 'global') or scope==x.get('scope_key'))]
     # 没有时间戳时保持源顺序，有时间戳时用标识消除并列顺序的不确定性。
     if any(x.get('updated_at') or x.get('created_at') for x in selected):
         selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or '')),reverse=True)
@@ -88,7 +89,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
 class Workbench:
     """MCP 和 HTTP 共用工具白名单，错误时不返回另一主体的缓存。"""
     def __init__(self, data_dir:Path, resources_dir:Path, codex='codex', *, lease_fd=None,
-                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None, output_root=None):
+                 native_reader=None, credential_catalog=None, credential_reader=None, ui_source_mode=False, knowledge_catalog=None, connection_catalog=None, view_cache=None, source_versions=None, account_usage=None, snapshot_store=None, reset_analyzer=None, output_root=None):
         self.data_dir=Path(data_dir);self.resources_dir=Path(resources_dir)
         self.codex=codex;self.lease_fd=lease_fd
         # 登录服务只在用户发起账户操作时构造。这样打开只读页面不会创建或迁移业务库。
@@ -98,6 +99,7 @@ class Workbench:
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
         self.credentials=credential_catalog or ReadonlyCredentials(self.db)
         self.credential_reader=credential_reader or read_details
+        self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
         self.source_versions=source_versions or SourceVersions(self.db,getattr(self.native,'cwd',Path.cwd()),self.resources_dir)
@@ -348,6 +350,8 @@ class Workbench:
                         account['reset_analysis'] = dict(analysis)
                     else:
                         account.pop('reset_analysis', None)
+        elif view=='agents':result['skills']=self.native.skills()
+        elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
         elif view=='config':
@@ -424,6 +428,15 @@ class Workbench:
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
         if name=='module_list':return {'modules':MODULES,'read_only':False}
+        if name=='skill_detail':
+            item=next((skill for skill in self.native.skills() if skill['id']==args['id']),None)
+            if item is None:raise ValueError('技能不存在或不可访问')
+            return {'skill':item}
+        if name=='knowledge_list':
+            scope=args.get('scope','global')
+            value=self.state('knowledge',scope=scope,query=args.get('query',''))
+            return {**value,'scopes':value.get('scopes',[]),'knowledge':value.get('knowledge',[]),'selected_scope':scope}
+        if name=='knowledge_detail':return self.knowledge.detail(args['scope'],args['key'])
         if name=='service_list':return self.service_state()
         if name=='service_detail':
             item=next((x for x in self.service_state()['services'] if x['id']==args['id']),None)

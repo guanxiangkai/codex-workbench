@@ -74,6 +74,34 @@ class ModelProbeTest(unittest.TestCase):
     def response(value: dict) -> tuple[int, dict[str, str], bytes]:
         return 200, {"Content-Type": "application/json"}, json.dumps(value).encode()
 
+    def test_reset_analyzer_isolated_worker_forwards_glm_reasoning_effort(self):
+        from codex_workbench.reset_analysis import RegisteredModelClient
+        _Handler.routes["/v1/chat/completions"] = self.response({"choices": [{"message": {"content": '{"status":"uncertain"}'}}]})
+        for provider, model_id, effort in (("bigmodel", "glm-5.3", "low"), ("minimax", "MiniMax-M2.7", None)):
+            with self.subTest(provider=provider):
+                client = RegisteredModelClient([{"provider_id": provider, "model": model_id,
+                                                 "base_url": self.base, "validation_status": "verified"}], timeout=10)
+                result = client.analyze({"instruction": "Return JSON from public evidence", "evidence": []})
+                self.assertEqual({"status": "uncertain"}, result)
+                body = json.loads(_Handler.requests[-1][1])
+                self.assertEqual(effort, body.get("reasoning_effort"))
+                self.assertEqual(model_id, body["model"])
+
+    def test_reasoning_worker_validates_effort_and_http_budget(self):
+        from codex_workbench.capability_worker import execute
+        model = {**self.model("reasoning"), "reasoning_effort": "low"}
+        request = {"tool": "reasoning_chat", "messages": [{"role": "user", "content": "test"}], "timeout_seconds": 85}
+        reply = json.dumps({"choices": [{"message": {"content": "OK"}}]}).encode()
+        with patch("codex_workbench.model_probe._post", return_value=(reply, {}, None)) as post:
+            self.assertTrue(execute(model, request, None)["success"])
+            self.assertEqual(85, post.call_args.kwargs["response_timeout"])
+            post.reset_mock()
+            for effort in ("invalid", True, []):
+                self.assertEqual("manifest_invalid", execute({**model, "reasoning_effort": effort}, request, None)["code"])
+            for timeout in (0, 121, True, float("nan"), "85"):
+                self.assertEqual("request_invalid", execute(model, {**request, "timeout_seconds": timeout}, None)["code"])
+            post.assert_not_called()
+
     def test_reasoning_chat_and_responses_use_minimal_real_requests(self) -> None:
         _Handler.routes["/v1/chat/completions"] = self.response({"choices": [{"message": {"reasoning_content": "OK"}}]})
         self.assertTrue(probe_model(self.model("reasoning"))["success"])

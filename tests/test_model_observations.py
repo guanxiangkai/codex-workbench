@@ -31,7 +31,9 @@ class ModelObservationsTests(unittest.TestCase):
         self.assertEqual(['verified','pending'],[m['validation_status'] for m in models])
         detail=self.board.call('model_detail',{'id':'text'})['model']
         self.assertEqual('conversation',detail['validation_source'])
-        self.assertEqual('verified',self.board.state('models')['models'][0]['validation_status'])
+        self.assertTrue(self.board.collect_snapshot('models'))
+        projected={item['id']:item for item in self.board.state('models')['models']}
+        self.assertEqual('verified',projected['text']['validation_status'])
         reference=self.board.service_state()['services'][0]['models'][0]['id']
         self.assertEqual('verified',self.board.call('model_detail',{'id':reference})['model']['validation_status'])
         self.assertEqual([],self.fixture.secret_reads)
@@ -55,18 +57,34 @@ class ModelObservationsTests(unittest.TestCase):
         self.store.record(self.model,success=True,source='conversation',observed_at='2026-01-04T00:00:00Z')
         self.assertEqual('verified',self.board.call('model_list',{})['models'][0]['validation_status'])
 
-    def test_observation_invalidates_view_signature(self):
+    def test_observation_updates_page_after_background_collection(self):
         class Versions:
             def context(self):return 'synthetic-context'
             def signature(self,view):return view
         self.board.source_versions=Versions()
+        self.assertTrue(self.board.collect_snapshot('models'))
         cached=self.board.sync('models')
         before=self.board._model_catalog_revision()
         self.store.record(self.model,success=True,source='conversation')
         self.assertNotEqual(before,self.board._model_catalog_revision())
+        self.assertEqual(cached['revision'],self.board.sync('models')['revision'])
+        self.assertTrue(self.board.collect_snapshot('models'))
         updated=self.board.sync('models',revision=cached['revision'])
         self.assertNotEqual(cached['revision'],updated['revision'])
-        self.assertEqual('verified',self.board.sync('models')['data']['models'][0]['validation_status'])
+        projected={item['id']:item for item in self.board.sync('models')['data']['models']}
+        self.assertEqual('verified',projected['text']['validation_status'])
+
+    def test_pending_probe_preserves_history_without_claiming_a_terminal_result(self):
+        from codex_workbench.registered_model_verifier import record_results
+        self.store.record(self.model,success=True,source='probe',observed_at='2026-01-02T00:00:00Z')
+        record_results(self.fixture.root,[self.model],[{'model_id':'text','success':False,
+                       'status':'validating','error_code':'task_pending'}])
+        model=self.board.call('model_detail',{'id':'text'})['model']
+        self.assertEqual('validating',model['validation_status'])
+        self.assertIsNotNone(model['last_verified_at'])
+        self.assertIsNone(model['last_error_code'])
+        self.store.record(self.model,success=True,source='probe')
+        self.assertEqual('verified',self.board.call('model_detail',{'id':'text'})['model']['validation_status'])
 
     def test_invalid_evidence_is_rejected_before_write(self):
         for fields in ({'success':'true','source':'conversation'},{'success':True,'source':'account_usage'},

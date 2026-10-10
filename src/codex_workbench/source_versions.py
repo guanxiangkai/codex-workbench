@@ -88,6 +88,8 @@ class SourceVersions:
         if view in ('config','services'):
             signals.extend(self._tree(self._local_source_dir('WORKBENCH_VAULT_DIR'),2,1000))
         if self.resources_dir:
+            if view == 'config':
+                signals.append(stamp(self.resources_dir/'workbench-settings.json'))
             if view in ('models','config','services'):
                 signals.extend(tree(self.resources_dir/'models',1,1100))
             if view in ('other_accounts','config'):

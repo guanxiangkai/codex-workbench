@@ -55,7 +55,8 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
             seen.add(identifier);yield identifier
             identifier=str(directory.get(identifier,{}).get('parent_id') or '')
     def item_kind(x):
-        return str((x.get('model_type') if key=='models' else x.get('service_type') if key=='entries' else None) or x.get('kind') or '')
+        specific = x.get('model_type') if key=='models' else (x.get('service_type') or x.get('display_type')) if key=='entries' else None
+        return str(specific or x.get('kind') or '')
     def item_providers(x):
         p=x.get('account_provider_ids',[]) if key=='entries' else x.get('provider_id') or x.get('provider') or []
         return [str(y) for y in (p if isinstance(p,list) else [p]) if y]
@@ -81,7 +82,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
             entry=providers.setdefault(p,{'id':p,'name':x.get('provider_name') or p,'count':0});entry['count']+=1
         k=item_kind(x)
         if k:
-            entry=kinds.setdefault(k,{'id':k,'name':x.get('service_type_label') or k,'count':0});entry['count']+=1
+            entry=kinds.setdefault(k,{'id':k,'name':x.get('service_type_label') or x.get('display_type_label') or k,'count':0});entry['count']+=1
         for t in x.get('tags') or []:tags[str(t)]=tags.get(str(t),0)+1
         for f in ancestors(str(x.get('folder_id') or '')):folders[f]=folders.get(f,0)+1
     return {**value,key:selected,
@@ -99,7 +100,7 @@ class Workbench:
         self.db=self.data_dir/'workbench.sqlite3'
         self.ui_release=UiRelease(source_mode=ui_source_mode)
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
-        self.credentials=credential_catalog or ReadonlyCredentials(self.db)
+        self.credentials=credential_catalog or ReadonlyCredentials(self.db, organization_path=self.resources_dir/'workbench-settings.json')
         self.credential_reader=credential_reader or read_details
         self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)

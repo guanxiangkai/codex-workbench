@@ -96,6 +96,14 @@ class AccountSnapshot:
         analysis = self.get(account, 'analysis')
         result = {**{k: v for k, v in profile.items() if k in PROFILE},
                   **{k: v for k, v in usage.items() if k in USAGE}}
+        metadata = usage.get('metadata') if isinstance(usage.get('metadata'), dict) else {}
+        profile_status = profile.get('profile_status') if isinstance(profile.get('profile_status'), dict) else {}
+        subject = account.get('subject_id')
+        expected = hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject else profile_status.get('subject_binding')
+        # Cache reads retain the last refresh outcome only for the verified
+        # subject. They are not a new failed authentication attempt.
+        if expected and metadata.get('subject_binding') == expected:
+            result.update({key: metadata[key] for key in ('login_status', 'usage_refresh') if key in metadata})
         if analysis:
             result['reset_analysis'] = analysis
         return result
@@ -123,8 +131,16 @@ class AccountSnapshot:
         if binding is not None and previous_binding is not None and previous_binding != binding:
             data, metadata = {}, {}
         data.update({k: item[k] for k in USAGE if item.get(k) is not None})
+        if item.get('login_status') in ('ready', 'unconfirmed', 'unavailable'):
+            metadata['login_status'] = item['login_status']
+        refresh = item.get('usage_refresh', {})
+        if refresh.get('state') in ('ready', 'failed'):
+            metadata['usage_refresh'] = {'state': refresh['state']}
+            if refresh['state'] == 'failed':
+                metadata['usage_refresh']['message'] = '额度更新失败，保留上次成功数据'
         if binding is not None:
-            data['metadata'] = {**metadata, 'subject_binding': binding}
+            metadata['subject_binding'] = binding
+        if metadata:data['metadata'] = metadata
         self.write(account, 'usage', data)
 
     def usage_subject_binding(self, account):

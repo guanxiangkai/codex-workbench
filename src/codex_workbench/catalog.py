@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-VERSION = "0.10.2"
+VERSION = "0.10.3"
 UI_URIS = {"open_workbench": "ui://codex-workbench/v7/workbench.html"}
 PAGES = {"workbench": ("codex-workbench", "open_workbench", "工作台")}
 MODULES = [
@@ -34,7 +34,7 @@ def definition(name, title, description, properties=None, required=None, *, read
         "annotations": {"readOnlyHint": read_only, "destructiveHint": False, "idempotentHint": idempotent, "openWorldHint": name in ("workbench_state", "workbench_sync")},
     }
     if name in UI_URIS:
-        result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global"}]}}
+        result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
     if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
     if name in ("account_create", "account_login", "account_status", "account_default"):

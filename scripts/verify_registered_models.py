@@ -57,12 +57,17 @@ def main() -> int:
                 raise ValueError("model_selection")
         if not selected:
             raise ValueError("model_selection")
+    except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        for model_id in dict.fromkeys(args.model_ids or [None]):
+            print(json.dumps({"model_id": model_id, "success": False, "status": "failed", "error_code": "model_selection"}, ensure_ascii=False))
+        return 2
+    try:
         # stdin 是唯一凭据入口；不读取环境变量、文件或命令行中任何密钥。
         token = _decode_selected_credential(sys.stdin.buffer.read(16385), selected)
         if token is None:
             raise ValueError("credential_format")
     except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
-        for model in locals().get("selected", []):
+        for model in selected:
             print(json.dumps({"model_id": model["id"], "success": False, "status": "failed", "error_code": "credential_format"}, ensure_ascii=False))
         return 2
     # Resume an already accepted video task instead of submitting (and charging for)

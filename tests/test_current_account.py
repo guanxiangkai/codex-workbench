@@ -122,6 +122,7 @@ class CurrentAccountTests(unittest.TestCase):
                  patch('codex_workbench.readonly_sources.validate_account_home', return_value=str(other_home)):
                 account = NativeRead(database, 'unused', rpc_factory=OtherRpc, catalog=object()).refresh_profile('other')
             self.assertEqual('other', account['id'])
+            self.assertNotIn('subject_binding', account['profile_status'])
             self.assertEqual([(str(other_home), False, 15)], opened)
 
     def test_cached_current_profile_requires_matching_observed_subject(self):

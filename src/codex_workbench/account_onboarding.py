@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Iterator
 from urllib.parse import quote
 
-from .account_runtime import validate_account_home
+from .account_runtime import current_account_home, validate_account_home
 from .store import StoreError
 
 
@@ -110,6 +110,23 @@ class AccountRegistry:
                    "version": 1, "created_at": self._now(), "isDefault": False}
         self.pending[account_id] = account
         return dict(account)
+
+    def register_current_account(self, name: str, codex_home: str, subject_id: str) -> dict:
+        """登记官方入口已核验的当前主体，保留默认账户和显示偏好。"""
+        name = self._text(name, "执行账户名称", 160)
+        subject_id = self._text(subject_id, "当前账户标识", 255)
+        expected_home = Path(current_account_home()).resolve()
+        if not isinstance(codex_home, str) or not Path(codex_home).is_absolute() or Path(codex_home).resolve() != expected_home:
+            raise StoreError("validation", "当前账户目录必须是 Codex 当前账户目录")
+        with self._connection() as db:
+            db.execute(
+                """INSERT INTO execution_accounts(id,name,codex_home,kind,subject_id,version,created_at)
+                   VALUES('current',?,?,'current',?,1,?)
+                   ON CONFLICT(id) DO UPDATE SET name=excluded.name,codex_home=excluded.codex_home,
+                       kind='current',subject_id=excluded.subject_id,version=execution_accounts.version+1""",
+                (name, str(expected_home), subject_id, self._now()),
+            )
+            return self._view(db, "current")
 
     def record_account_subject(self, account_id: str, subject: str) -> dict:
         subject = self._text(subject, "账户主体", 255)

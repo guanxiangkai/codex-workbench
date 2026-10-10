@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
 
-from codex_workbench.model_probe import _PNG, _provider_error_diagnostic
+from codex_workbench.model_probe import _PNG, _post, _provider_error_diagnostic
 from codex_workbench.registered_model_verifier import (_downloadable_https_url, _image_output, _minimax_image_output, _locked_document,
                                                        _video_result, configuration_fingerprint, verify_model,
                                                        verify_model_with_review, write_metadata, write_reviews)
@@ -119,14 +119,14 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             self.assertEqual({"model_id": "glm", "success": False, "status": "skipped", "error_code": "unregistered_https_endpoint"}, result)
             probe.assert_not_called()
 
-    def test_native_ocr_and_asr_send_documented_generated_fixture_payloads(self):
+    def test_native_ocr_and_asr_send_documented_public_fixture_payloads(self):
         ocr = self.model(model_type="multimodal", base_url="https://open.bigmodel.cn/api/paas/v4/layout_parsing")
         with patch("codex_workbench.registered_model_verifier._post", return_value=(b'{"md_results":"# OK"}', "application/json", None)) as post:
             self.assertTrue(verify_model(ocr, "synthetic-key")["success"])
         body = json.loads(post.call_args.args[1])
         self.assertEqual("glm-5.3", body["model"])
         self.assertIsInstance(body["file"], str)
-        self.assertTrue(body["file"].startswith("data:image/png;base64,"))
+        self.assertEqual("https://cdn.bigmodel.cn/static/logo/introduction.png", body["file"])
 
         asr = self.model(provider_id="minimax", model_type="speech_to_text", model="asr-1.0",
                          base_url="https://api.minimax.cn/v1/speech_to_text")
@@ -210,7 +210,7 @@ class RegisteredModelVerifierTests(unittest.TestCase):
              patch("codex_workbench.registered_model_verifier._get", return_value=(accepted, None)), \
              patch("codex_workbench.registered_model_verifier.time.sleep"):
             result = verify_model(model, "synthetic-key", timeout=2)
-        self.assertEqual({"model_id": "video", "success": False, "status": "failed", "error_code": "task_pending"}, result)
+        self.assertEqual({"model_id": "video", "success": False, "status": "validating", "error_code": "task_pending"}, result)
 
     def test_video_requires_terminal_result_url(self):
         model = self.model(id="video", model_type="video_generation", model="cogvideox-3",
@@ -383,6 +383,20 @@ class RegisteredModelVerifierTests(unittest.TestCase):
         self.assertEqual({"diagnosis": "endpoint_or_model_unsupported", "http_status": 404}, unsupported)
         self.assertEqual({"diagnosis": "payment_required", "http_status": 402}, payment)
         self.assertNotIn("secret", json.dumps(quota))
+
+    def test_billing_429_is_distinct_from_rate_limiting_without_leaking_response(self):
+        for provider_code, diagnostics, expected in (("1113", True, "insufficient_balance"),
+                                                    ("1302", True, "rate_limited"),
+                                                    ("1113", False, "rate_limited")):
+            with self.subTest(provider_code=provider_code, diagnostics=diagnostics):
+                response = json.dumps({"error": {"code": provider_code, "message": "private-response"}}).encode()
+                error = HTTPError("https://open.bigmodel.cn/test", 429, "error", {}, io.BytesIO(response))
+                with patch("codex_workbench.model_probe._opener_for") as opener:
+                    opener.return_value.open.side_effect = error
+                    _, _, failure = _post("https://open.bigmodel.cn/test", b"{}", "application/json", None,
+                                          None, float("inf"), error_diagnostics=diagnostics)
+                self.assertEqual(expected, failure["code"])
+                self.assertNotIn("private-response", json.dumps(failure))
 
     def test_in_band_provider_error_is_available_only_to_private_metadata_path(self):
         model = self.model(provider_id="minimax", model_type="image_generation", model="image-01",

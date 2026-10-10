@@ -23,9 +23,18 @@ class ModelObservations:
 
     def record(self, model, *, success, source, observed_at=None):
         """记录调用终态；调用方须确认生成完成，不能把 Key 查询或任务受理当成功。"""
+        if type(success) is not bool:
+            raise ValueError('模型调用结果无效')
+        self._record(model, status='verified' if success else 'failed', source=source, observed_at=observed_at)
+
+    def record_pending(self, model, *, source, observed_at=None):
+        """受理但未完成的异步探测不伪造成功或失败终态。"""
+        self._record(model, status='validating', source=source, observed_at=observed_at)
+
+    def _record(self, model, *, status, source, observed_at=None):
         if not isinstance(model.get('id'),str) or not model['id'] or len(model['id'])>512:
             raise ValueError('记录调用结果需要明确的目录模型标识')
-        if type(success) is not bool or source not in ('conversation','probe'):
+        if source not in ('conversation','probe'):
             raise ValueError('模型调用结果或来源无效')
         now=datetime.now(timezone.utc)
         observed=now if observed_at is None else datetime.fromisoformat(observed_at.replace('Z','+00:00'))
@@ -49,7 +58,7 @@ class ModelObservations:
                 verified_at=CASE WHEN excluded.verified_at IS NULL THEN verified_at
                     WHEN verified_at IS NULL THEN excluded.verified_at
                     ELSE MAX(verified_at,excluded.verified_at) END''',
-                (model['id'],fingerprint,'verified' if success else 'failed',checked,checked if success else None,source))
+                (model['id'],fingerprint,status,checked,checked if status=='verified' else None,source))
 
     def project(self, models):
         """投影匹配配置的最新结果；迟到的历史成功不会覆盖较新的失败。"""
@@ -61,7 +70,7 @@ class ModelObservations:
                     (model['id'],configuration_fingerprint(model))).fetchone()
                 if row and (not model.get('last_checked_at') or _seconds(row[1])>=_seconds(model['last_checked_at'])):
                     model.update(validation_status=row[0],last_checked_at=row[1],last_verified_at=row[2],
-                                 validation_source=row[3],last_error_code=None if row[0]=='verified' else 'call_failed')
+                                 validation_source=row[3],last_error_code='call_failed' if row[0]=='failed' else None)
         return models
 
 

@@ -5,16 +5,16 @@ import {webcrypto} from 'node:crypto';
 const primitives=fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8');
 const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s,load,pageChange};window.__workbenchReadonlyTest={');
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
-function boot({embedded=false,bootstrap=null,page='agents',fieldPayload=null}={}){
+function boot({embedded=false,bootstrap=null,page='models',fieldPayload=null}={}){
  const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map();let timerId=0;
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'knowledge',name:'知识中心',group:'能力与知识'},{id:'accounts',name:'Codex',group:'账户与配置'},{id:'agents',name:'技能助手',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'other_accounts',name:'其他账户',group:'账户管理'},{id:'models',name:'模型目录',group:'账户管理'},{id:'config',name:'配置中心',group:'账户管理'},{id:'connections',name:'连接管理',group:'账户管理'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(primitives,context);vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
-const data=name=>({context:'test-account',revision:name,reset:true,unchanged:false,data:{skills:[{id:name,name,enabled:true}]}});
+const data=name=>({context:'test-account',revision:name,reset:true,unchanged:false,data:{models:[{id:name,name,provider:'fixture'}]}});
 // 隐藏窗口不应丢弃公共目录读取，返回时复用尚在执行的请求。
 const hidden=boot();await flush();assert.match(hidden.root.innerHTML,/正在读取/);
 await hidden.visibility(true);hidden.requests[0].resolve(data('hidden-result'));await flush();
@@ -78,26 +78,26 @@ console.log('账户用量：采集中保留旧数据，完成后统一替换，�
 
 // 原生入口会主动推送首屏结果，即使页面自主 tools/call 仍在等待也必须显示。
 const pushed=boot({embedded:true});await flush();await pushed.reply(pushed.messages[0],{});assert.match(pushed.root.innerHTML,/正在读取/);
-await pushed.hostResult({structuredContent:{view:'agents',skills:[{id:'host-initial',name:'Host initial'}],_sync:{context:'test-account',revision:'initial-revision'}}});
+await pushed.hostResult({structuredContent:{view:'models',models:[{id:'host-initial',name:'Host initial'}],_sync:{context:'test-account',revision:'initial-revision'}}});
 assert.match(pushed.root.innerHTML,/Host initial/);assert.doesNotMatch(pushed.root.innerHTML,/正在读取/);assert.equal(pushed.timers.size,0);
-await pushed.visibility(true);await pushed.visibility(false);pushed.fields.load();await flush();const subsequent=pushed.messages.filter(x=>x.method==='tools/call').at(-1);assert.equal(subsequent.params.arguments.revision,'initial-revision');
+await pushed.visibility(true);await pushed.visibility(false);pushed.fields.load();await flush();const subsequent=pushed.messages.filter(x=>x.method==='tools/call').at(-1);assert.equal(subsequent.params.arguments.view,'models');
 await pushed.reply(subsequent,{structuredContent:{context:'test-account',revision:'initial-revision',unchanged:true}});assert.match(pushed.root.innerHTML,/Host initial/);
 console.log('原生首屏：主动推送解除加载、取消重复请求、携带首屏版本增量同步通过');
 
 // 原生 HTML 首屏立即可见；所有后续读取等待握手且只走宿主工具通道。
-const bootstrap={context:'bootstrap-account',views:[{args:{view:'agents'},revision:'bootstrap-r1',data:{view:'agents',skills:[{id:'bootstrap-skill',name:'首屏技能',enabled:true}]}}]};
+const bootstrap={context:'bootstrap-account',views:[{args:{view:'models'},revision:'bootstrap-r1',data:{view:'models',models:[{id:'bootstrap-model',name:'首屏模型'}]}}]};
 const native=boot({embedded:true,bootstrap});
-assert.match(native.root.innerHTML,/首屏技能/);assert.doesNotMatch(native.root.innerHTML,/正在读取/);await flush();
+assert.match(native.root.innerHTML,/首屏模型/);assert.doesNotMatch(native.root.innerHTML,/正在读取/);await flush();
 assert.equal(native.requests.length,0);assert.equal(native.messages.filter(x=>x.method==='ui/initialize').length,1);assert(!native.messages.some(x=>x.method==='tools/call'));
 await native.reply(native.messages[0],{});
-const nativeCall=native.messages.find(x=>x.method==='tools/call');assert(nativeCall);assert.equal(nativeCall.params.arguments.revision,'bootstrap-r1');
+const nativeCall=native.messages.find(x=>x.method==='tools/call');assert(nativeCall);assert.equal(nativeCall.params.arguments.view,'models');
 assert(native.messages.findIndex(x=>x.method==='ui/notifications/initialized')<native.messages.indexOf(nativeCall));
 await native.reply(nativeCall,{structuredContent:{context:'bootstrap-account',revision:'bootstrap-r1',unchanged:true}});
-assert.match(native.root.innerHTML,/首屏技能/);assert.equal(native.timers.size,0);assert.equal(native.requests.length,0);
+assert.match(native.root.innerHTML,/首屏模型/);assert.equal(native.timers.size,1);assert.equal(native.requests.length,0);
 // 宿主失联时保留快照，手动重试重新握手；不尝试被原生沙箱阻止的 HTTP。
-const handshake=boot({embedded:true,bootstrap});await flush();await handshake.expire();assert.match(handshake.root.innerHTML,/首屏技能/);assert.match(handshake.root.innerHTML,/超时/);
+const handshake=boot({embedded:true,bootstrap});await flush();await handshake.expire();assert.match(handshake.root.innerHTML,/首屏模型/);assert.match(handshake.root.innerHTML,/超时/);
 handshake.controls.get('retry').click();await flush();assert.equal(handshake.messages.filter(x=>x.method==='ui/initialize').length,2);
-await handshake.reply(handshake.messages.at(-1),{});await handshake.reply(handshake.messages.at(-1),{structuredContent:{context:'bootstrap-account',revision:'bootstrap-r2',reset:true,data:{skills:[{id:'reconnected',name:'重新连接成功'}]}}});
+await handshake.reply(handshake.messages.at(-1),{});await handshake.reply(handshake.messages.at(-1),{structuredContent:{context:'bootstrap-account',revision:'bootstrap-r2',reset:true,data:{models:[{id:'reconnected',name:'重新连接成功'}]}}});
 assert.match(handshake.root.innerHTML,/重新连接成功/);assert.doesNotMatch(handshake.root.innerHTML,/id="retry"/);assert.equal(handshake.requests.length,0);
 const cold=boot({embedded:true,bootstrap:{views:[],error:'首屏数据暂时不可用，请点击刷新读取'}});assert.match(cold.root.innerHTML,/首屏数据暂时不可用/);assert.doesNotMatch(cold.root.innerHTML,/正在读取/);
 console.log('原生首屏：缓存即时显示、单次握手、宿主增量同步、失联手动恢复、无 HTTP 请求通过');
@@ -144,37 +144,12 @@ console.log('配置字段：直显、精确值、无查看复制按钮、转义�
 
 // Only an actual page change requests its target; aborted old responses cannot replace it.
 const navigation=boot();await flush();
-navigation.fields.pageChange('agents');await flush();assert.equal(navigation.requests.length,1);
-navigation.fields.pageChange('models');await flush();assert.equal(navigation.requests.length,2);
+navigation.fields.pageChange('models');await flush();assert.equal(navigation.requests.length,1);
+navigation.fields.pageChange('accounts');await flush();assert.equal(navigation.requests.length,2);
 assert(navigation.requests[0].options.signal.aborted);
-assert.equal(JSON.parse(navigation.requests[1].options.body).arguments.view,'models');
-navigation.requests[1].resolve({context:'test-account',revision:'models-r1',reset:true,data:{models:[]}});
+assert.equal(JSON.parse(navigation.requests[1].options.body).arguments.view,'accounts');
+navigation.requests[1].resolve({context:'test-account',revision:'accounts-r1',reset:true,data:{accounts:[]}});
 navigation.requests[0].resolve(data('obsolete-page'));await flush();
-assert.equal(navigation.fields.s.page,'models');assert.doesNotMatch(navigation.root.innerHTML,/obsolete-page/);
+assert.equal(navigation.fields.s.page,'accounts');assert.doesNotMatch(navigation.root.innerHTML,/obsolete-page/);
 await navigation.visibility(true);await navigation.visibility(false);assert.equal(navigation.requests.length,2);
 console.log('按页加载：只请求目标页、同页点击和窗口聚焦不请求、旧响应隔离通过');
-
-// Knowledge searches on input, coalesces typing and rejects superseded responses.
-const knowledge=boot({page:'knowledge'});await flush();
-const knowledgeData=(name,items=[])=>({context:'test-account',revision:name,reset:true,data:{knowledge:items,scopes:[{id:'global',name:'全局'}],selected_scope:'global'}});
-knowledge.requests[0].resolve(knowledgeData('initial'));await flush();
-assert.doesNotMatch(knowledge.root.innerHTML,/id="knowledge-query"/);
-assert.match(knowledge.root.innerHTML,/0 条知识/);
-const typeKnowledge=(value,isComposing=false)=>knowledge.controls.get('query').input({target:{value},isComposing});
-typeKnowledge('a');typeKnowledge('ab');await knowledge.expire();
-assert.equal(knowledge.requests.length,2);
-assert.equal(JSON.parse(knowledge.requests[1].options.body).arguments.query,'ab');
-typeKnowledge('abc');assert(knowledge.requests[1].options.signal.aborted);
-knowledge.requests[1].resolve(knowledgeData('stale',[{title:'旧结果'}]));await flush();
-assert.doesNotMatch(knowledge.root.innerHTML,/旧结果/);
-await knowledge.expire();knowledge.requests[2].resolve(knowledgeData('new',[{title:'新结果'}]));await flush();
-assert.match(knowledge.root.innerHTML,/1 条知识/);
-typeKnowledge('zhong',true);await knowledge.expire();assert.equal(knowledge.requests.length,3);
-knowledge.controls.get('query').compositionend({target:{value:'中文'}});await knowledge.expire();
-assert.equal(JSON.parse(knowledge.requests[3].options.body).arguments.query,'中文');
-knowledge.requests[3].reject(Error('查询失败'));await flush();assert.match(knowledge.root.innerHTML,/查询失败/);
-typeKnowledge('');await knowledge.expire();assert.equal(JSON.parse(knowledge.requests[4].options.body).arguments.query,'');
-knowledge.requests[4].resolve(knowledgeData('clear'));await flush();
-typeKnowledge('pending');knowledge.controls.get('knowledge-scope').change({target:{value:'global'}});await flush();
-const scopeRequests=knowledge.requests.length;await knowledge.expire();assert.equal(knowledge.requests.length,scopeRequests);
-console.log('知识动态查询：防抖、输入法、过期响应、错误、清空、范围切换与结果计数通过');

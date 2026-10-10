@@ -1,13 +1,24 @@
 import base64
+import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from codex_workbench.model_probe import _provider_error_diagnostic
+from codex_workbench.model_probe import _PNG, _provider_error_diagnostic
 from codex_workbench.registered_model_verifier import (_video_result, configuration_fingerprint, verify_model,
                                                        verify_model_with_review, write_metadata, write_reviews)
+
+
+def _verification_script():
+    """加载 CLI 的纯本地凭据边界，测试时不执行其 main。"""
+    script = Path(__file__).resolve().parents[1] / "scripts" / "verify_registered_models.py"
+    spec = importlib.util.spec_from_file_location("verify_registered_models_test", script)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 class RegisteredModelVerifierTests(unittest.TestCase):
@@ -57,7 +68,7 @@ class RegisteredModelVerifierTests(unittest.TestCase):
 
         image = self.model(provider_id="minimax", model_type="image_generation", model="image-01",
                            base_url="https://api.minimax.cn/v1/image_generation")
-        response = b'{"base_resp":{"status_code":0},"data":{"image_base64":["aGVsbG8gd29ybGQgaW1hZ2UgcGF5bG9hZCBmb3IgdGVzdA=="]}}'
+        response = json.dumps({"base_resp": {"status_code": 0}, "data": {"image_base64": [_PNG]}}).encode()
         with patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)) as post:
             self.assertTrue(verify_model(image, "synthetic-key")["success"])
         body = json.loads(post.call_args.args[1])
@@ -74,6 +85,21 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             with self.subTest(model=model["id"]), \
                  patch("codex_workbench.registered_model_verifier._post", return_value=(response, "application/json", None)):
                 self.assertFalse(verify_model(model, "synthetic-key")["success"])
+
+    def test_image_base64_requires_a_supported_structural_container(self):
+        junk = base64.b64encode(b"this is long enough but is not an image").decode()
+        cases = (
+            (self.model(model_type="image_generation", model="image-01",
+                        base_url="https://open.bigmodel.cn/api/paas/v4/images/generations"),
+             {"data": [{"b64_json": junk}]}),
+            (self.model(provider_id="minimax", model_type="image_generation", model="image-01",
+                        base_url="https://api.minimax.cn/v1/image_generation"),
+             {"base_resp": {"status_code": 0}, "data": {"image_base64": [junk]}}),
+        )
+        for image, response in cases:
+            with self.subTest(provider=image["provider_id"]), \
+                 patch("codex_workbench.registered_model_verifier._post", return_value=(json.dumps(response).encode(), "application/json", None)):
+                self.assertFalse(verify_model(image, "synthetic-key")["success"])
 
     def test_minimax_tts_tries_hex_audio_before_base64(self):
         tts = self.model(provider_id="minimax", model_type="text_to_speech", model="speech-2.8-hd",
@@ -158,6 +184,18 @@ class RegisteredModelVerifierTests(unittest.TestCase):
         self.assertEqual("network_error", safe["error_code"])
         self.assertEqual({"video_task_id": "task-1"}, diagnostic)
 
+    def test_video_terminal_failure_is_not_persisted_for_resume(self):
+        model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",
+                           base_url="https://api.minimax.cn/v2/video_generation")
+        accepted = b'{"task_id":"task-1"}'
+        failed = b'{"task":{"id":"task-1","status":"failed"}}'
+        with patch("codex_workbench.registered_model_verifier._post", return_value=(accepted, "application/json", None)), \
+             patch("codex_workbench.registered_model_verifier._get", return_value=(failed, None)), \
+             patch("codex_workbench.registered_model_verifier.time.sleep"):
+            safe, _, diagnostic = verify_model_with_review(model, "synthetic-key", timeout=2, include_diagnostics=True)
+        self.assertEqual("task_failed", safe["error_code"])
+        self.assertEqual({}, diagnostic)
+
     def test_configuration_fingerprint_binds_resume_to_model_endpoint_and_credential_identity(self):
         model = self.model(id="video", model_type="video_generation", model="MiniMax-H3",
                            provider_id="minimax", credential_id="credential-a",
@@ -170,6 +208,16 @@ class RegisteredModelVerifierTests(unittest.TestCase):
         self.assertNotEqual(fingerprint, configuration_fingerprint(model, "token-b"))
         self.assertNotIn("credential-a", fingerprint)
         self.assertNotIn("token-a", fingerprint)
+
+    def test_structured_credential_target_must_match_a_selected_endpoint(self):
+        script = _verification_script()
+        selected = [{"base_url": "https://api.minimax.cn/v1/image_generation"}]
+        credential = json.dumps({"api_key": "synthetic-key", "target": {"base_url": selected[0]["base_url"]}}).encode()
+        self.assertEqual("synthetic-key", script._decode_selected_credential(credential, selected))
+        mismatched = json.dumps({"api_key": "synthetic-key", "target": {"base_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions"}}).encode()
+        with self.assertRaisesRegex(ValueError, "credential_target"):
+            script._decode_selected_credential(mismatched, selected)
+        self.assertEqual("synthetic-key", script._decode_selected_credential(b"synthetic-key", selected))
 
     def test_metadata_has_no_response_or_credential(self):
         with tempfile.TemporaryDirectory() as directory:

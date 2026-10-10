@@ -18,6 +18,20 @@ from codex_workbench.registered_model_verifier import (configuration_fingerprint
                                                         write_metadata, write_reviews)
 
 
+def _decode_selected_credential(payload: bytes, selected: list[dict]) -> str | None:
+    """校验保险库条目的目标端点属于本次选择，再交给统一凭据解码器处理。"""
+    value = payload.decode("utf-8").strip()
+    if value.startswith("{"):
+        record = json.loads(value)
+        target = record.get("target") if isinstance(record, dict) else None
+        base_url = target.get("base_url") if isinstance(target, dict) else None
+        if base_url is not None:
+            endpoints = {str(model.get("base_url") or "").strip().rstrip("/") for model in selected}
+            if not isinstance(base_url, str) or base_url.strip().rstrip("/") not in endpoints:
+                raise ValueError("credential_target")
+    return decode_credential(payload, expected_base_url=None)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--resources-dir", required=True, type=Path)
@@ -40,7 +54,7 @@ def main() -> int:
         if not selected:
             raise ValueError("model_selection")
         # stdin 是唯一凭据入口；不读取环境变量、文件或命令行中任何密钥。
-        token = decode_credential(sys.stdin.buffer.read(16385), expected_base_url=None)
+        token = _decode_selected_credential(sys.stdin.buffer.read(16385), selected)
         if token is None:
             raise ValueError("credential_format")
     except (OSError, ValueError, UnicodeDecodeError, json.JSONDecodeError):

@@ -55,6 +55,17 @@ class ProfileTests(unittest.TestCase):
             self.assertFalse(_valid_avatar('data:image/png;base64,' + value))
         self.assertFalse(_valid_avatar(AVATAR.replace('image/png', 'image/jpeg')))
 
+    def test_identifier_only_observation_records_missing_display_fields(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            account = {'id': 'one', 'email': 'one@example.invalid'}
+            import_profile(path, 'accounts', account, account_identifier='official-one')
+            result = apply_profiles({'accounts': [account]}, 'accounts', path)['accounts'][0]
+            self.assertEqual('official-one', result['account_identifier'])
+            self.assertEqual({'source': 'official_page', 'name': 'missing', 'avatar': 'missing'}, result['profile_status'])
+            with self.assertRaises(ValueError):
+                import_profile(path, 'accounts', account)
+
     def test_aggregate_limit_rejects_without_losing_existing_profiles(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'

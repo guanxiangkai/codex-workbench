@@ -48,3 +48,9 @@ assert(!html.includes('<dt>到期时间</dt>'));assert(!html.includes('<dt>最�
 const dated=h.otherAccountCard({...verified,expires_at:'2030-01-01T00:00:00Z',last_used_at:'2026-01-01T00:00:00Z'});assert(dated.includes('<dt>到期时间</dt>'));assert(dated.includes('<dt>最近使用</dt>'));
 
 assert.notEqual(h.providerStyle("minimax"),h.providerStyle("kimi"));
+
+assert.doesNotMatch(h.otherAccountCard(account),/data-profile-id/);
+const bound={...account,usage_credential_id:'key-ref',account_identifier:'official-123',display_name:'官网名称'};
+assert.match(h.otherAccountCard(bound),/data-profile-id="sample"/);
+for(const key of ['provider_id','id','usage_credential_id'])assert.equal(h.profileUpdateButton({...bound,[key]:null},'other_accounts'),'');
+for(const query of ['official-123','官网名称'])assert.match(h.otherAccountsView({accounts:[bound]},query,''),/<h2>官网名称<\/h2>/);

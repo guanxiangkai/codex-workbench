@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 import threading
 import sqlite3
+import secrets
+import time
 from urllib.parse import urlsplit
 
 from .catalog import VERSION, validate, MODULES, DEFAULT_VIEW
@@ -28,7 +30,7 @@ from .account_runtime import current_account_home
 from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
-from .account_profiles import apply_profiles
+from .account_profiles import apply_profiles, import_profile, profile_identity
 
 MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
@@ -111,6 +113,7 @@ class Workbench:
         self.snapshot_scheduler=None
         self.snapshot_errors={}
         self._scheduled_accounts = None
+        self._profile_captures = {}
         self._closing=False;self.lock=threading.RLock()
 
     def manifest(self,page,known_revision=None):
@@ -218,7 +221,7 @@ class Workbench:
         if view=='accounts' and isinstance(self.native,NativeRead):
             cached=self.native.accounts(cached_only=True)
             if any(a.get('email') for a in cached) and (entry is None or not any(a.get('email') for a in entry.get('data',{}).get('accounts',[]))):
-                value=apply_profiles({'view':view,'read_only':True,'accounts':cached,'status':{'state':'ok'}},view,self.data_dir/'account-profiles.json')
+                value=self._apply_profiles({'view':view,'read_only':True,'accounts':cached,'status':{'state':'ok'}},view)
                 entry={'data':value,'updated_at':max((a.get('observed_at') or '' for a in cached),default='') or None}
         refreshing=False
         if self.snapshot_scheduler is not None:
@@ -244,7 +247,7 @@ class Workbench:
     def _account_identity(view, account):
         if view=='accounts':
             # 未提供邮箱时不能把旧主体资料迁移给可能已切换的账户。
-            return ('codex',account.get('id'),account.get('email')) if account.get('email') else None
+            return ('codex',account.get('id'),account.get('email')) if account.get('email') and account.get('id') != 'current' else None
         return ('provider',account.get('provider_id'),account.get('id'),account.get('usage_credential_id'))
 
     def _merge_account_fields(self, view, value, previous):
@@ -278,6 +281,8 @@ class Workbench:
             if self.source_versions.context()!=context:return False
             existing=self.snapshots.get(context,view)
             value=self._merge_account_fields(view,value,existing.get('data') if existing else None)
+            # 失败回退合并不能恢复已由官网明确清除的资料字段。
+            value=self._apply_profiles(value,view)
             value={**value,'status':{k:v for k,v in value.get('status',{}).items() if k!='snapshot'}}
             self.snapshots.put(context,view,value)
             self.snapshot_errors.pop((context,view),None)
@@ -322,6 +327,20 @@ class Workbench:
         """服务和秘密共享原引用，避免重复登记和解密列表。"""
         return {'services':services(self._models(),self.credentials.list()['entries'])}
 
+    def _profile_candidate(self, view, account):
+        candidate=dict(account)
+        candidate.pop('_verified_subject_binding',None)
+        if view=='accounts' and candidate.get('id')=='current':
+            reader=getattr(self.native,'profile_subject_binding',None)
+            binding=reader(candidate['id']) if reader else None
+            if isinstance(binding,str):candidate['_verified_subject_binding']=binding
+        return candidate
+
+    def _apply_profiles(self,value,view):
+        if view in ('accounts','other_accounts'):
+            value={**value,'accounts':[self._profile_candidate(view,item) for item in value.get('accounts',[])]}
+        return apply_profiles(value,view,self.data_dir/'account-profiles.json')
+
     def _collect_state(self,view):
         """仅供后台采集调用；页面请求不得经过此方法。"""
         result={'view':view,'read_only':True,'status':{'state':'ok','observed_at':timestamp()},
@@ -350,7 +369,6 @@ class Workbench:
                         account['reset_analysis'] = dict(analysis)
                     else:
                         account.pop('reset_analysis', None)
-        elif view=='agents':result['skills']=self.native.skills()
         elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
@@ -363,7 +381,7 @@ class Workbench:
         elif view=='connections':result.update(self.connections.listing())
         else:raise ValueError('页面不存在')
         # 官网首次确认的公开资料仅补齐当前来源未提供的字段，身份键由适配器严格校验。
-        return apply_profiles(result,view,self.data_dir/'account-profiles.json')
+        return self._apply_profiles(result,view)
 
     def _accounts(self):
         """按需启用新增账户登记与官方登录，不复用 Store 的全库迁移。"""
@@ -419,19 +437,68 @@ class Workbench:
             return {'login':self._accounts().login(args['id'])}
         if name=='account_status':
             result=self._accounts().status(args['id'],refresh=True)
+            if result.get('login',{}).get('status')=='ready':
+                # 首次完成官方登录时采集资料；后续调度只更新额度。
+                try:
+                    account=self.native.refresh_profile(args['id'], only_missing=True)
+                    profile=self._apply_profiles({'accounts':[account]}, 'accounts')['accounts'][0]
+                    result.setdefault('account',{})['profile_capture_required']=profile.get('profile_status',{}).get('source') != 'official_page'
+                except (OSError, ValueError, sqlite3.Error):
+                    # 已确认的登录成功不能被可重试的资料读取失败回退。
+                    result.setdefault('account',{}).update(profile_capture_required=True, profile_refresh={'state':'failed'})
             if result.get('login',{}).get('status')=='ready' and self.snapshot_scheduler is not None:
                 self.snapshot_scheduler.touch('accounts',refresh=True)
             return result
+        if name=='account_profile_update':
+            account = self.native.refresh_profile(args['id'])
+            if self.snapshot_scheduler is not None:
+                self.snapshot_scheduler.touch('accounts',refresh=True)
+            return {'account': account}
+        if name in ('account_profile_capture', 'account_profile_import'):
+            view=args['view']
+            if view == 'accounts':
+                candidates=self.native.accounts(cached_only=True)
+            elif view == 'other_accounts':
+                candidates=self._other_accounts(refresh=False)['accounts']
+            else:
+                raise ValueError('资料导入不支持该视图')
+            account=next((item for item in candidates if item.get('id') == args['id']), None)
+            if account is not None:account=self._profile_candidate(view,account)
+            if account is None or profile_identity(view, account) is None:
+                raise ValueError('账户不存在或身份尚未确认')
+            identity=profile_identity(view, account)
+            context=self.source_versions.context()
+            with self.lock:
+                now=time.monotonic()
+                self._profile_captures={key:value for key,value in self._profile_captures.items() if value['expires_at'] > now}
+                if name=='account_profile_capture':
+                    # 仅应用入口可发起授权；同一账户新请求撤销此前未使用的请求。
+                    self._profile_captures={key:value for key,value in self._profile_captures.items()
+                                            if (value['view'],value['id']) != (view,args['id'])}
+                    if len(self._profile_captures) >= 128:
+                        raise ValueError('资料更新请求过多，请稍后重试')
+                    capture_id=secrets.token_urlsafe(32)
+                    self._profile_captures[capture_id]={'view':view,'id':args['id'],'identity':identity,
+                                                       'context':context,'expires_at':now+600}
+                    return {'capture_id':capture_id,'expires_in_seconds':600}
+                grant=self._profile_captures.get(args['capture_id'])
+                if grant is None or (grant['view'],grant['id'],grant['identity'],grant['context']) != (view,args['id'],identity,context):
+                    raise ValueError('资料更新授权已失效，请在工作台重新点击更新资料')
+                profile=import_profile(self.data_dir/'account-profiles.json', view, account,
+                                       display_name=args.get('display_name'), avatar_data_uri=args.get('avatar_data_uri'),
+                                       account_identifier=args.get('account_identifier'),
+                                       missing_fields=args.get('missing_fields'),
+                                       observed_at=args.get('observed_at'))
+                self._profile_captures.pop(args['capture_id'])
+            if self.snapshot_scheduler is not None:
+                self.snapshot_scheduler.touch(view,refresh=True)
+            return {'profile': profile}
         if name=='workbench_sync':return self.sync(**args)
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
         if name=='module_list':return {'modules':MODULES,'read_only':False}
-        if name=='skill_detail':
-            item=next((skill for skill in self.native.skills() if skill['id']==args['id']),None)
-            if item is None:raise ValueError('技能不存在或不可访问')
-            return {'skill':item}
         if name=='knowledge_list':
             scope=args.get('scope','global')
             value=self.state('knowledge',scope=scope,query=args.get('query',''))

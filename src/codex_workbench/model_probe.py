@@ -47,11 +47,65 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def _result(success: bool, code: str, message: str, **evidence: int) -> dict:
+def _result(success: bool, code: str, message: str, **evidence: int | str) -> dict:
     value = {"success": success, "code": code, "message": message}
     if evidence:
         value["evidence"] = evidence
     return value
+
+
+def _provider_error_diagnostic(payload: bytes | None, http_status: int | None) -> dict[str, int | str]:
+    """Extract only safe error facts from a provider response.
+
+    Error messages sometimes echo request values, so callers may persist only this
+    deliberately small classification.  It is opt-in for ``_post`` in order to
+    preserve the generic probe contract.
+    """
+    code: str | None = None
+    if payload:
+        try:
+            value = json.loads(payload[:8192].decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            value = None
+        if isinstance(value, dict):
+            base = value.get("base_resp")
+            error = value.get("error")
+            candidates = (
+                value.get("code"), value.get("error_code"), value.get("status_code"),
+                base.get("status_code") if isinstance(base, dict) else None,
+                error.get("code") if isinstance(error, dict) else None,
+            )
+            for candidate in candidates:
+                if isinstance(candidate, int) and candidate != 0:
+                    code = str(candidate)
+                    break
+                if isinstance(candidate, str) and candidate and len(candidate) <= 64 and candidate.replace("_", "").replace("-", "").isalnum():
+                    code = candidate
+                    break
+    if http_status == 404:
+        diagnosis = "endpoint_or_model_unsupported"
+    elif http_status == 402:
+        # Payment Required does not identify whether balance, subscription, or
+        # a provider-side billing rule caused the denial.
+        diagnosis = "payment_required"
+    elif code == "1008":
+        diagnosis = "insufficient_balance"
+    elif code == "1002" or http_status == 429:
+        diagnosis = "rate_limited"
+    elif code in {"1004", "2049"} or http_status in {401, 403}:
+        diagnosis = "credential_rejected"
+    elif code in {"2013", "20132"} or http_status in {400, 422}:
+        diagnosis = "parameter_error"
+    elif isinstance(http_status, int) and http_status >= 500:
+        diagnosis = "provider_server_error"
+    else:
+        diagnosis = "provider_error"
+    diagnostic: dict[str, int | str] = {"diagnosis": diagnosis}
+    if isinstance(http_status, int):
+        diagnostic["http_status"] = http_status
+    if code is not None:
+        diagnostic["provider_error_code"] = code
+    return diagnostic
 
 
 def _cancelled(cancel_event: Any) -> bool:
@@ -116,7 +170,7 @@ def _read_response(response, cancel_event: Any, deadline: float) -> tuple[bytes 
 
 
 def _post(url: str, body: bytes, content_type: str, token: str | None, cancel_event: Any, deadline: float,
-          accept: str = "application/json", response_timeout: float = 15):
+          accept: str = "application/json", response_timeout: float = 15, error_diagnostics: bool = False):
     if _cancelled(cancel_event):
         return None, None, _result(False, "cancelled", "探测已取消")
     remaining = deadline - time.monotonic()
@@ -140,7 +194,14 @@ def _post(url: str, body: bytes, content_type: str, token: str | None, cancel_ev
                 429: ("rate_limited", "模型服务限流"),
             }
             code, message = mapping.get(status, ("server_error", "模型服务发生错误"))
-            return None, None, _result(False, code, message, status=status)
+            evidence: dict[str, int | str] = {"status": status}
+            if error_diagnostics:
+                try:
+                    error_payload = error.read(8192)
+                except OSError:
+                    error_payload = None
+                evidence.update(_provider_error_diagnostic(error_payload, status))
+            return None, None, _result(False, code, message, **evidence)
         finally:
             error.close()
     except (socket.timeout, TimeoutError):
@@ -238,7 +299,8 @@ def _audio_bytes(value: bytes) -> bool:
     return valid_media(value, ".mp3", "audio")
 
 
-def probe_model(model: dict, token: str | None = None, cancel_event=None, timeout: float = 15) -> dict:
+def probe_model(model: dict, token: str | None = None, cancel_event=None, timeout: float = 15,
+                response_timeout: float | None = None) -> dict:
     """对一个模型发起最小真实能力请求，返回脱敏且稳定的探测结论。
 
     参数 ``token`` 仅在本次请求的 Authorization 头中使用，函数不会读取环境变量、
@@ -248,19 +310,31 @@ def probe_model(model: dict, token: str | None = None, cancel_event=None, timeou
         return _result(False, "cancelled", "探测已取消")
     settings = _validated_model(model)
     if (settings is None or not isinstance(timeout, (int, float)) or isinstance(timeout, bool)
-            or not math.isfinite(timeout) or timeout <= 0 or (token is not None and not isinstance(token, str))):
+            or not math.isfinite(timeout) or timeout <= 0 or (response_timeout is not None and
+            (not isinstance(response_timeout, (int, float)) or isinstance(response_timeout, bool)
+             or not math.isfinite(response_timeout) or response_timeout <= 0))
+            or (token is not None and not isinstance(token, str))):
         return _result(False, "validation_invalid_model", "模型配置无效")
     model_type, base_url, model_id, protocol, voice = settings
+    reasoning_effort = model.get("reasoning_effort")
+    if reasoning_effort is not None and reasoning_effort not in {"low", "high", "max"}:
+        return _result(False, "validation_invalid_model", "模型配置无效")
     try:
         endpoint = resolve_endpoint(base_url, model_type, protocol)
     except ValueError:
         return _result(False, "validation_invalid_model", "模型配置无效")
-    deadline = time.monotonic() + min(float(timeout), 15.0)
+    connection_timeout = min(float(timeout), float(response_timeout) if response_timeout is not None else 15.0)
+    deadline = time.monotonic() + min(float(timeout), connection_timeout)
     if model_type == "reasoning":
         path = "/chat/completions" if protocol == "openai-chat" else "/responses"
-        request = ({"model": model_id, "messages": [{"role": "user", "content": "回复OK"}], "max_completion_tokens": 256}
-                   if protocol == "openai-chat" else {"model": model_id, "input": "回复OK", "max_output_tokens": 256})
-        payload, _, failure = _post(endpoint, _json_body(request), "application/json", token, cancel_event, deadline)
+        prompt = model.get("probe_prompt", "回复OK")
+        if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 2000:
+            return _result(False, "validation_invalid_model", "模型探测任务无效")
+        request = ({"model": model_id, "messages": [{"role": "user", "content": prompt}], "max_completion_tokens": 2048 if reasoning_effort else 256}
+                   if protocol == "openai-chat" else {"model": model_id, "input": prompt, "max_output_tokens": 256})
+        if protocol == "openai-chat" and reasoning_effort:
+            request["reasoning_effort"] = reasoning_effort
+        payload, _, failure = _post(endpoint, _json_body(request), "application/json", token, cancel_event, deadline, response_timeout=connection_timeout)
         if failure:
             return failure
         parsed = _json(payload)
@@ -273,9 +347,14 @@ def probe_model(model: dict, token: str | None = None, cancel_event=None, timeou
     if model_type == "multimodal":
         path = "/chat/completions" if protocol == "openai-chat" else "/responses"
         image = "data:image/png;base64," + _PNG
-        request = ({"model": model_id, "messages": [{"role": "user", "content": [{"type": "text", "text": "识别图片颜色并回复OK"}, {"type": "image_url", "image_url": {"url": image}}]}], "max_completion_tokens": 32}
-                   if protocol == "openai-chat" else {"model": model_id, "input": [{"role": "user", "content": [{"type": "input_text", "text": "识别图片颜色并回复OK"}, {"type": "input_image", "image_url": image}]}], "max_output_tokens": 32})
-        payload, _, failure = _post(endpoint, _json_body(request), "application/json", token, cancel_event, deadline)
+        prompt = model.get("probe_prompt", "识别图片颜色并回复OK")
+        if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 2000:
+            return _result(False, "validation_invalid_model", "模型探测任务无效")
+        request = ({"model": model_id, "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}, {"type": "image_url", "image_url": {"url": image}}]}], "max_completion_tokens": 2048 if reasoning_effort else 256}
+                   if protocol == "openai-chat" else {"model": model_id, "input": [{"role": "user", "content": [{"type": "input_text", "text": prompt}, {"type": "input_image", "image_url": image}]}], "max_output_tokens": 256})
+        if protocol == "openai-chat" and reasoning_effort:
+            request["reasoning_effort"] = reasoning_effort
+        payload, _, failure = _post(endpoint, _json_body(request), "application/json", token, cancel_event, deadline, response_timeout=connection_timeout)
         if failure:
             return failure
         parsed = _json(payload)
@@ -284,7 +363,7 @@ def probe_model(model: dict, token: str | None = None, cancel_event=None, timeou
     if model_type == "rerank":
         documents = ["模型验证使用的第一段合成文本", "第二段合成文本用于排序验证"]
         payload, _, failure = _post(endpoint, _json_body({"model": model_id, "query": "排序验证", "documents": documents, "top_n": 2}),
-                                    "application/json", token, cancel_event, deadline)
+                                    "application/json", token, cancel_event, deadline, response_timeout=connection_timeout)
         if failure:
             return failure
         parsed = _json(payload)
@@ -301,7 +380,7 @@ def probe_model(model: dict, token: str | None = None, cancel_event=None, timeou
             indexes.add(index)
         return _result(True, "verified", "重排序能力已验证", result_items=len(results))
     if model_type == "embedding":
-        payload, _, failure = _post(endpoint, _json_body({"model": model_id, "input": "test"}), "application/json", token, cancel_event, deadline)
+        payload, _, failure = _post(endpoint, _json_body({"model": model_id, "input": "test"}), "application/json", token, cancel_event, deadline, response_timeout=connection_timeout)
         if failure:
             return failure
         parsed = _json(payload)
@@ -319,13 +398,13 @@ def probe_model(model: dict, token: str | None = None, cancel_event=None, timeou
         if not audio or len(audio) > _MAX_AUDIO_FIXTURE_BYTES:
             return _result(False, "validation_fixture_missing", "探测音频素材无效")
         body, content_type = _multipart(model_id, audio)
-        payload, _, failure = _post(endpoint, body, content_type, token, cancel_event, deadline)
+        payload, _, failure = _post(endpoint, body, content_type, token, cancel_event, deadline, response_timeout=connection_timeout)
         if failure:
             return failure
         parsed = _json(payload)
         return (_result(True, "verified", "语音转写能力已验证", transcript_items=1) if parsed and _readable(parsed.get("text"))
                 else _result(False, "response_invalid", "模型未返回有效转写文本"))
-    payload, content_type, failure = _post(endpoint, _json_body({"model": model_id, "input": "Test.", "voice": voice, "response_format": "mp3"}), "application/json", token, cancel_event, deadline, accept="audio/*, application/json")
+    payload, content_type, failure = _post(endpoint, _json_body({"model": model_id, "input": "Test.", "voice": voice, "response_format": "mp3"}), "application/json", token, cancel_event, deadline, accept="audio/*, application/json", response_timeout=connection_timeout)
     if failure:
         return failure
     if content_type and content_type.startswith("audio/") and _audio_bytes(payload):

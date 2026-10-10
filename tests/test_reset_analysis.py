@@ -2,13 +2,31 @@ import unittest
 import tempfile
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from codex_workbench.analyzer_worker import ResetAnalysisWorker
 from codex_workbench.account_snapshot import AccountSnapshot
 from codex_workbench.reset_analysis import PublicSourceFetcher, ResetAnalyzer, SourceEvidence, _parse_model_text, _reset_time, _reset_window, _history_summary, _model_evidence_excerpt, _date_is_mentioned, SafeRedirects
 
 
 class ResetAnalysisTest(unittest.TestCase):
+    def test_model_timeout_cleans_up_vault_and_worker_process_group(self):
+        import signal
+        import subprocess
+        from codex_workbench.reset_analysis import RegisteredModelClient
+        process = Mock(pid=43210)
+        process.communicate.side_effect = [subprocess.TimeoutExpired("worker", 10), (b"", None)]
+        manager = Mock()
+        manager.__enter__ = Mock(return_value=process)
+        manager.__exit__ = Mock(return_value=False)
+        client = RegisteredModelClient([], timeout=10)
+        with patch("codex_workbench.reset_analysis.subprocess.Popen", return_value=manager) as spawn, \
+             patch("codex_workbench.reset_analysis.os.killpg") as kill:
+            with self.assertRaisesRegex(ValueError, "^model_timeout$"):
+                client._invoke({"model": "glm-5.3", "base_url": "https://example.com"}, [])
+            self.assertTrue(spawn.call_args.kwargs["start_new_session"])
+            kill.assert_called_once_with(43210, signal.SIGKILL)
+            self.assertEqual(2, process.communicate.call_count)
+
     def test_refresh_clock_and_coarse_announcement_do_not_expand_deadline(self):
         from codex_workbench.reset_analysis import _validated_predictions, _aggregate_predictions
         observed = '2026-09-28T06:00:00+00:00'

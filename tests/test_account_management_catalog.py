@@ -7,7 +7,7 @@ from codex_workbench.catalog import DEFAULT_VIEW, MODULES, TOOLS, validate
 class AccountManagementCatalogTests(unittest.TestCase):
     def test_only_confirmed_workbench_modules_are_exposed(self):
         self.assertEqual(
-            ['accounts', 'other_accounts', 'config', 'agents', 'knowledge', 'models'],
+            ['accounts', 'other_accounts', 'config', 'knowledge', 'models'],
             [module['id'] for module in MODULES],
         )
         self.assertEqual('accounts', DEFAULT_VIEW)
@@ -15,7 +15,7 @@ class AccountManagementCatalogTests(unittest.TestCase):
 
     def test_work_records_planning_and_standalone_connections_are_not_modules(self):
         exposed = {tool['name'] for tool in TOOLS}
-        self.assertIn('skill_detail', exposed)
+        self.assertNotIn('skill_detail', exposed)
         self.assertIn('knowledge_list', exposed)
         self.assertIn('knowledge_detail', exposed)
         self.assertNotIn('connections', [module['id'] for module in MODULES])

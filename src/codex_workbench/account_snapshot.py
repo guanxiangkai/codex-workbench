@@ -106,11 +106,23 @@ class AccountSnapshot:
         data['checked_at'] = observed_at or now
         self.write(account, 'profile', data)
 
-    def save_usage(self, account, item):
+    def save_usage(self, account, item, subject=None):
         # None 表示该字段此次未取得，0 是有效的新额度。
         data = self.get(account, 'usage')
         data.update({k: item[k] for k in USAGE if item.get(k) is not None})
+        # 不属于页面投影：记录本次官方额度读取所核验的主体摘要，供没有
+        # execution_accounts 主体的 current fallback 核验资料归属。
+        binding = hashlib.sha256(subject.encode('utf-8')).hexdigest() if isinstance(subject, str) and subject else None
+        if binding is not None:
+            metadata = data.get('metadata') if isinstance(data.get('metadata'), dict) else {}
+            data['metadata'] = {**metadata, 'subject_binding': binding}
         self.write(account, 'usage', data)
+
+    def usage_subject_binding(self, account):
+        """内部额度主体摘要；cached() 永不向页面投影该元数据。"""
+        metadata = self.get(account, 'usage').get('metadata')
+        binding = metadata.get('subject_binding') if isinstance(metadata, dict) else None
+        return binding if isinstance(binding, str) and binding else None
 
     def save_analysis(self, account, analysis):
         """保存独立预测；分析失败时调用方可保留旧值而不覆盖官方用量。"""

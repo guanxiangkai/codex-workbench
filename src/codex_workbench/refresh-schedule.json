@@ -36,10 +36,6 @@
       "active_seconds": 600,
       "idle_seconds": 3600
     },
-    "agents": {
-      "active_seconds": 1800,
-      "idle_seconds": 21600
-    },
     "knowledge": {
       "active_seconds": 600,
       "idle_seconds": 3600

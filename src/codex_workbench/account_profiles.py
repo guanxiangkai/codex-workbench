@@ -12,6 +12,7 @@ import zlib
 
 MAX_PROFILE_BYTES = 4 * 1024 * 1024
 _PROFILE_LOCK = threading.RLock()
+_PROFILE_FIELDS = ('display_name', 'avatar_data_uri', 'account_identifier')
 
 
 def profile_identity(view, account):
@@ -77,14 +78,16 @@ def _valid_avatar(value):
             and 0 < int.from_bytes(data[16:20], 'little') <= len(data) - 20)
 
 
-def import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None, observed_at=None):
-    """保存用户在官方页面确认过的公开资料；不接受客户端声明的认证状态。"""
+def import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None,
+                   missing_fields=None, observed_at=None):
+    """保存用户在官方页面确认过的公开资料；``missing_fields`` 表示已确认不存在并清除旧值。"""
     with _PROFILE_LOCK:
         return _import_profile(path, view, account, display_name=display_name, avatar_data_uri=avatar_data_uri,
-                               account_identifier=account_identifier, observed_at=observed_at)
+                               account_identifier=account_identifier, missing_fields=missing_fields, observed_at=observed_at)
 
 
-def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None, observed_at=None):
+def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=None, account_identifier=None,
+                    missing_fields=None, observed_at=None):
     identity = profile_identity(view, account)
     if identity is None:
         raise ValueError('账户身份尚未确认，不能导入资料')
@@ -94,7 +97,18 @@ def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=N
         raise ValueError('头像必须是受支持的本地图片 data URI')
     if account_identifier is not None and (not isinstance(account_identifier, str) or not re.fullmatch(r'[A-Za-z0-9._@+-]{1,200}', account_identifier)):
         raise ValueError('官方账户标识无效')
-    if display_name is None and avatar_data_uri is None and account_identifier is None:
+    if missing_fields is None:
+        missing = set()
+    elif isinstance(missing_fields, list) and all(isinstance(field, str) for field in missing_fields):
+        missing = set(missing_fields)
+        if not missing <= set(_PROFILE_FIELDS):
+            raise ValueError('资料缺失字段无效')
+    else:
+        raise ValueError('资料缺失字段无效')
+    provided = {'display_name': display_name, 'avatar_data_uri': avatar_data_uri, 'account_identifier': account_identifier}
+    if any(provided[field] is not None for field in missing):
+        raise ValueError('资料字段不能同时存在和缺失')
+    if all(value is None for value in provided.values()) and not missing:
         raise ValueError('至少提供一个公开资料字段')
     if observed_at is not None:
         try:
@@ -118,16 +132,24 @@ def _import_profile(path, view, account, *, display_name=None, avatar_data_uri=N
                      and item.get('view') == view and item.get('identity') == identity), {})
     profiles = [item for item in document['profiles'] if isinstance(item, dict)
                 and not (item.get('view') == view and item.get('identity') == identity)]
+    previous_missing = previous.get('missing_fields') if isinstance(previous.get('missing_fields'), list) else []
+    # 官方页面明确不存在的结论是持久资料的一部分；后续只更新另一个字段
+    # 不能让原始 RPC 值再次回退显示。只有本次获得该字段的新确认值才解除。
+    missing = (set(field for field in previous_missing if field in _PROFILE_FIELDS) | missing) - {
+        field for field, value in provided.items() if value is not None
+    }
     profile = {'view': view, 'identity': identity, 'source': 'official_page',
                'observed_at': observed_at or datetime.now(timezone.utc).isoformat()}
+    if missing:
+        profile['missing_fields'] = sorted(missing)
     if display_name is not None:
         profile['display_name'] = display_name.strip()
     if avatar_data_uri is not None:
         profile['avatar_data_uri'] = avatar_data_uri
     if account_identifier is not None:
         profile['account_identifier'] = account_identifier
-    for key in ('display_name', 'avatar_data_uri', 'account_identifier'):
-        if key not in profile and key in previous:
+    for key in _PROFILE_FIELDS:
+        if key not in profile and key not in missing and key in previous:
             profile[key] = previous[key]
     profiles.append(profile)
     payload = json.dumps({'version': 1, 'profiles': profiles}, ensure_ascii=False).encode('utf-8')
@@ -179,6 +201,16 @@ def apply_profiles(value, view, path):
                 item['avatar_data_uri'] = avatar
             if isinstance(profile.get('account_identifier'), str):
                 item['account_identifier'] = profile['account_identifier']
+            missing = profile.get('missing_fields')
+            if isinstance(missing, list):
+                for field in missing:
+                    if field in _PROFILE_FIELDS:
+                        item.pop(field, None)
+                        if view == 'accounts' and field == 'display_name':
+                            # ``name`` 是原生账户昵称的投影，不能绕开资料页
+                            # 对显示名称“明确不存在”的确认。
+                            item.pop('name', None)
+                            item.pop('name_source', None)
             item['profile_observed_at'] = profile.get('observed_at')
             item['profile_status'] = {'source': 'official_page', 'name': 'available' if _valid_name(name) else 'missing',
                                       'avatar': 'available' if _valid_avatar(avatar) else 'missing'}

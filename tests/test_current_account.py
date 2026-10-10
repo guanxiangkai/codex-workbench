@@ -54,6 +54,7 @@ class CurrentAccountTests(unittest.TestCase):
                     self.assertEqual('用户名未提供',reader.accounts()[0]['name'])
                     named=reader.refresh_profile('current')
                 self.assertEqual('示例姓名',named['name']);self.assertEqual('official',named['name_source'])
+                self.assertEqual('示例姓名', reader.accounts(cached_only=True)[0]['name'])
 
     def test_current_environment_does_not_inherit_another_home_or_tokens(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -122,3 +123,87 @@ class CurrentAccountTests(unittest.TestCase):
                 account = NativeRead(database, 'unused', rpc_factory=OtherRpc, catalog=object()).refresh_profile('other')
             self.assertEqual('other', account['id'])
             self.assertEqual([(str(other_home), False, 15)], opened)
+
+    def test_cached_current_profile_requires_matching_observed_subject(self):
+        import sqlite3
+        from codex_workbench.account_snapshot import AccountSnapshot
+        from codex_workbench.readonly_sources import NativeRead, _subject_binding
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); database = root / 'accounts.sqlite'
+            with sqlite3.connect(database) as db:
+                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,subject_id TEXT)')
+                db.execute('INSERT INTO execution_accounts VALUES(?,?,?)', ('current', 'Current', 'subject-new'))
+            account = {'id': 'current', 'subject_id': 'subject-new'}
+            snapshots = AccountSnapshot(root)
+            snapshots.save_profile(account, {'name': 'Old profile', 'name_source': 'official',
+                                             'profile_status': {'source': 'official_rpc', 'subject_binding': _subject_binding('subject-old')}})
+            reader = NativeRead(database, 'unused', catalog=object())
+            stale = reader.accounts(cached_only=True)[0]
+            self.assertEqual('用户名未提供', stale['name'])
+            self.assertNotIn('profile_status', stale)
+            snapshots.save_profile(account, {'name': 'New profile', 'name_source': 'official',
+                                             'profile_status': {'source': 'official_rpc', 'subject_binding': _subject_binding('subject-new')}})
+            matched = reader.accounts(cached_only=True)[0]
+            self.assertEqual('New profile', matched['name'])
+            self.assertNotIn('subject_binding', matched['profile_status'])
+
+    def test_live_subject_check_binds_a_legacy_current_profile_before_future_cache_reads(self):
+        import sqlite3
+        from codex_workbench.account_snapshot import AccountSnapshot
+        from codex_workbench.readonly_sources import NativeRead
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); database = root / 'accounts.sqlite'; native = root / 'official'; native.mkdir()
+            with sqlite3.connect(database) as db:
+                db.execute('CREATE TABLE execution_accounts(id TEXT,name TEXT,subject_id TEXT)')
+                db.execute('INSERT INTO execution_accounts VALUES(?,?,?)', ('current', 'Current', 'subject-a'))
+            account = {'id': 'current', 'subject_id': 'subject-a'}
+            AccountSnapshot(root).save_profile(account, {'name': 'Legacy profile', 'name_source': 'official',
+                                                         'profile_status': {'source': 'official_rpc', 'name': 'available', 'avatar': 'missing'}})
+            with patch('codex_workbench.readonly_sources.current_account_home', return_value=str(native)):
+                reader = NativeRead(database, 'unused', rpc_factory=FakeRpc, catalog=object())
+                self.assertEqual('Legacy profile', reader.accounts()[0]['name'])
+                self.assertEqual('Legacy profile', reader.accounts(cached_only=True)[0]['name'])
+
+    def test_subjectless_current_fallback_reuses_profile_only_after_matching_usage_check(self):
+        from codex_workbench.account_snapshot import AccountSnapshot
+        from codex_workbench.readonly_sources import NativeRead, _subject_binding
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); database = root / 'accounts.sqlite'
+            account = {'id': 'current'}
+            snapshots = AccountSnapshot(root)
+            snapshots.save_profile(account, {'name': 'Confirmed fallback', 'name_source': 'official',
+                                             'profile_status': {'source': 'official_rpc', 'subject_binding': _subject_binding('subject-a')}})
+            snapshots.save_usage(account, {'remaining_percent': 80}, subject='subject-a')
+            reader = NativeRead(database, 'unused', catalog=object())
+            self.assertEqual('Confirmed fallback', reader.accounts(cached_only=True)[0]['name'])
+            snapshots.save_usage(account, {'remaining_percent': 20}, subject='subject-b')
+            stale = reader.accounts(cached_only=True)[0]
+            self.assertEqual('用户名未提供', stale['name'])
+            self.assertNotIn('profile_status', stale)
+
+    def test_online_subject_switch_removes_previously_projected_fallback_profile(self):
+        from codex_workbench.readonly_sources import NativeRead
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); native = root / 'official'; native.mkdir()
+            class SwitchingRpc:
+                subject = 'subject-a'
+                def __init__(self, *_args, **_kwargs): pass
+                def __enter__(self): return self
+                def __exit__(self, *_args): pass
+                def request(self, method, _params=None):
+                    if method == 'account/read':
+                        return {'account': {'type': 'chatgpt', 'email': 'sample@example.invalid',
+                                            'displayName': 'Subject A', 'planType': 'pro'}}
+                    if method == 'account/rateLimits/read':
+                        return {'accountId': self.subject, 'rateLimits': {
+                            'limitId': 'codex', 'primary': {'usedPercent': 20, 'windowDurationMins': 10080}}}
+                    raise AssertionError(method)
+            with patch('codex_workbench.readonly_sources.current_account_home', return_value=str(native)):
+                reader = NativeRead(root / 'absent.sqlite', 'unused', rpc_factory=SwitchingRpc, catalog=object())
+                self.assertEqual('Subject A', reader.refresh_profile('current')['name'])
+                SwitchingRpc.subject = 'subject-b'
+                switched = reader.accounts()[0]
+                self.assertEqual('用户名未提供', switched['name'])
+                self.assertEqual('unavailable', switched['name_source'])
+                self.assertNotIn('profile_status', switched)
+                self.assertEqual('用户名未提供', reader.accounts(cached_only=True)[0]['name'])

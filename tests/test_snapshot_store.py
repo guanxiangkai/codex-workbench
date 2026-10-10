@@ -14,7 +14,6 @@ class SnapshotStoreTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision = 'test'
             native = Mock()
-            native.skills.return_value = [{'id': 'example', 'name': 'Example'}]
             knowledge = Mock()
             knowledge.snapshot.return_value = {'scopes': [], 'knowledge': [{'knowledge_key': 'example', 'title': 'Example'}]}
             versions = Mock(); versions.context.return_value = 'account-a'
@@ -22,7 +21,7 @@ class SnapshotStoreTest(unittest.TestCase):
                               knowledge_catalog=knowledge, source_versions=versions)
             board.snapshot_scheduler = SnapshotScheduler(board)
             try:
-                for view, key in (('agents', 'skills'), ('knowledge', 'knowledge')):
+                for view, key in (('knowledge', 'knowledge'),):
                     with self.subTest(view=view):
                         self.assertEqual('pending', board.state(view)['status']['snapshot']['state'])
                         self.assertIn(('account-a', view), board.snapshot_scheduler.requested)

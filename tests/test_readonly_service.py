@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from codex_workbench.catalog import TOOLS, validate
+from codex_workbench.account_profiles import import_profile
 from codex_workbench.readonly_sources import NativeRead, ReadRpc, ReadonlyCredentials, connection, rows
 from codex_workbench.service import Workbench
 
@@ -36,7 +37,7 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','agents','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','knowledge','models','config']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
         self.service.call('workbench_state',{'view':'config'})
@@ -72,6 +73,19 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         value=self.service.call('model_list',{})['models'][0]
         self.assertEqual('',value['base_url']);self.assertEqual('entry',value['credential_id']);self.assertNotIn('credential_ref',value)
         self.assertEqual(before,hashlib.sha256(db.read_bytes()).hexdigest())
+
+    def test_snapshot_refresh_does_not_restore_explicitly_removed_profile(self):
+        account={'id':'current','email':'person@example.invalid','name':'Old name','name_source':'official',
+                 'display_name':'Old name','avatar_data_uri':'old-avatar'}
+        value={'view':'accounts','accounts':[account],'status':{'state':'ok'}}
+        self.service.snapshots.put('fixture-context','accounts',value)
+        import_profile(self.root/'account-profiles.json','accounts',account,
+                       missing_fields=['display_name','avatar_data_uri'])
+        with patch.object(self.native,'accounts',return_value=[account]):
+            self.assertTrue(self.service.collect_snapshot('accounts'))
+        result=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
+        for field in ('name','name_source','display_name','avatar_data_uri'):
+            self.assertNotIn(field,result)
     def test_secret_read_is_explicit_and_returns_envelope_only(self):
         value=self.service.call('credential_details',{'id':'entry','public_key':'key','request_id':'request'})
         self.assertEqual({'ciphertext':'opaque','entry_id':'entry'},value)

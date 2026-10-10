@@ -49,6 +49,30 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(AVATAR,profile['avatar_data_uri'])
             self.assertEqual(0o600,path.stat().st_mode & 0o777)
 
+    def test_explicitly_missing_field_clears_but_omitted_field_is_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            account = {'id': 'current', 'email': 'a@example.invalid'}
+            import_profile(path, 'accounts', account, display_name='Alice', avatar_data_uri=AVATAR,
+                           account_identifier='subject-123')
+            import_profile(path, 'accounts', account, missing_fields=['display_name', 'avatar_data_uri'])
+            profile = apply_profiles({'accounts': [{**account, 'display_name': 'Old profile', 'name': 'Old native name',
+                                                    'name_source': 'official', 'avatar_data_uri': AVATAR}]}, 'accounts', path)['accounts'][0]
+            self.assertNotIn('display_name', profile)
+            self.assertNotIn('name', profile)
+            self.assertNotIn('name_source', profile)
+            self.assertNotIn('avatar_data_uri', profile)
+            self.assertEqual('subject-123', profile['account_identifier'])
+            import_profile(path, 'accounts', account, account_identifier='subject-456')
+            preserved = apply_profiles({'accounts': [{**account, 'display_name': 'Old profile', 'name': 'Old native name',
+                                                      'name_source': 'official', 'avatar_data_uri': AVATAR}]}, 'accounts', path)['accounts'][0]
+            self.assertEqual('subject-456', preserved['account_identifier'])
+            self.assertNotIn('display_name', preserved)
+            self.assertNotIn('name', preserved)
+            self.assertNotIn('avatar_data_uri', preserved)
+            with self.assertRaises(ValueError):
+                import_profile(path, 'accounts', account, display_name='Alice', missing_fields=['display_name'])
+
     def test_invalid_base64_and_image_containers_are_rejected(self):
         self.assertTrue(_valid_avatar(AVATAR))
         for value in ('====', 'a===b', 'YQ==', base64.b64encode(b'\x89PNG\r\n\x1a\nnot an image').decode()):

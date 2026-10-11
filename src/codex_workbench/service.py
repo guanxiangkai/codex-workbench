@@ -10,9 +10,6 @@ import time
 from urllib.parse import urlsplit
 
 from .catalog import VERSION, validate, MODULES, DEFAULT_VIEW
-from .configuration_schema import configuration_schema
-from .configuration_center import configuration_entries
-from .credential_details import read_details
 from .model_contracts import contract_for
 from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
 from .ui_release import UiRelease
@@ -101,7 +98,7 @@ class Workbench:
         self.ui_release=UiRelease(source_mode=ui_source_mode)
         self.native=native_reader or NativeRead(self.db,codex,lease_fd)
         self.credentials=credential_catalog or ReadonlyCredentials(self.db, organization_path=self.resources_dir/'workbench-settings.json')
-        self.credential_reader=credential_reader or read_details
+        self.credential_reader=credential_reader
         self.knowledge=knowledge_catalog or KnowledgeCatalog()
         self.connections=connection_catalog or ConnectionCatalog(codex,self.native)
         self.view_cache=view_cache or ViewCache()
@@ -374,15 +371,8 @@ class Workbench:
                         account['reset_analysis'] = dict(analysis)
                     else:
                         account.pop('reset_analysis', None)
-        elif view=='knowledge':result.update(self.knowledge.snapshot())
         elif view=='models':result['models']=self._models()
         elif view=='other_accounts':result.update(self._other_accounts(refresh=False))
-        elif view=='config':
-            catalog=self.credentials.list();result.update(catalog);result['status']={**catalog['status'],'state':'ok','observed_at':timestamp()}
-            result['configuration_schema']=configuration_schema()
-            models=self._models();other=self._other_accounts(refresh=False)
-            result['entries']=configuration_entries(catalog['entries'],models,other['accounts'])
-            result['other_account_providers']=[{'id':provider['id'],'name':provider['name']} for provider in other['providers']]
         elif view=='connections':result.update(self.connections.listing())
         else:raise ValueError('页面不存在')
         # 官网首次确认的公开资料仅补齐当前来源未提供的字段，身份键由适配器严格校验。
@@ -513,24 +503,23 @@ class Workbench:
         if name=='workbench_state':return self.state(args.get('view',DEFAULT_VIEW),**{k:v for k,v in args.items() if k!='view'})
         if name=='module_list':return {'modules':MODULES,'read_only':False}
         if name=='knowledge_list':
+            # Knowledge remains a native read API after its page is retired.
+            # Do not route this through state('knowledge'), whose UI view is
+            # intentionally no longer part of the public page contract.
             scope=args.get('scope','global')
-            value=self.state('knowledge',scope=scope,query=args.get('query',''))
+            query=(args.get('query') or '').strip().lower()
+            value=self.knowledge.snapshot(scope=scope if scope not in ('', 'global') else None)
+            if scope not in ('', 'global'):
+                value={**value,'knowledge':[item for item in value.get('knowledge',[]) if item.get('scope_key')==scope]}
+            if query:
+                value={**value,'knowledge':[item for item in value.get('knowledge',[]) if query in ' '.join(str(item.get(field) or '') for field in ('knowledge_key','title','summary')).lower() or any(query in str(tag).lower() for tag in (item.get('tags') or []))]}
             return {**value,'scopes':value.get('scopes',[]),'knowledge':value.get('knowledge',[]),'selected_scope':scope}
         if name=='knowledge_detail':return self.knowledge.detail(args['scope'],args['key'])
-        if name=='service_list':return self.service_state()
-        if name=='service_detail':
-            item=next((x for x in self.service_state()['services'] if x['id']==args['id']),None)
-            if item is None:raise ValueError('服务引用不存在或已变化')
-            return {'service':item}
         if name=='connection_list':return self.connections.listing()
         if name=='model_list':return {'models':self._models()}
-        if name=='credential_list':return self.credentials.list()
-        if name=='credential_details':return self.credential_reader(self.credentials,args['id'],args['public_key'],args['request_id'])
         if name=='model_detail':
             item=next((m for m in self._models() if m['id']==args['id']),None)
             if item is None:raise ValueError('模型不存在')
-            credential=None
-            if item.get('credential_id'):
-                credential=next((e for e in self.credentials.list()['entries'] if e['id']==item['credential_id']),None)
-            return {'model':item,'credential':credential,'api_contract':contract_for(item)}
+            public={k:v for k,v in item.items() if k not in {'credential_id','credential_ref','vault_ref','secret_ref'}}
+            return {'model':public,'api_contract':contract_for(item)}
         raise ValueError('只读工具不存在')

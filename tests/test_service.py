@@ -41,7 +41,7 @@ class WorkbenchServiceTest(unittest.TestCase):
         self.board.call('open_workbench',{});self.board.close()
         self.assertEqual(before,hashlib.sha256(db.read_bytes()).hexdigest());self.assertEqual('保留规则',rules.read_text())
     def test_no_settings_export_or_resource_initialization(self):
-        self.board.call('workbench_state',{'view':'config'})
+        with self.assertRaises(ValueError): self.board.call('workbench_state',{'view':'config'})
         self.assertFalse((self.fixture.root/'resources').exists())
     def test_close_is_idempotent_and_has_no_validator(self):
         self.assertFalse(hasattr(self.board,'validator'));self.board.close();self.board.close()
@@ -50,7 +50,7 @@ class WorkbenchServiceTest(unittest.TestCase):
         for name in ['agent_update','agent_resource_write','account_rename','account_default']:
             with self.subTest(name=name),self.assertRaises(ValueError):self.board.call(name,{})
     def test_views_are_lazy_and_do_not_read_unrelated_sources(self):
-        self.board.call('workbench_state',{'view':'config'})
+        with self.assertRaises(ValueError): self.board.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.fixture.native.calls);self.assertEqual([],self.fixture.secret_reads)
     def test_no_executor_or_store_owned_by_view_service(self):
         for name in ['runner','executor','store','library','models']:self.assertFalse(hasattr(self.board,name))

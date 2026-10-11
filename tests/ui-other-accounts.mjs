@@ -21,7 +21,7 @@ html=h.otherAccountsView({accounts},'不存在','');assert(html.includes('没有
 html=h.otherAccountsView({accounts:[],providers:[{id:'unused',name:'不应显示'}]},'','');assert(!html.includes('不应显示'));assert(!html.includes('全部平台'));assert(html.includes('暂无其他账户'));
 html=h.otherAccountsView({accounts},'','removed');assert(html.includes('开发账户'));assert(html.includes('接口账户'));
 html=h.otherAccountCard({...account,label:'<script>bad()</script>',vault_id:'2.account.ref',is_used:true,observed_at:'2026-09-16T09:00:00+08:00',status_source:'provider_console'});
-assert(html.includes('&lt;script&gt;'));assert(!html.includes('<script>'));assert(html.includes('data-config="2.account.ref"'));assert(html.includes('使用中'));assert(html.includes('检查于'));assert(!html.includes('<summary>数据来源</summary>'));assert(!html.includes('主账户'));assert(!html.includes('默认'));assert(!html.includes('重置卡'));
+assert(html.includes('&lt;script&gt;'));assert(!html.includes('<script>'));assert(!html.includes('data-config='));assert(html.includes('使用中'));assert(html.includes('检查于'));assert(!html.includes('<summary>数据来源</summary>'));assert(!html.includes('主账户'));assert(!html.includes('默认'));assert(!html.includes('重置卡'));
 html=h.otherAccountCard({...account,label:'旧标签',display_name:'资料昵称',profile_observed_at:'2026-09-16T09:00:00+08:00'});
 assert(html.includes('<h2>资料昵称</h2>'));assert(!html.includes('旧标签'));assert(html.includes('资料更新于'));
 assert(h.otherAccountCard(account).includes('状态未核验'));assert(h.otherAccountCard(accounts[1]).includes('未使用'));

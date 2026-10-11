@@ -119,11 +119,7 @@ class OtherAccountsTests(unittest.TestCase):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])
         self.fixture.credentials.list = lambda: {'entries': [{'id': 'zhipu-key', 'tags': [], 'label': '智谱密钥'}], 'folders': [], 'status': {'ready': True}}
         self.fixture.board._models = lambda: [{'id': 'model', 'credential_id': 'zhipu-key'}]
-        self.collect('config')
-        state = self.fixture.board.call('workbench_state', {'view': 'config'})
-        self.assertEqual([{'id': 'zhipu', 'name': '智谱'}], state['other_account_providers'])
-        self.assertEqual(['zhipu-team'], state['entries'][0]['other_account_ids'])
-        self.assertEqual(['zhipu'], state['entries'][0]['account_provider_ids'])
+        with self.assertRaises(ValueError): self.fixture.board.call('workbench_state', {'view': 'config'})
 
     def test_sync_uses_other_accounts_view_and_reloads_changed_catalog(self):
         self.save([{'id': 'zhipu', 'name': '智谱', 'accounts': [self.account]}])

@@ -3,14 +3,16 @@ import json
 from pathlib import Path
 import tempfile
 import threading
+import sys
+import time
 import unittest
 from unittest.mock import patch
 
-from codex_workbench.catalog import validate
+from codex_workbench.catalog import validate, TOOLS
 from codex_workbench.model_discovery import parse_models, register_models, discover, SOURCES
 from codex_workbench.model_catalog import configured_models
 from codex_workbench.model_observations import ModelObservations
-from codex_workbench.model_refresh import ModelRefresh
+from codex_workbench.model_refresh import ModelRefresh, ProbeProcesses
 from codex_workbench.model_status import availability
 from codex_workbench.service import _page_view
 
@@ -61,6 +63,29 @@ class DiscoveryTests(unittest.TestCase):
 
 
 class ProjectionTests(unittest.TestCase):
+    def test_refresh_only_exposed_to_app_and_paused_is_preserved(self):
+        tool=next(tool for tool in TOOLS if tool['name']=='model_refresh')
+        self.assertEqual(['app'],tool['_meta']['ui']['visibility'])
+        self.assertEqual('paused',availability('paused'))
+
+    def test_close_terminates_probe_group_and_rejects_new_probes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);ready=root/'ready';late=root/'late'
+            child="import pathlib,sys,time;time.sleep(1.5);pathlib.Path(sys.argv[1]).write_text('unexpected')"
+            parent="import pathlib,subprocess,sys,time;subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[2]]);pathlib.Path(sys.argv[3]).touch();time.sleep(30)"
+            processes=ProbeProcesses();outcomes=[]
+            def run():
+                try:processes.run([sys.executable,'-c',parent,child,str(late),str(ready)])
+                except InterruptedError:outcomes.append('cancelled')
+            thread=threading.Thread(target=run);thread.start()
+            deadline=time.monotonic()+3
+            while not ready.exists() and time.monotonic()<deadline:time.sleep(.02)
+            self.assertTrue(ready.exists())
+            processes.close();thread.join(3)
+            self.assertFalse(thread.is_alive());self.assertEqual(['cancelled'],outcomes)
+            with self.assertRaises(InterruptedError):processes.run([sys.executable,'-c','pass'])
+            time.sleep(1.6);self.assertFalse(late.exists())
+
     def test_filter_before_pagination_and_clamp(self):
         models=[{'id':str(i),'name':str(i),'provider_id':'minimax' if i%2 else 'bigmodel','model_type':'reasoning'} for i in range(45)]
         first=_page_view({'models':models},provider='minimax',page=1,page_size=10)

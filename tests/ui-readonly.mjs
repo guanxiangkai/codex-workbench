@@ -109,5 +109,7 @@ console.log('工作台导航：Codex 账户、其他账户、模型服务三个�
 assert.equal(h.modelAvailability({availability_status:'payment_required'})[0],'需要付费');
 assert.equal(h.modelAvailability({availability_status:'insufficient_balance'})[0],'余额不足');
 assert.equal(h.modelAvailability({availability_status:'available'})[0],'可用');
+assert.equal(h.modelAvailability({validation_status:'paused'})[0],'已暂停');
+assert.equal(h.modelAvailability({availability_status:'paused'})[0],'已暂停');
 assert(h.modelRefreshProgress({state:'validating',completed:3,total:8,added:2}).includes('3 / 8'));
 assert(!h.modelRefreshProgress({state:'failed',error:'<script>x</script>'}).includes('<script>'));

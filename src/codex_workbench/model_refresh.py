@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import fcntl
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -17,7 +18,44 @@ from .model_observations import ModelObservations
 from .model_status import availability
 
 
-def verify_one(model, resources_dir, data_dir):
+def _terminate(process):
+    """终止验证进程组，包括保险库启动的子进程。"""
+    try:os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:return
+    try:process.wait(timeout=1)
+    except subprocess.TimeoutExpired:pass
+    try:os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:pass
+
+
+class ProbeProcesses:
+    """跟踪受控验证进程，关闭后不接受新的付费请求。"""
+    def __init__(self):
+        self.lock=threading.Lock();self.active=set();self.closed=False
+
+    def run(self, args):
+        with self.lock:
+            if self.closed:raise InterruptedError('验证已停止')
+            process=subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL, start_new_session=True)
+            self.active.add(process)
+        try:
+            output,_=process.communicate(timeout=150)
+            if self.closed:raise InterruptedError('验证已停止')
+            return output
+        except subprocess.TimeoutExpired:
+            _terminate(process);process.communicate(timeout=2)
+            raise
+        finally:
+            with self.lock:self.active.discard(process)
+
+    def close(self):
+        with self.lock:
+            self.closed=True;active=list(self.active)
+        for process in active:_terminate(process)
+
+
+def verify_one(model, resources_dir, data_dir, processes=None):
     """保险库将秘密直接送入验证子进程 stdin；父进程只接收固定结果字段。"""
     reference = model.get('credential_id')
     if not reference:
@@ -30,10 +68,9 @@ def verify_one(model, resources_dir, data_dir):
             '--provider', model['provider_id'], '--credential-id', reference,
             '--model-id', model['id'], '--timeout', '120']
     try:
-        result = subprocess.run(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=150, check=False)
-        lines = result.stdout.decode('utf-8').splitlines()
-        if len(result.stdout) > 16384 or len(lines) != 1:
+        output = (processes or ProbeProcesses()).run(args)
+        lines = output.decode('utf-8').splitlines()
+        if len(output) > 16384 or len(lines) != 1:
             raise ValueError('验证结果无效')
         value = json.loads(lines[0])
         if value.get('model_id') != model['id'] or set(value) != {'model_id','success','status','error_code'}:
@@ -41,6 +78,8 @@ def verify_one(model, resources_dir, data_dir):
         if value['status'] in {'failed','skipped'}:
             ModelObservations(data_dir).record(model, success=False, source='probe', error_code=value['error_code'])
         return availability(value['status'], value['error_code'])
+    except InterruptedError:
+        return None
     except (OSError, ValueError, subprocess.TimeoutExpired):
         ModelObservations(data_dir).record(model, success=False, source='probe', error_code='verification_worker_failed')
         return 'verification_failed'
@@ -53,6 +92,7 @@ class ModelRefresh:
         self.path=self.data_dir/'model-refresh.json';self.lock_path=self.data_dir/'model-refresh.lock'
         self.notify=notify;self.discoverer=discoverer;self.verifier=verifier
         self.mutex=threading.RLock();self.thread=None;self.stopping=threading.Event()
+        self.processes=ProbeProcesses()
 
     def status(self):
         """读取进度，并将进程退出遗留的运行状态标记为已中断。"""
@@ -78,6 +118,7 @@ class ModelRefresh:
     def start(self):
         """显式点击触发；持有文件锁直到整批任务结束，重复请求复用当前进度。"""
         with self.mutex:
+            if self.stopping.is_set():raise ValueError('服务正在关闭')
             self.data_dir.mkdir(parents=True,exist_ok=True)
             fd=os.open(self.lock_path,os.O_CREAT|os.O_RDWR,0o600)
             try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -116,7 +157,9 @@ class ModelRefresh:
                 for model in models:
                     if self.stopping.is_set():return
                     if model['provider_id']!=provider:continue
-                    state=self.verifier(model,self.resources_dir,self.data_dir)
+                    state=(verify_one(model,self.resources_dir,self.data_dir,self.processes)
+                           if self.verifier is verify_one else self.verifier(model,self.resources_dir,self.data_dir))
+                    if self.stopping.is_set():return
                     with self.mutex:
                         value['completed']+=1
                         value['counts'][state]=value['counts'].get(state,0)+1
@@ -133,5 +176,7 @@ class ModelRefresh:
             os.close(fd)
 
     def close(self):
-        """服务关闭后停止提交下一条模型验证，不重放已发送请求。"""
-        self.stopping.set()
+        """停止新的验证并终止活动验证进程，等待工作线程释放刷新锁。"""
+        with self.mutex:self.stopping.set()
+        self.processes.close()
+        if self.thread and self.thread is not threading.current_thread():self.thread.join(5)

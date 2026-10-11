@@ -3,6 +3,7 @@
 def availability(status, code=None):
     """返回面向用户的状态；未能验证不等于模型永久不可用。"""
     if status == 'verified': return 'available'
+    if status == 'paused': return 'paused'
     if status == 'validating': return 'validating'
     if status == 'pending': return 'unverified'
     if code == 'insufficient_balance': return 'insufficient_balance'

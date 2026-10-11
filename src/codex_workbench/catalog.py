@@ -32,7 +32,7 @@ def definition(name, title, description, properties=None, required=None, *, read
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
-    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
+    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "model_refresh"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
     if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "account_profile_import"):
         result["annotations"]["readOnlyHint"] = False

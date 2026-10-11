@@ -83,7 +83,7 @@ class RegisteredModelVerifierTests(unittest.TestCase):
                 argv.extend(["--model-id", model_id])
             output = io.StringIO()
             with self.subTest(requested=requested), patch("sys.argv", argv), patch("sys.stdout", output), \
-                 patch.object(script, "configured_models", return_value=[self.model(credential_id="test")]), \
+                 patch.object(script, "registered_models", return_value=[self.model(credential_id="test")]), \
                  patch.object(script, "_decode_selected_credential") as decode:
                 self.assertEqual(2, script.main())
             decode.assert_not_called()

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from urllib.request import build_opener, HTTPRedirectHandler, Request
 
-from .model_catalog import configured_models, _model
+from .model_catalog import configured_models, registered_models, _model
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -111,10 +111,11 @@ def parse_models(document, provider, path, kind):
     return result
 
 
-def discover(provider, fetch=fetch_document):
+def discover(provider, fetch=fetch_document, *, cancelled=lambda:False):
     """每家供应商完整解析成功后才返回候选；某个来源失败不会截断覆盖目录。"""
     documents = {}; result = {}
     for url, path, kind in SOURCES[provider]:
+        if cancelled():raise InterruptedError('发现已停止')
         if url not in documents:
             documents[url] = fetch(url)
         for model in parse_models(documents[url], provider, path, kind):
@@ -122,15 +123,13 @@ def discover(provider, fetch=fetch_document):
     return list(result.values())
 
 
-def register_models(resources_dir, provider, candidates):
-    """仅新增公开模型分片；同供应商同官方主机只有唯一引用时才复用凭据引用。"""
+def register_models(resources_dir, provider, candidates, *, data_dir=None):
+    """仅新增公开模型分片；同供应商同一官方接口有唯一引用时才复用。"""
     directory = Path(resources_dir)/'models'
-    existing = configured_models(directory/'catalog.json')
+    existing = (registered_models(resources_dir,data_dir) if data_dir is not None
+                else configured_models(directory/'catalog.json'))
     keys = {(m.get('provider_id'), m.get('model'), m.get('base_url')) for m in existing}
     allowed = {ORIGINS[provider]+path for _, path, _ in SOURCES[provider]}
-    refs = {m.get('credential_id') for m in existing if m.get('provider_id') == provider
-            and m.get('base_url') in allowed and m.get('credential_id')}
-    reference = next(iter(refs)) if len(refs) == 1 else None
     additions = []
     for candidate in candidates:
         if candidate.get('base_url') not in allowed or not MODEL_ID.fullmatch(candidate.get('model', '')):
@@ -138,6 +137,9 @@ def register_models(resources_dir, provider, candidates):
         key = (provider, candidate['model'], candidate['base_url'])
         if key in keys:
             continue
+        refs = {m.get('credential_id') for m in existing if m.get('provider_id') == provider
+                and m.get('base_url') == candidate['base_url'] and m.get('credential_id')}
+        reference = next(iter(refs)) if len(refs) == 1 else None
         digest = hashlib.sha256(json.dumps(key).encode()).hexdigest()[:24]
         item = {'id': provider+'-'+digest, 'name': candidate['model'], 'service_name': NAMES[provider],
                 **candidate, 'model_source': 'explicit', 'provider_id': provider, 'provider_name': NAMES[provider],

@@ -8,6 +8,29 @@ from .model_contracts import PROFILES
 FIELDS={'id','name','service_name','model_type','base_url','model','model_source','credential_id','updated_at','network_scope','api_profile','provider_id','provider_name'}
 TYPES={'image_generation','video_generation','reasoning','multimodal','speech_to_text','text_to_speech','embedding','rerank'}
 PROVIDER_ID=re.compile(r'[a-z][a-z0-9_-]{0,127}\Z')
+LEGACY_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
+               'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
+
+
+def registered_models(resources_dir, data_dir):
+    """统一读取公开目录和升级前的只读记录，供列表、发现与验证共同使用。"""
+    from .readonly_sources import rows
+    result=configured_models(Path(resources_dir)/'models/catalog.json')
+    known={model['id'] for model in result}
+    for model in rows(Path(data_dir)/'workbench.sqlite3','provider_models',LEGACY_FIELDS):
+        if model['id'] in known:raise ValueError('模型目录与既有记录标识重复')
+        ref=model.pop('credential_ref','')
+        model['credential_id']=ref[6:] if isinstance(ref,str) and ref.startswith('vault:') else None
+        try:
+            url=urlsplit(model.get('base_url',''))
+            if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:
+                raise ValueError('无效接口')
+            provider={'https://api.minimax.cn':('minimax','MiniMax'),
+                      'https://open.bigmodel.cn':('bigmodel','智谱 GLM')}.get(url.scheme+'://'+url.netloc)
+            if provider:model.update(provider_id=provider[0],provider_name=provider[1])
+        except ValueError:model['base_url']='';model['configuration_status']='invalid_endpoint'
+        result.append(model)
+    return result
 
 def configured_models(path):
     """读取模型目录及其单模型分片，拒绝秘密字段和重复标识。"""

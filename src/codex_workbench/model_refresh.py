@@ -12,7 +12,7 @@ import sys
 import tempfile
 import threading
 
-from .model_catalog import configured_models
+from .model_catalog import registered_models
 from .model_discovery import discover, register_models, SOURCES
 from .model_observations import ModelObservations
 from .model_status import availability
@@ -75,7 +75,7 @@ def verify_one(model, resources_dir, data_dir, processes=None):
         value = json.loads(lines[0])
         if value.get('model_id') != model['id'] or set(value) != {'model_id','success','status','error_code'}:
             raise ValueError('验证结果不匹配')
-        if value['status'] in {'failed','skipped'}:
+        if value['status'] == 'failed':
             ModelObservations(data_dir).record(model, success=False, source='probe', error_code=value['error_code'])
         return availability(value['status'], value['error_code'])
     except InterruptedError:
@@ -139,19 +139,22 @@ class ModelRefresh:
         def update(**changes):
             with self.mutex:
                 value.update(changes);self._save(value)
-            self.notify()
+            if not self.stopping.is_set():self.notify()
         try:
             for provider in SOURCES:
                 if self.stopping.is_set():return
                 try:
-                    candidates=self.discoverer(provider)
-                    added=register_models(self.resources_dir,provider,candidates)
+                    candidates=(discover(provider,cancelled=self.stopping.is_set)
+                                if self.discoverer is discover else self.discoverer(provider))
+                    with self.mutex:
+                        if self.stopping.is_set():return
+                        added=register_models(self.resources_dir,provider,candidates,data_dir=self.data_dir)
                     value['added']+=added
                     value['providers'][provider]={'state':'ok','added':added}
                 except (OSError,ValueError,KeyError,TypeError):
                     value['providers'][provider]={'state':'failed','error':'官方目录暂时无法读取，保留已有模型'}
                 update()
-            models=[m for m in configured_models(self.resources_dir/'models/catalog.json') if m.get('provider_id') in SOURCES]
+            models=[m for m in registered_models(self.resources_dir,self.data_dir) if m.get('provider_id') in SOURCES]
             update(state='validating',total=len(models))
             def provider_batch(provider):
                 for model in models:
@@ -179,4 +182,4 @@ class ModelRefresh:
         """停止新的验证并终止活动验证进程，等待工作线程释放刷新锁。"""
         with self.mutex:self.stopping.set()
         self.processes.close()
-        if self.thread and self.thread is not threading.current_thread():self.thread.join(5)
+        if self.thread and self.thread is not threading.current_thread():self.thread.join()

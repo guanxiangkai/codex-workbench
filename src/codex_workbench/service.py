@@ -7,16 +7,15 @@ import threading
 import sqlite3
 import secrets
 import time
-from urllib.parse import urlsplit
 
 from .catalog import VERSION, validate, MODULES, DEFAULT_VIEW
 from .model_contracts import contract_for
-from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
+from .readonly_sources import NativeRead, ReadonlyCredentials, timestamp
 from .ui_release import UiRelease
 from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
-from .model_catalog import configured_models
+from .model_catalog import registered_models
 from .model_observations import ModelObservations
 from .model_refresh import ModelRefresh
 from .other_accounts import other_accounts
@@ -29,10 +28,6 @@ from .view_cache import ViewCache
 from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
 from .account_profiles import apply_profiles, import_profile, profile_identity
-
-MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
-              'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
-
 
 def _model_search_text(model):
     """供应商别名只用于模型检索，保留目录原始字段和其他模块的搜索语义。"""
@@ -313,20 +308,7 @@ class Workbench:
             stamp(path) for path in (self.model_observations.path,Path(str(self.model_observations.path)+'-journal')))
 
     def _models(self):
-        result=configured_models(self.resources_dir/'models/catalog.json')
-        known={model['id'] for model in result}
-        for model in rows(self.db,'provider_models',MODEL_FIELDS):
-            if model['id'] in known:raise ValueError('模型目录与既有记录标识重复')
-            ref=model.pop('credential_ref','')
-            model['credential_id']=ref[6:] if isinstance(ref,str) and ref.startswith('vault:') else None
-            # URL 的 query/userinfo 不属于公开目录；即使旧数据异常也不能把 Key 带入列表。
-            try:
-                url=urlsplit(model.get('base_url',''))
-                if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:
-                    model['base_url']='';model['configuration_status']='invalid_endpoint'
-            except ValueError:model['base_url']='';model['configuration_status']='invalid_endpoint'
-            result.append(model)
-        return self.model_observations.project(result)
+        return self.model_observations.project(registered_models(self.resources_dir,self.data_dir))
 
     def _other_accounts(self, refresh=False):
         """目录默认只读；其他账户页按显式密钥绑定刷新用量，不改写配置目录。"""

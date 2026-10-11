@@ -4,7 +4,7 @@ import re
 import subprocess
 import sys
 
-ALLOWED = re.compile(rb"[^@\s]+@users\.noreply\.github\.com\Z", re.I)
+ALLOWED = re.compile(rb"(?:[^@\s]+@users\.noreply\.github\.com|noreply@github\.com)\Z", re.I)
 
 def main():
     shallow = subprocess.check_output(["git", "rev-parse", "--is-shallow-repository"]).strip()

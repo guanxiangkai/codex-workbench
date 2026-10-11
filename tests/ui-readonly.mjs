@@ -111,5 +111,22 @@ assert.equal(h.modelAvailability({availability_status:'insufficient_balance'})[0
 assert.equal(h.modelAvailability({availability_status:'available'})[0],'可用');
 assert.equal(h.modelAvailability({validation_status:'paused'})[0],'已暂停');
 assert.equal(h.modelAvailability({availability_status:'paused'})[0],'已暂停');
-assert(h.modelRefreshProgress({state:'validating',completed:3,total:8,added:2}).includes('3 / 8'));
+assert(h.modelRefreshProgress({state:'validating',running:true,completed:3,total:8,added:2}).includes('3 / 8'));
 assert(!h.modelRefreshProgress({state:'failed',error:'<script>x</script>'}).includes('<script>'));
+
+assert.equal(h.modelRefreshProgress({state:'completed',running:false,added:46,total:64,completed:64}), '');
+const toast={textContent:''};let timer=null;
+context.document.getElementById=id=>id==='toast'?toast:null;
+context.clearTimeout=()=>{timer=null;};
+context.setTimeout=(callback,delay)=>{timer={callback,delay};return 1;};
+h.observeModelRefresh({started_at:'old',state:'completed',running:false});
+assert.equal(toast.textContent,'');
+h.observeModelRefresh({started_at:'new',state:'validating',running:true});
+h.observeModelRefresh({started_at:'new',state:'completed',running:false});
+assert.equal(toast.textContent,'模型刷新已完成');assert.equal(timer.delay,10000);
+timer.callback();assert.equal(toast.textContent,'');
+h.observeModelRefresh({started_at:'new',state:'validating',running:true});
+h.observeModelRefresh({started_at:'new',state:'completed',running:false});
+assert.equal(toast.textContent,'');
+assert.match(h.modelsView(),/id="model-status"/);
+console.log('模型刷新完成提示：10 秒消失，历史作业和重复快照不重复提示；状态筛选入口存在');

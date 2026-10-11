@@ -7,16 +7,15 @@ import threading
 import sqlite3
 import secrets
 import time
-from urllib.parse import urlsplit
 
 from .catalog import VERSION, validate, MODULES, DEFAULT_VIEW
 from .model_contracts import contract_for
-from .readonly_sources import NativeRead, ReadonlyCredentials, rows, timestamp
+from .readonly_sources import NativeRead, ReadonlyCredentials, timestamp
 from .ui_release import UiRelease
 from .knowledge_catalog import KnowledgeCatalog
 from .connection_catalog import ConnectionCatalog
 from .service_directory import services
-from .model_catalog import configured_models
+from .model_catalog import registered_models
 from .model_observations import ModelObservations
 from .model_refresh import ModelRefresh
 from .other_accounts import other_accounts
@@ -30,10 +29,6 @@ from .source_versions import SourceVersions, stamp, tree
 from .snapshot_store import SnapshotStore, SnapshotScheduler
 from .account_profiles import apply_profiles, import_profile, profile_identity
 
-MODEL_FIELDS=['id','name','model_type','base_url','model','protocol','credential_ref','validation_status',
-              'last_checked_at','last_verified_at','last_error_code','created_at','updated_at']
-
-
 def _model_search_text(model):
     """供应商别名只用于模型检索，保留目录原始字段和其他模块的搜索语义。"""
     values=[model.get(key,'') for key in ('id','name','service_name','model_type','model','provider_id','provider_name')]
@@ -41,7 +36,7 @@ def _model_search_text(model):
     return normalized+(' minmax' if 'minimax' in normalized else '')
 
 
-def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', page=1, page_size=20, **_ignored):
+def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', page=1, page_size=20, availability='', **_ignored):
     """先筛选与统计，再对模型列表做稳定分页；分类不受当前页限制。"""
     key=next((k for k in ('accounts','skills','knowledge','models','entries','services','connections') if isinstance(value.get(k),list)),None)
     if key is None:return value
@@ -65,7 +60,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
         text=' '.join(parts).casefold()
         return text+(' minmax' if key=='models' and 'minimax' in text else '')
     q=str(query or '').casefold()
-    selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or '')))) and (key!='knowledge' or scope in ('', 'global') or scope==x.get('scope_key'))]
+    selected=[x for x in items if (not availability or key!='models' or availability==x.get('availability_status')) and (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or '')))) and (key!='knowledge' or scope in ('', 'global') or scope==x.get('scope_key'))]
     # 没有时间戳时保持源顺序，有时间戳时用标识消除并列顺序的不确定性。
     if any(x.get('updated_at') or x.get('created_at') for x in selected):
         selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or '')),reverse=True)
@@ -313,20 +308,7 @@ class Workbench:
             stamp(path) for path in (self.model_observations.path,Path(str(self.model_observations.path)+'-journal')))
 
     def _models(self):
-        result=configured_models(self.resources_dir/'models/catalog.json')
-        known={model['id'] for model in result}
-        for model in rows(self.db,'provider_models',MODEL_FIELDS):
-            if model['id'] in known:raise ValueError('模型目录与既有记录标识重复')
-            ref=model.pop('credential_ref','')
-            model['credential_id']=ref[6:] if isinstance(ref,str) and ref.startswith('vault:') else None
-            # URL 的 query/userinfo 不属于公开目录；即使旧数据异常也不能把 Key 带入列表。
-            try:
-                url=urlsplit(model.get('base_url',''))
-                if url.scheme not in ('http','https') or not url.hostname or url.username or url.password or url.query or url.fragment:
-                    model['base_url']='';model['configuration_status']='invalid_endpoint'
-            except ValueError:model['base_url']='';model['configuration_status']='invalid_endpoint'
-            result.append(model)
-        return self.model_observations.project(result)
+        return self.model_observations.project(registered_models(self.resources_dir,self.data_dir))
 
     def _other_accounts(self, refresh=False):
         """目录默认只读；其他账户页按显式密钥绑定刷新用量，不改写配置目录。"""
@@ -409,7 +391,7 @@ class Workbench:
 
     def sync(self,view,revision=None,refresh=False,**filters):
         """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
-        allowed={'query','kind','provider','tag','folder','page','page_size'}
+        allowed={'query','kind','provider','tag','folder','page','page_size','availability'}
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()

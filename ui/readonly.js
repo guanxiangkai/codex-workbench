@@ -325,7 +325,7 @@ class Bridge{
  async open(url){if(!nativeUrl(url))throw Error('原生会话地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.click();}
  async openLogin(url,popup=null){if(!/^https:\/\/(?:auth\.openai\.com|auth0\.openai\.com|chatgpt\.com)(?:\/|$)/.test(url))throw Error('官方登录地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});if(popup&&!popup.closed){popup.location.replace(url);return;}const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.click();}
 }
-const s={page:Object.hasOwn(PAGES,INITIAL_PAGE)?INITIAL_PAGE:(WORKBENCH_MODULES[0]?.id||'accounts'),data:{},query:'',section:'',project:'',session:'',folder:'',kind:'',modelProvider:'',modelPage:1,modelPageSize:20,modelRefreshStarting:false,accountProvider:'',collapsedFolders:new Set(),loading:false,syncing:false,usageRefreshing:false,error:'',seq:0,detail:null,detailSeq:0,revealed:new Map(),fieldBusy:false,scope:'global'};
+const s={page:Object.hasOwn(PAGES,INITIAL_PAGE)?INITIAL_PAGE:(WORKBENCH_MODULES[0]?.id||'accounts'),data:{},query:'',section:'',project:'',session:'',folder:'',kind:'',modelProvider:'',modelStatus:'',modelPage:1,modelPageSize:20,modelRefreshStarting:false,accountProvider:'',collapsedFolders:new Set(),loading:false,syncing:false,usageRefreshing:false,error:'',seq:0,detail:null,detailSeq:0,revealed:new Map(),fieldBusy:false,scope:'global'};
 const root=document.getElementById('app');const bridge=new Bridge();let abort,snapshotPollTimer,resetCountdownTimer,snapshotPollAttempts=0;
 // 保存状态独立于列表读取，切页和刷新不会重放写入。
 s.accountSaving=null;
@@ -469,22 +469,35 @@ function networkBadge(value){const info=NETWORKS[value];return info?`<span class
 function modelProviders(models){const providers=new Map();for(const model of A(models)){const id=model.provider_id,name=model.provider_name;if(typeof id==='string'&&id&&typeof name==='string'&&name&&!providers.has(id))providers.set(id,{id,name});}return [...providers.values()];}
 /** 后台作业的公开进度；部分来源失败不会清除已登记模型。 */
 function modelRefreshProgress(refresh){
- if(!refresh.state||refresh.state==='idle')return '';
+ if(!refresh.running)return '';
  const phase={discovering:'正在发现新模型',validating:'正在验证模型',completed:'刷新已结束',interrupted:'刷新已中断',failed:'刷新未完成'}[refresh.state]||'刷新状态';
  const errors=Object.entries(refresh.providers||{}).filter(([,value])=>value.state==='failed').map(([provider])=>(provider==='minimax'?'MiniMax':'智谱')+'目录暂时无法读取');
  const counts=Object.entries(refresh.counts||{}).map(([state,count])=>`${AVAILABILITY[state]?.[0]||'待核对'} ${Number(count)||0}`).join(' · ');
  return `<div class="model-refresh-progress" role="status" aria-live="polite"><strong>${E(phase)}</strong><span>新增 ${Number(refresh.added)||0} 个 · 已验证 ${Number(refresh.completed)||0} / ${Number(refresh.total)||0}</span>${counts?`<span>${E(counts)}</span>`:''}${errors.length?`<span class="error">${E(errors.join('；'))}；已保留现有目录</span>`:''}${refresh.error?`<span class="error">${E(refresh.error)}</span>`:''}</div>`;
 }
+const finishedModelRefreshes=new Set();
+let activeModelRefresh=null,modelRefreshNotice='',modelRefreshNoticeTimer=null;
+/** 只提示本页面观察到的作业结束；历史完成结果不会在重新打开时弹出。 */
+function observeModelRefresh(refresh){
+ const id=refresh?.started_at;if(!id||finishedModelRefreshes.has(id))return;
+ if(refresh.running){activeModelRefresh=id;return;}
+ if(activeModelRefresh!==id||!['completed','interrupted','failed'].includes(refresh.state))return;
+ activeModelRefresh=null;finishedModelRefreshes.add(id);
+ const partial=Object.values(refresh.providers||{}).some(provider=>provider.state==='failed');
+ modelRefreshNotice=refresh.state==='completed'?(partial?'模型验证已结束，部分官方目录暂时无法读取':'模型刷新已完成'):(refresh.state==='interrupted'?'模型刷新已中断，已保留完成的结果':'模型刷新未完成，已保留已有结果');
+ clearTimeout(modelRefreshNoticeTimer);message(modelRefreshNotice);
+ modelRefreshNoticeTimer=setTimeout(()=>{const previous=modelRefreshNotice;modelRefreshNotice='';const toast=document.getElementById('toast');if(toast?.textContent===previous)toast.textContent='';},10000);
+}
 async function refreshModels(){
  if(s.modelRefreshStarting||s.data.model_refresh?.running)return;
  s.modelRefreshStarting=true;s.error='';render();
- try{await bridge.tool('model_refresh',{});viewCache.clear();if(s.page==='models')await load();}
+ try{const result=await bridge.tool('model_refresh',{});observeModelRefresh(result.refresh);viewCache.clear();if(s.page==='models')await load();}
  catch(error){s.error=error.message;}
  finally{s.modelRefreshStarting=false;render();}
 }
 function compactModelSearch(value){return String(value??'').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');}
 function modelMatches(model,query){if(!query)return true;const needle=compactModelSearch(query),values=['name','model','base_url','provider_id','provider_name'].map(key=>compactModelSearch(model[key]));if(values.includes('minimax'))values.push('minmax');return values.some(value=>value.includes(needle));}
-function modelsView(){const providers=s.data.facets?.providers||modelProviders(s.data.models);let items=newestRecords(A(s.data.models).filter(x=>modelMatches(x,s.query)));if(s.kind)items=items.filter(x=>x.model_type===s.kind);if(s.modelProvider)items=items.filter(x=>x.provider_id===s.modelProvider);const paging=s.data.pagination,refresh=s.data.model_refresh||{},busy=refresh.running||s.modelRefreshStarting;if(paging)items=A(s.data.models);const pages=paging?.pages||1,current=paging?.page||1;return `<div class="toolbar">${search()}${select('kind','模型能力',options(Object.entries(TYPES).map(([id,name])=>({id,name})),s.kind,'全部能力'))}${providers.length?select('model-provider','供应商',options(providers,s.modelProvider,'全部供应商')):''}<button id="refresh-models" class="soft" title="发现新模型并实际调用验证" aria-busy="${!!busy}" ${busy?'disabled':''}>${busy?'刷新中…':'刷新模型'}</button><span class="muted">共 ${paging?.total??items.length} 个模型</span></div>${modelRefreshProgress(refresh)}<div class="table-scroll"><table><thead><tr><th>模型与接口</th><th>供应商</th><th>能力</th><th>可用状态</th><th><span class="sr-only">详情</span></th></tr></thead><tbody>${items.map(x=>`<tr><td><div class="identity"><span class="module-symbol" data-tone="${category(x.model_type)[1]}">${I(category(x.model_type)[0])}</span><div><strong title="${E(x.name)}">${E(chineseTitle(x.name,'模型'))}</strong>${x.network_scope==='external'?'':networkBadge(x.network_scope)}${x.configuration_status==='missing_credential'?badge('待配置 API Key','orange'):''}<p>${E(x.base_url||'地址不可公开展示')}</p></div></div></td><td>${x.provider_name?badge(x.provider_name,'blue'):badge('未登记','muted')}</td><td>${typeBadge(TYPES[x.model_type]||x.model_type,x.model_type)}</td><td>${badge(...modelAvailability(x))}</td><td><button class="soft" data-model="${E(x.id)}">查看详情</button></td></tr>`).join('')}</tbody></table>${items.length?'':empty('暂无匹配的已登记模型')}</div><nav class="model-pagination" aria-label="模型分页"><button class="soft" id="model-previous" ${current<=1?'disabled':''}>上一页</button><span>第 ${current} / ${pages} 页</span><button class="soft" id="model-next" ${current>=pages?'disabled':''}>下一页</button>${select('model-page-size','每页条数',options([10,20,50].map(n=>({id:String(n),name:n+' 条 / 页'})),String(s.modelPageSize)))}</nav>`;}
+function modelsView(){const providers=s.data.facets?.providers||modelProviders(s.data.models);let items=newestRecords(A(s.data.models).filter(x=>modelMatches(x,s.query)));if(s.kind)items=items.filter(x=>x.model_type===s.kind);if(s.modelProvider)items=items.filter(x=>x.provider_id===s.modelProvider);if(s.modelStatus)items=items.filter(x=>x.availability_status===s.modelStatus);const paging=s.data.pagination,refresh=s.data.model_refresh||{},busy=refresh.running||s.modelRefreshStarting;if(paging)items=A(s.data.models);const pages=paging?.pages||1,current=paging?.page||1;return `<div class="toolbar">${search()}${select('kind','模型能力',options(Object.entries(TYPES).map(([id,name])=>({id,name})),s.kind,'全部能力'))}${providers.length?select('model-provider','供应商',options(providers,s.modelProvider,'全部供应商')):''}${select('model-status','可用状态',options(Object.entries(AVAILABILITY).map(([id,value])=>({id,name:value[0]})),s.modelStatus,'全部状态'))}<button id="refresh-models" class="soft" title="发现新模型并实际调用验证" aria-busy="${!!busy}" ${busy?'disabled':''}>${busy?'刷新中…':'刷新模型'}</button><span class="muted">共 ${paging?.total??items.length} 个模型</span></div>${modelRefreshProgress(refresh)}<div class="table-scroll"><table><thead><tr><th>模型与接口</th><th>供应商</th><th>能力</th><th>可用状态</th><th><span class="sr-only">详情</span></th></tr></thead><tbody>${items.map(x=>`<tr><td><div class="identity"><span class="module-symbol" data-tone="${category(x.model_type)[1]}">${I(category(x.model_type)[0])}</span><div><strong title="${E(x.name)}">${E(chineseTitle(x.name,'模型'))}</strong>${x.network_scope==='external'?'':networkBadge(x.network_scope)}${x.configuration_status==='missing_credential'?badge('待配置 API Key','orange'):''}<p>${E(x.base_url||'地址不可公开展示')}</p></div></div></td><td>${x.provider_name?badge(x.provider_name,'blue'):badge('未登记','muted')}</td><td>${typeBadge(TYPES[x.model_type]||x.model_type,x.model_type)}</td><td>${badge(...modelAvailability(x))}</td><td><button class="soft" data-model="${E(x.id)}">查看详情</button></td></tr>`).join('')}</tbody></table>${items.length?'':empty('暂无匹配的已登记模型')}</div><nav class="model-pagination" aria-label="模型分页"><button class="soft" id="model-previous" ${current<=1?'disabled':''}>上一页</button><span>第 ${current} / ${pages} 页</span><button class="soft" id="model-next" ${current>=pages?'disabled':''}>下一页</button>${select('model-page-size','每页条数',options([10,20,50].map(n=>({id:String(n),name:n+' 条 / 页'})),String(s.modelPageSize)))}</nav>`;}
 function folderPath(folders,id){const byId=new Map(A(folders).map(f=>[f.id,f])),path=[],seen=new Set();while(id&&byId.has(id)&&!seen.has(id)){seen.add(id);const f=byId.get(id);path.unshift(f.name);id=f.parent_id;}return path.join(' / ');}
 /** 平台由已登记账户派生，空平台不会产生筛选项。 */
 function providerStyle(id){const hues={zhipu:270,bigmodel:270,deepseek:220,minimax:335,kimi:275,doubao:28,qwen:185,gemini:245,claude:15};let hash=0;for(const c of String(id||'unknown'))hash=(hash*31+c.codePointAt(0))>>>0;const hue=hues[id]??hash%360;return `--type-color:hsl(${hue} 52% 36%);--type-tint:hsl(${hue} 65% 95%)`;}
@@ -582,7 +595,7 @@ function render(){
  const focused=document.activeElement?.id,selection=document.activeElement?.selectionStart;
  const scrolls=[...document.querySelectorAll('.directories')].map(x=>[x.scrollTop,x.scrollLeft]);
  const pageDetail=Boolean(s.detail);
-  root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,models:modelsView}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite"></div>`;
+  root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,models:modelsView}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite">${E(modelRefreshNotice)}</div>`;
  bind();updateResetCountdown();document.querySelectorAll('.directories').forEach((x,i)=>{if(scrolls[i]){x.scrollTop=scrolls[i][0];x.scrollLeft=scrolls[i][1];}});
  if(focused&&focused!=='query')document.getElementById(focused)?.focus({preventScroll:true});
  if(focused==='query'){const q=document.getElementById('query');q?.focus();try{q?.setSelectionRange(selection,selection);}catch{}}
@@ -631,7 +644,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
  const page=s.page,usageRefresh=['accounts','other_accounts'].includes(page)&&refresh,shouldRefresh=refresh,args={view:page};
  if(['other_accounts','models'].includes(page))args.provider=page==='models'?s.modelProvider:s.accountProvider;
  if(['other_accounts','models'].includes(page))Object.assign(args,{query:s.query,kind:s.kind,folder:s.folder});
- if(page==='models')Object.assign(args,{page:s.modelPage,page_size:s.modelPageSize});
+ if(page==='models')Object.assign(args,{page:s.modelPage,page_size:s.modelPageSize,availability:s.modelStatus});
  // 资料改名后可能不再匹配当前搜索；采集完成判定读取完整本地账户快照，展示仍沿用前端筛选。
  if(s.profileCapture?.view===page)for(const field of ['query','provider','kind','folder'])delete args[field];
 
@@ -668,7 +681,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   s.data=data;if(page==='models'&&data.pagination)s.modelPage=data.pagination.page;
   if(page==='other_accounts'&&!(data.facets?.providers||accountProviders(data.accounts)).some(p=>p.id===s.accountProvider))s.accountProvider='';
   s.loading=false;s.syncing=false;s.usageRefreshing=false;
-  if(shouldRender)render();scheduleSnapshotPoll(page);
+  if(shouldRender)render();if(page==='models')observeModelRefresh(data.model_refresh);scheduleSnapshotPoll(page);
  }catch(e){
   if(seq!==s.seq||e.name==='AbortError')return;
   s.error=e.message;s.loading=false;s.syncing=false;s.usageRefreshing=false;
@@ -677,7 +690,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   clearSecrets();render();if(s.profileCapture?.view===page)scheduleSnapshotPoll(page);
  }finally{if(seq===s.seq){s.loading=false;s.syncing=false;s.usageRefreshing=false;}}
 }
-function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.modelPage=1;s.detail=null;s.data={};s.query='';s.folder='';s.kind='';s.scope='global';s.accountProvider='';clearSecrets();load();}
+function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.modelStatus='';s.modelPage=1;s.detail=null;s.data={};s.query='';s.folder='';s.kind='';s.scope='global';s.accountProvider='';clearSecrets();load();}
 async function detail(kind,id){if(kind!=='model')return;clearSecrets();const epoch=s.detailSeq;s.error='';try{const value=await bridge.tool('model_detail',{id});if(epoch!==s.detailSeq)return;s.detail={kind:'model',value,title:chineseTitle(value.model.name,'模型'),trigger:id};render();document.getElementById('back')?.focus();}catch(e){if(epoch===s.detailSeq){s.error=e.message;render();}}}
 function bind(){
  document.getElementById('refresh-models')?.addEventListener('click',refreshModels);
@@ -689,6 +702,7 @@ function bind(){
  document.querySelectorAll('[data-account-login]').forEach(button=>button.onclick=()=>loginAccount(button.dataset.accountLogin));
  document.querySelectorAll('[data-account-status]').forEach(button=>button.onclick=()=>checkAccount(button.dataset.accountStatus));
  document.querySelectorAll('[data-account-default]').forEach(button=>button.onclick=()=>setDefaultAccount(button.dataset.accountDefault));
+ document.getElementById('model-status')?.addEventListener('change',e=>{s.modelStatus=e.target.value;s.modelPage=1;load();});
  document.getElementById('model-provider')?.addEventListener('change',e=>{s.modelProvider=e.target.value;s.modelPage=1;load();});
  document.getElementById('protocol-source')?.addEventListener('click',()=>{const url=s.detail?.value?.api_contract?.source_url;if(typeof url==='string'&&url.startsWith('https://developers.openai.com/api/reference/'))bridge.openDocumentation(url).catch(e=>message(e.message));});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{if(b.dataset.page===s.page)render();else pageChange(b.dataset.page);});
@@ -706,7 +720,7 @@ document.querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{s.folder=b.
 document.getElementById('clear-folder')?.addEventListener('click',()=>{s.folder='';render();});
 for(const kind of ['model'])document.querySelectorAll('[data-'+kind+']').forEach(b=>b.onclick=()=>detail(kind,b.dataset[kind]));
 document.getElementById('back')?.addEventListener('click',()=>{const trigger=s.detail?.trigger;clearSecrets();s.detail=null;s.error='';render();[...document.querySelectorAll('[data-model]')].find(b=>b.dataset.model===trigger)?.focus({preventScroll:true});});}
-window.__workbenchReadonlyTest={modelAvailability,modelRefreshProgress,providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,accountTitle,avatarMarkup,profileUpdateButton,accountView,resetAnalysisView,resetCountdown,setQuery:value=>{s.query=String(value??'');},entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot,defaultAccountMessage};
+window.__workbenchReadonlyTest={observeModelRefresh,modelAvailability,modelRefreshProgress,providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,accountTitle,avatarMarkup,profileUpdateButton,accountView,resetAnalysisView,resetCountdown,setQuery:value=>{s.query=String(value??'');},entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot,defaultAccountMessage};
 // 隐藏时只清理秘密，公共目录读取继续收尾；避免取消后永远停在忙状态。
 window.addEventListener('pagehide',()=>{clearSnapshotPoll();s.seq++;abort?.abort();s.loading=false;s.syncing=false;clearSecrets();render();clearTimeout(resetCountdownTimer);resetCountdownTimer=null;});
 window.addEventListener('pageshow',event=>{updateResetCountdown();if(event.persisted&&!s.detail&&!s.syncing)load();});

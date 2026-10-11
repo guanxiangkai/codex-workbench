@@ -23,6 +23,15 @@ class ModelObservationsTests(unittest.TestCase):
 
     def save(self,models):self.catalog.write_text(json.dumps({'version':1,'models':models}))
 
+    def test_fresh_catalog_can_be_filtered_without_creating_observations(self):
+        from codex_workbench.service import _page_view
+        models=self.board.call('model_list',{})['models']
+        self.assertTrue(all(model['availability_status']=='unverified' for model in models))
+        filtered=_page_view({'models':models},availability='unverified')
+        self.assertEqual({'text','unused'},{model['id'] for model in filtered['models']})
+        self.assertEqual(2,filtered['pagination']['total'])
+        self.assertFalse(self.store.path.exists())
+
     def test_read_does_not_create_state_and_success_is_per_model(self):
         self.assertEqual('pending',self.board.call('model_list',{})['models'][0]['validation_status'])
         self.assertFalse(self.store.path.exists())

@@ -69,10 +69,15 @@ class ModelObservations:
 
     def project(self, models):
         """投影匹配配置的最新结果；迟到的历史成功不会覆盖较新的失败。"""
+        for model in models:
+            model['availability_status']=availability(model.get('validation_status'),model.get('last_error_code'))
         if not self.path.exists():return models
         with closing(sqlite3.connect(self.path.resolve().as_uri()+'?mode=ro',uri=True)) as conn:
             has_code='error_code' in {row[1] for row in conn.execute('PRAGMA table_info(observations)')}
             for model in models:
+                if model.get('validation_status') == 'paused':
+                    model['availability_status']='paused'
+                    continue
                 row=conn.execute('''SELECT status,checked_at,verified_at,source,'''+('error_code' if has_code else 'NULL')+''' FROM observations
                     WHERE model_id=? AND fingerprint=?''',
                     (model['id'],configuration_fingerprint(model))).fetchone()

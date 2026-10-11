@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from urllib.request import build_opener, HTTPRedirectHandler, Request
 
-from .model_catalog import configured_models, _model
+from .model_catalog import configured_models, registered_models, _model
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -111,10 +111,11 @@ def parse_models(document, provider, path, kind):
     return result
 
 
-def discover(provider, fetch=fetch_document):
+def discover(provider, fetch=fetch_document, *, cancelled=lambda:False):
     """每家供应商完整解析成功后才返回候选；某个来源失败不会截断覆盖目录。"""
     documents = {}; result = {}
     for url, path, kind in SOURCES[provider]:
+        if cancelled():raise InterruptedError('发现已停止')
         if url not in documents:
             documents[url] = fetch(url)
         for model in parse_models(documents[url], provider, path, kind):
@@ -122,10 +123,11 @@ def discover(provider, fetch=fetch_document):
     return list(result.values())
 
 
-def register_models(resources_dir, provider, candidates):
+def register_models(resources_dir, provider, candidates, *, data_dir=None):
     """仅新增公开模型分片；同供应商同一官方接口有唯一引用时才复用。"""
     directory = Path(resources_dir)/'models'
-    existing = configured_models(directory/'catalog.json')
+    existing = (registered_models(resources_dir,data_dir) if data_dir is not None
+                else configured_models(directory/'catalog.json'))
     keys = {(m.get('provider_id'), m.get('model'), m.get('base_url')) for m in existing}
     allowed = {ORIGINS[provider]+path for _, path, _ in SOURCES[provider]}
     additions = []

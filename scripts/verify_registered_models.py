@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from codex_workbench.model_catalog import configured_models
+from codex_workbench.model_catalog import registered_models
 from codex_workbench.model_probe_worker import decode_credential
 from codex_workbench.registered_model_verifier import (configuration_fingerprint, record_results, verify_model_with_review,
                                                         write_metadata, write_reviews)
@@ -48,7 +48,7 @@ def main() -> int:
     if not 1 <= args.timeout <= 120:
         parser.error("--timeout 必须在 1 到 120 秒")
     try:
-        selected = [model for model in configured_models(args.resources_dir / "models" / "catalog.json")
+        selected = [model for model in registered_models(args.resources_dir, args.data_dir)
                     if model.get("provider_id") == args.provider and model.get("credential_id") == args.credential_id]
         if args.model_ids:
             requested = set(args.model_ids)

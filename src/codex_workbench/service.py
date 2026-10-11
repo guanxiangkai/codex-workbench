@@ -18,6 +18,7 @@ from .connection_catalog import ConnectionCatalog
 from .service_directory import services
 from .model_catalog import configured_models
 from .model_observations import ModelObservations
+from .model_refresh import ModelRefresh
 from .other_accounts import other_accounts
 from .account_usage import AccountUsage
 from .account_preferences import set_default_account
@@ -40,8 +41,8 @@ def _model_search_text(model):
     return normalized+(' minmax' if 'minimax' in normalized else '')
 
 
-def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', **_ignored):
-    """在完整公开快照上筛选并计算分类；列表一次返回全部匹配项。"""
+def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', page=1, page_size=20, **_ignored):
+    """先筛选与统计，再对模型列表做稳定分页；分类不受当前页限制。"""
     key=next((k for k in ('accounts','skills','knowledge','models','entries','services','connections') if isinstance(value.get(k),list)),None)
     if key is None:return value
     items=[x for x in value[key] if isinstance(x,dict)]
@@ -82,7 +83,12 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
             entry=kinds.setdefault(k,{'id':k,'name':x.get('service_type_label') or x.get('display_type_label') or k,'count':0});entry['count']+=1
         for t in x.get('tags') or []:tags[str(t)]=tags.get(str(t),0)+1
         for f in ancestors(str(x.get('folder_id') or '')):folders[f]=folders.get(f,0)+1
-    return {**value,key:selected,
+    pagination={}
+    if key=='models':
+        total=len(selected);pages=max(1,(total+page_size-1)//page_size);page=min(page,pages)
+        pagination={'pagination':{'page':page,'page_size':page_size,'total':total,'pages':pages}}
+        selected=selected[(page-1)*page_size:page*page_size]
+    return {**value,**pagination,key:selected,
             'facets':{'providers':[providers[k] for k in sorted(providers)],'kinds':[kinds[k] for k in sorted(kinds)],'tags':[{'id':k,'name':k,'count':v} for k,v in sorted(tags.items())],'folder_counts':folders}}
 
 
@@ -107,6 +113,7 @@ class Workbench:
         # 仅注入已登记的 GLM/MiniMax 受控分析器；缺省不发起外部抓取。
         self.reset_analyzer=reset_analyzer
         self.model_observations=ModelObservations(self.data_dir)
+        self.model_refresh=ModelRefresh(self.resources_dir,self.data_dir,self._model_refresh_changed)
         self.snapshots=snapshot_store or SnapshotStore(self.data_dir)
         self.snapshot_scheduler=None
         self.snapshot_errors={}
@@ -125,7 +132,7 @@ class Workbench:
         # 冷首屏立即返回页面，由现有异步加载读取账户和目录。
         if epoch!=self.source_versions.context():raise ValueError('账户环境已变化，请重新打开工作台')
         views=[];size=0
-        snapshot=self._snapshot_state(view)
+        snapshot=self.state(view)
         if snapshot is not None and snapshot['status']['snapshot']['state'] != 'pending':
             value={'args':{'view':view},'revision':self._snapshot_revision(snapshot),'data':snapshot}
             length=len(json.dumps(value,ensure_ascii=False).encode())
@@ -145,6 +152,12 @@ class Workbench:
             self._closing=True;self.view_cache.clear()
         if self.snapshot_scheduler is not None:self.snapshot_scheduler.close()
         if self._account_service is not None:self._account_service.close()
+        self.model_refresh.close()
+
+    def _model_refresh_changed(self):
+        """逐条验证完成后更新本机公开快照；页面读取不再重复验证。"""
+        self.view_cache.clear()
+        if self.snapshot_scheduler is not None:self.snapshot_scheduler.touch('models',refresh=True)
 
     def start_snapshots(self):
         """仅由 runtime 启动后台采集，测试构造服务不创建线程。"""
@@ -391,15 +404,16 @@ class Workbench:
         """页面状态只投影本机快照；首次读取排入后台采集。"""
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         result=self._snapshot_state(view,snapshot_context,provider=filters.get('provider'))
+        if view=='models':result={**result,'model_refresh':self.model_refresh.status()}
         return _page_view(result,**filters)
 
     def sync(self,view,revision=None,refresh=False,**filters):
         """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
-        allowed={'query','kind','provider','tag','folder'}
+        allowed={'query','kind','provider','tag','folder','page','page_size'}
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()
-        requested_provider = (filters.get('provider') or None) if refresh else None
+        requested_provider = (filters.get('provider') or None) if refresh and view != 'models' else None
         requested_providers = []
         if requested_provider is not None:
             expected = 'accounts' if requested_provider in {'codex', 'manual_reset'} else 'other_accounts'
@@ -497,6 +511,7 @@ class Workbench:
                 self.snapshot_scheduler.touch(view,refresh=True)
             return {'profile': profile}
         if name=='workbench_sync':return self.sync(**args)
+        if name=='model_refresh':return {'refresh':self.model_refresh.start()}
         if name=='open_workbench':
             initial=self.sync(DEFAULT_VIEW)
             return {**initial['data'],'_sync':{'context':initial['context'],'revision':initial['revision']}}

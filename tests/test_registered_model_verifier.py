@@ -262,7 +262,19 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
         body = json.loads(post.call_args.args[1])
         self.assertEqual([{"type": "text", "text": body["content"][0]["text"]}], body["content"])
-        self.assertEqual(4, body["duration"])
+        self.assertEqual(5, body["duration"])
+
+    def test_vidu_supplies_required_synthetic_reference_images(self):
+        for name, count in (("viduq1-image", 1), ("vidu2-start-end", 2), ("vidu2-reference", 1)):
+            model = self.model(id="video", model_type="video_generation", model=name,
+                               base_url="https://open.bigmodel.cn/api/paas/v4/videos/generations")
+            completed = b'{"task_id":"task-1","status":"success","video_result":{"url":"https://cdn.example/video.mp4"}}'
+            with patch("codex_workbench.registered_model_verifier._post", return_value=(completed, "application/json", None)) as post:
+                self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
+            images = json.loads(post.call_args.args[1])["image_url"]
+            self.assertEqual(count, len(images) if isinstance(images, list) else 1)
+            image = images[0] if isinstance(images, list) else images
+            self.assertTrue(image.startswith("data:image/png;base64,"))
 
     def test_pending_video_task_is_resumed_without_a_second_submission(self):
         model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",

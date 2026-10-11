@@ -149,7 +149,10 @@ const NAV={accounts:'user',other_accounts:'users',models:'brain'};
 const STATES={backlog:['待处理','orange','inbox'],ready:['待执行','blue','clock'],running:['执行中','purple','circle-play'],done:['已完成','green','circle-check'],archived:['已归档','muted','archive']};
 const TYPES={image_generation:'图像生成',video_generation:'视频生成',reasoning:'推理',multimodal:'多模态',speech_to_text:'语音转文字',text_to_speech:'文字转语音',embedding:'嵌入',rerank:'重排序',unconfigured:'未配置'};
 const RESULTS={completed:'成功',failed:'失败',interrupted:'已中断',cancelled:'已取消',inProgress:'执行中'};
-const VALIDATION={verified:'验证通过',failed:'上次验证失败',pending:'未验证',validating:'已记录：验证中',paused:'已暂停'};
+const VALIDATION={verified:'可用',failed:'验证失败',pending:'未验证',validating:'生成中',paused:'已暂停'};
+const AVAILABILITY={paused:['已暂停','muted'],available:['可用','green'],insufficient_balance:['余额不足','orange'],payment_required:['需要付费','orange'],access_denied:['凭据或权限受限','red'],missing_credential:['待配置 Key','orange'],unavailable:['模型或接口不可用','red'],temporary_error:['暂时失败','yellow'],verification_failed:['验证未通过','red'],unsupported_validation:['待适配验证','muted'],unverified:['未验证','muted'],validating:['生成中','blue']};
+/** 可用性只引用实际调用证据；付费拦截不能误报为模型不存在。 */
+function modelAvailability(model){return AVAILABILITY[model.availability_status]||AVAILABILITY[({verified:'available',pending:'unverified',validating:'validating',paused:'paused'})[model.validation_status]||'verification_failed'];}
 const KINDS={private_key:'私钥',certificate:'证书',api_key:'接口密钥',credential:'账户凭证',secret:'密钥',token:'访问令牌',password:'密码',ssh:'安全远程连接',other:'配置记录',unknown:'未分类配置'};
 const LABELS={type:'类型',purpose:'用途',source:'来源',authentication_tested:'已验证认证',account:'账户',username:'用户名',password:'密码',key:'密钥',api_key:'接口密钥',token:'访问令牌',endpoint:'服务地址',base_url:'接口地址',host:'主机',ip:'IP 地址',port:'端口',database:'数据库',database_type:'数据库类型',database_index:'数据库索引',namespace:'命名空间',group:'配置组',bucket:'存储桶',region:'区域',access_key:'访问标识',secret_key:'访问密钥',private_key:'私钥',public_key:'公钥',description:'说明',remote_path:'路径',passphrase:'口令',certificate:'证书',kubeconfig:'集群连接配置',extra_config:'扩展配置'};
 const A=x=>Array.isArray(x)?x:[];const E=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -322,7 +325,7 @@ class Bridge{
  async open(url){if(!nativeUrl(url))throw Error('原生会话地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});const a=document.createElement('a');a.href=url;a.click();}
  async openLogin(url,popup=null){if(!/^https:\/\/(?:auth\.openai\.com|auth0\.openai\.com|chatgpt\.com)(?:\/|$)/.test(url))throw Error('官方登录地址无效');if(this.embedded)return this.rpc('ui/open-link',{url});if(popup&&!popup.closed){popup.location.replace(url);return;}const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.click();}
 }
-const s={page:Object.hasOwn(PAGES,INITIAL_PAGE)?INITIAL_PAGE:(WORKBENCH_MODULES[0]?.id||'accounts'),data:{},query:'',section:'',project:'',session:'',folder:'',kind:'',modelProvider:'',accountProvider:'',collapsedFolders:new Set(),loading:false,syncing:false,usageRefreshing:false,error:'',seq:0,detail:null,detailSeq:0,revealed:new Map(),fieldBusy:false,scope:'global'};
+const s={page:Object.hasOwn(PAGES,INITIAL_PAGE)?INITIAL_PAGE:(WORKBENCH_MODULES[0]?.id||'accounts'),data:{},query:'',section:'',project:'',session:'',folder:'',kind:'',modelProvider:'',modelPage:1,modelPageSize:20,modelRefreshStarting:false,accountProvider:'',collapsedFolders:new Set(),loading:false,syncing:false,usageRefreshing:false,error:'',seq:0,detail:null,detailSeq:0,revealed:new Map(),fieldBusy:false,scope:'global'};
 const root=document.getElementById('app');const bridge=new Bridge();let abort,snapshotPollTimer,resetCountdownTimer,snapshotPollAttempts=0;
 // 保存状态独立于列表读取，切页和刷新不会重放写入。
 s.accountSaving=null;
@@ -464,9 +467,24 @@ async function checkAccount(id){if(s.accountChecking)return;s.accountChecking=id
 const NETWORKS={internal:['内网','server','cyan'],external:['外网','globe','blue']};
 function networkBadge(value){const info=NETWORKS[value];return info?`<span class="badge type-badge" data-tone="${info[2]}">${I(info[1])}${info[0]}</span>`:badge('网络待标注');}
 function modelProviders(models){const providers=new Map();for(const model of A(models)){const id=model.provider_id,name=model.provider_name;if(typeof id==='string'&&id&&typeof name==='string'&&name&&!providers.has(id))providers.set(id,{id,name});}return [...providers.values()];}
+/** 后台作业的公开进度；部分来源失败不会清除已登记模型。 */
+function modelRefreshProgress(refresh){
+ if(!refresh.state||refresh.state==='idle')return '';
+ const phase={discovering:'正在发现新模型',validating:'正在验证模型',completed:'刷新已结束',interrupted:'刷新已中断',failed:'刷新未完成'}[refresh.state]||'刷新状态';
+ const errors=Object.entries(refresh.providers||{}).filter(([,value])=>value.state==='failed').map(([provider])=>(provider==='minimax'?'MiniMax':'智谱')+'目录暂时无法读取');
+ const counts=Object.entries(refresh.counts||{}).map(([state,count])=>`${AVAILABILITY[state]?.[0]||'待核对'} ${Number(count)||0}`).join(' · ');
+ return `<div class="model-refresh-progress" role="status" aria-live="polite"><strong>${E(phase)}</strong><span>新增 ${Number(refresh.added)||0} 个 · 已验证 ${Number(refresh.completed)||0} / ${Number(refresh.total)||0}</span>${counts?`<span>${E(counts)}</span>`:''}${errors.length?`<span class="error">${E(errors.join('；'))}；已保留现有目录</span>`:''}${refresh.error?`<span class="error">${E(refresh.error)}</span>`:''}</div>`;
+}
+async function refreshModels(){
+ if(s.modelRefreshStarting||s.data.model_refresh?.running)return;
+ s.modelRefreshStarting=true;s.error='';render();
+ try{await bridge.tool('model_refresh',{});viewCache.clear();if(s.page==='models')await load();}
+ catch(error){s.error=error.message;}
+ finally{s.modelRefreshStarting=false;render();}
+}
 function compactModelSearch(value){return String(value??'').toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,'');}
 function modelMatches(model,query){if(!query)return true;const needle=compactModelSearch(query),values=['name','model','base_url','provider_id','provider_name'].map(key=>compactModelSearch(model[key]));if(values.includes('minimax'))values.push('minmax');return values.some(value=>value.includes(needle));}
-function modelsView(){const providers=s.data.facets?.providers||modelProviders(s.data.models);let items=newestRecords(A(s.data.models).filter(x=>modelMatches(x,s.query)));if(s.kind)items=items.filter(x=>x.model_type===s.kind);if(s.modelProvider)items=items.filter(x=>x.provider_id===s.modelProvider);return `<div class="toolbar">${search()}${select('kind','模型能力',options(Object.entries(TYPES).map(([id,name])=>({id,name})),s.kind,'全部能力'))}${providers.length?select('model-provider','供应商',options(providers,s.modelProvider,'全部供应商')):''}${listCount(items,'个模型')}</div><div class="table-scroll"><table><thead><tr><th>模型与接口</th><th>供应商</th><th>能力</th><th>已记录状态</th><th><span class="sr-only">详情</span></th></tr></thead><tbody>${items.map(x=>`<tr><td><div class="identity"><span class="module-symbol" data-tone="${category(x.model_type)[1]}">${I(category(x.model_type)[0])}</span><div><strong title="${E(x.name)}">${E(chineseTitle(x.name,'模型'))}</strong>${x.network_scope==='external'?'':networkBadge(x.network_scope)}${x.configuration_status==='missing_credential'?badge('待配置 API Key','orange'):''}<p>${E(x.base_url||'地址不可公开展示')}</p></div></div></td><td>${x.provider_name?badge(x.provider_name,'blue'):badge('未登记','muted')}</td><td>${typeBadge(TYPES[x.model_type]||x.model_type,x.model_type)}</td><td>${badge(VALIDATION[x.validation_status]||'未提供',x.validation_status==='verified'?'green':x.validation_status==='failed'?'red':x.validation_status==='pending'?'orange':'muted')}</td><td><button class="soft" data-model="${E(x.id)}">查看详情</button></td></tr>`).join('')}</tbody></table>${items.length?'':empty('暂无匹配的已登记模型')}</div>`;}
+function modelsView(){const providers=s.data.facets?.providers||modelProviders(s.data.models);let items=newestRecords(A(s.data.models).filter(x=>modelMatches(x,s.query)));if(s.kind)items=items.filter(x=>x.model_type===s.kind);if(s.modelProvider)items=items.filter(x=>x.provider_id===s.modelProvider);const paging=s.data.pagination,refresh=s.data.model_refresh||{},busy=refresh.running||s.modelRefreshStarting;if(paging)items=A(s.data.models);const pages=paging?.pages||1,current=paging?.page||1;return `<div class="toolbar">${search()}${select('kind','模型能力',options(Object.entries(TYPES).map(([id,name])=>({id,name})),s.kind,'全部能力'))}${providers.length?select('model-provider','供应商',options(providers,s.modelProvider,'全部供应商')):''}<button id="refresh-models" class="soft" title="发现新模型并实际调用验证" aria-busy="${!!busy}" ${busy?'disabled':''}>${busy?'刷新中…':'刷新模型'}</button><span class="muted">共 ${paging?.total??items.length} 个模型</span></div>${modelRefreshProgress(refresh)}<div class="table-scroll"><table><thead><tr><th>模型与接口</th><th>供应商</th><th>能力</th><th>可用状态</th><th><span class="sr-only">详情</span></th></tr></thead><tbody>${items.map(x=>`<tr><td><div class="identity"><span class="module-symbol" data-tone="${category(x.model_type)[1]}">${I(category(x.model_type)[0])}</span><div><strong title="${E(x.name)}">${E(chineseTitle(x.name,'模型'))}</strong>${x.network_scope==='external'?'':networkBadge(x.network_scope)}${x.configuration_status==='missing_credential'?badge('待配置 API Key','orange'):''}<p>${E(x.base_url||'地址不可公开展示')}</p></div></div></td><td>${x.provider_name?badge(x.provider_name,'blue'):badge('未登记','muted')}</td><td>${typeBadge(TYPES[x.model_type]||x.model_type,x.model_type)}</td><td>${badge(...modelAvailability(x))}</td><td><button class="soft" data-model="${E(x.id)}">查看详情</button></td></tr>`).join('')}</tbody></table>${items.length?'':empty('暂无匹配的已登记模型')}</div><nav class="model-pagination" aria-label="模型分页"><button class="soft" id="model-previous" ${current<=1?'disabled':''}>上一页</button><span>第 ${current} / ${pages} 页</span><button class="soft" id="model-next" ${current>=pages?'disabled':''}>下一页</button>${select('model-page-size','每页条数',options([10,20,50].map(n=>({id:String(n),name:n+' 条 / 页'})),String(s.modelPageSize)))}</nav>`;}
 function folderPath(folders,id){const byId=new Map(A(folders).map(f=>[f.id,f])),path=[],seen=new Set();while(id&&byId.has(id)&&!seen.has(id)){seen.add(id);const f=byId.get(id);path.unshift(f.name);id=f.parent_id;}return path.join(' / ');}
 /** 平台由已登记账户派生，空平台不会产生筛选项。 */
 function providerStyle(id){const hues={zhipu:270,bigmodel:270,deepseek:220,minimax:335,kimi:275,doubao:28,qwen:185,gemini:245,claude:15};let hash=0;for(const c of String(id||'unknown'))hash=(hash*31+c.codePointAt(0))>>>0;const hue=hues[id]??hash%360;return `--type-color:hsl(${hue} 52% 36%);--type-tint:hsl(${hue} 65% 95%)`;}
@@ -509,7 +527,7 @@ function configTypeLabel(x){return x.service_type_label||x.display_type_label||K
 function configDescription(x){return x.description||'已保存的配置记录，具体用途暂未补充。';}
 function filteredConfigurations(data,folder,kind,query){const descendants=foldersIn(A(data.folders),folder),q=String(query||'').toLocaleLowerCase();return newestRecords(A(data.entries).filter(x=>(!folder||descendants.has(x.folder_id))&&(!kind||configType(x)===kind)&&(!q||[entryTitle(x),x.label,x.name,x.id,x.description,configTypeLabel(x),folderPath(data.folders,x.folder_id),...A(x.tags)].join(' ').toLocaleLowerCase().includes(q))));}
 const field=(label,value)=>`<div class="field"><dt>${E(label)}</dt><dd>${E(value??'未提供')}</dd></div>`;
-function detailView(){const d=s.detail;let content='';if(d.kind==='model'){const x=d.value.model;content=`<div class="detail-grid"><section class="card"><h2>接口信息</h2><dl>${x.model?field('模型',x.model):''}${field('接口地址',x.base_url)}${x.provider_name?field('供应商',x.provider_name):''}${x.configuration_status==='missing_credential'?field('API Key','待配置 API Key'):''}${x.network_scope==='external'?'':`<dt>网络范围</dt><dd>${networkBadge(x.network_scope)}</dd>`}${field('能力',TYPES[x.model_type]||x.model_type)}</dl></section><section class="card"><h2>已记录验证结果</h2><dl>${field('状态',VALIDATION[x.validation_status]||'未提供')}${field('验证时间',fmtDate(x.last_checked_at))}</dl></section></div>${apiFields(d)}`;}
+function detailView(){const d=s.detail;let content='';if(d.kind==='model'){const x=d.value.model;content=`<div class="detail-grid"><section class="card"><h2>接口信息</h2><dl>${x.model?field('模型',x.model):''}${field('接口地址',x.base_url)}${x.provider_name?field('供应商',x.provider_name):''}${x.configuration_status==='missing_credential'?field('API Key','待配置 API Key'):''}${x.network_scope==='external'?'':`<dt>网络范围</dt><dd>${networkBadge(x.network_scope)}</dd>`}${field('能力',TYPES[x.model_type]||x.model_type)}</dl></section><section class="card"><h2>已记录验证结果</h2><dl>${field('状态',modelAvailability(x)[0])+field('结果代码',x.last_error_code||'—')}${field('验证时间',fmtDate(x.last_checked_at))}</dl></section></div>${apiFields(d)}`;}
 return `<div class="detail-head"><button id="back">${I('arrow-left')}返回${PAGES[s.page]}</button></div><div class="heading"><h1>${E(d.title)}</h1></div>${content}`;}
 function apiFields(d){const c=d.value?.api_contract;if(!c)return d.kind==='model'?'<section class="card api-contract"><h2>入参与出参</h2><p class="muted">尚未登记接口字段</p></section>':'';const table=(title,rows)=>`<section class="card api-contract"><h2>${title}</h2><div class="table-scroll"><table><thead><tr><th>字段</th><th>类型</th><th>条件</th><th>说明</th></tr></thead><tbody>${A(rows).map(r=>`<tr><td><code>${E(r[0])}</code></td><td>${E(r[1])}</td><td>${E(r[2]||'—')}</td><td>${E(r[3])}</td></tr>`).join('')}</tbody></table></div></section>`;return `<section class="api-reference"><div class="row"><h2>${E(c.name)}</h2>${badge('协议参考','orange')}</div><p class="muted">${E(c.note)}</p><button class="soft" id="protocol-source">${I('external-link')}官方字段说明</button></section>${table('入参',c.inputs)}${table('出参',c.outputs)}`;}
 function automaticField(f,value){
@@ -537,9 +555,9 @@ function knowledgeView(){const scopes=A(s.data.scopes),scope=scopes.some(x=>x.id
 function connectionsView(){let items=newestRecords(findText(s.data.connections,s.query,['name','kind']));if(s.kind)items=items.filter(x=>x.kind===s.kind);return `<div class="toolbar">${search()}${select('kind','连接类型',options([{id:'mcp',name:'MCP'},{id:'plugin',name:'已安装插件'}],s.kind,'全部连接类型'))}${listCount(items,'个连接')}</div>${A(s.data.source_errors).map(e=>`<p class="error">${E(e)}</p>`).join('')}<div class="knowledge-list">${items.map(x=>`<article class="card"><div class="row">${I(x.kind==='mcp'?'globe':'sliders-horizontal','purple')}<div class="grow"><h2 title="${E(x.name)}">${E(chineseTitle(x.name,'服务'))}</h2><p class="muted">${x.kind==='mcp'?'本机 MCP 配置':'已安装插件'}${x.transport?' · '+E(x.transport):''}${x.version?' · '+E(x.version):''}</p></div>${badge(x.enabled?'配置已启用':'配置已停用',x.enabled?'green':'muted')}${badge('可用性未核验')}</div></article>`).join('')||empty('没有已登记的工具连接')}</div>`;}
 let listSearchTimer;
 function queueListSearch(event){
- s.query=event.target.value;clearTimeout(listSearchTimer);
+ s.query=event.target.value;s.modelPage=1;clearTimeout(listSearchTimer);
  if(event.isComposing)return;
- listSearchTimer=setTimeout(render,150);
+ listSearchTimer=setTimeout(()=>s.page==='models'?load():render(),200);
 }
 function pendingSnapshot(){const snapshot=s.data.status?.snapshot;return !snapshot?.updated_at&&['pending','error'].includes(snapshot?.state);}
 function clearSnapshotPoll(){clearTimeout(snapshotPollTimer);snapshotPollTimer=null;snapshotPollAttempts=0;}
@@ -556,7 +574,7 @@ function scheduleSnapshotPoll(page){
   const account=A(s.data.accounts).find(account=>account.id===capture.id);
   if(account?.profile_observed_at&&account.profile_observed_at!==capture.previous){s.profileCapture=null;render();message('官网资料已更新');}
  }
- const waiting=s.profileCapture?.view===page,snapshot=s.data.status?.snapshot;
+ const waiting=s.profileCapture?.view===page||(page==='models'&&s.data.model_refresh?.running),snapshot=s.data.status?.snapshot;
  if((!waiting&&(!snapshot||(!snapshot.refreshing&&snapshot.state!=='pending')||snapshotPollAttempts>=30))||document.hidden||s.detail||s.page!==page)return;
  clearTimeout(snapshotPollTimer);snapshotPollTimer=setTimeout(()=>{if(!document.hidden&&s.page===page&&!s.detail){snapshotPollAttempts++;load({poll:true});}},waiting?5000:2000);
 }
@@ -613,6 +631,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
  const page=s.page,usageRefresh=['accounts','other_accounts'].includes(page)&&refresh,shouldRefresh=refresh,args={view:page};
  if(['other_accounts','models'].includes(page))args.provider=page==='models'?s.modelProvider:s.accountProvider;
  if(['other_accounts','models'].includes(page))Object.assign(args,{query:s.query,kind:s.kind,folder:s.folder});
+ if(page==='models')Object.assign(args,{page:s.modelPage,page_size:s.modelPageSize});
  // 资料改名后可能不再匹配当前搜索；采集完成判定读取完整本地账户快照，展示仍沿用前端筛选。
  if(s.profileCapture?.view===page)for(const field of ['query','provider','kind','folder'])delete args[field];
 
@@ -646,7 +665,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   rememberView(key,next);
   let data=next.data;
   const shouldRender=!response.unchanged||changed||!cached||usageRefresh;
-  s.data=data;
+  s.data=data;if(page==='models'&&data.pagination)s.modelPage=data.pagination.page;
   if(page==='other_accounts'&&!(data.facets?.providers||accountProviders(data.accounts)).some(p=>p.id===s.accountProvider))s.accountProvider='';
   s.loading=false;s.syncing=false;s.usageRefreshing=false;
   if(shouldRender)render();scheduleSnapshotPoll(page);
@@ -658,15 +677,19 @@ async function load({cursor,session,refresh=false,poll=false}={}){
   clearSecrets();render();if(s.profileCapture?.view===page)scheduleSnapshotPoll(page);
  }finally{if(seq===s.seq){s.loading=false;s.syncing=false;s.usageRefreshing=false;}}
 }
-function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.detail=null;s.data={};s.query='';s.folder='';s.kind='';s.scope='global';s.accountProvider='';clearSecrets();load();}
+function pageChange(p){clearTimeout(listSearchTimer);clearSnapshotPoll();if(!Object.hasOwn(PAGES,p)||p===s.page)return;s.seq++;if(!bridge.embedded)history.replaceState(null,'','/'+p);s.page=p;s.modelProvider='';s.modelPage=1;s.detail=null;s.data={};s.query='';s.folder='';s.kind='';s.scope='global';s.accountProvider='';clearSecrets();load();}
 async function detail(kind,id){if(kind!=='model')return;clearSecrets();const epoch=s.detailSeq;s.error='';try{const value=await bridge.tool('model_detail',{id});if(epoch!==s.detailSeq)return;s.detail={kind:'model',value,title:chineseTitle(value.model.name,'模型'),trigger:id};render();document.getElementById('back')?.focus();}catch(e){if(epoch===s.detailSeq){s.error=e.message;render();}}}
 function bind(){
+ document.getElementById('refresh-models')?.addEventListener('click',refreshModels);
+ document.getElementById('model-previous')?.addEventListener('click',()=>{s.modelPage=Math.max(1,s.modelPage-1);load();});
+ document.getElementById('model-next')?.addEventListener('click',()=>{s.modelPage++;load();});
+ document.getElementById('model-page-size')?.addEventListener('change',e=>{s.modelPageSize=Number(e.target.value);s.modelPage=1;load();});
  document.getElementById('refresh-usage')?.addEventListener('click',()=>load({refresh:true}));
  document.getElementById('account-create')?.addEventListener('click',()=>createAccount());
  document.querySelectorAll('[data-account-login]').forEach(button=>button.onclick=()=>loginAccount(button.dataset.accountLogin));
  document.querySelectorAll('[data-account-status]').forEach(button=>button.onclick=()=>checkAccount(button.dataset.accountStatus));
  document.querySelectorAll('[data-account-default]').forEach(button=>button.onclick=()=>setDefaultAccount(button.dataset.accountDefault));
- document.getElementById('model-provider')?.addEventListener('change',e=>{s.modelProvider=e.target.value;load();});
+ document.getElementById('model-provider')?.addEventListener('change',e=>{s.modelProvider=e.target.value;s.modelPage=1;load();});
  document.getElementById('protocol-source')?.addEventListener('click',()=>{const url=s.detail?.value?.api_contract?.source_url;if(typeof url==='string'&&url.startsWith('https://developers.openai.com/api/reference/'))bridge.openDocumentation(url).catch(e=>message(e.message));});
 document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{if(b.dataset.page===s.page)render();else pageChange(b.dataset.page);});
 document.querySelectorAll('[data-profile-id]').forEach(b=>b.onclick=()=>updateProfile(b.dataset.profileView,b.dataset.profileId));
@@ -677,13 +700,13 @@ query?.addEventListener('input',queueListSearch);
 query?.addEventListener('compositionend',queueListSearch);
 document.querySelectorAll('[data-provider]').forEach(b=>b.onclick=()=>{s.accountProvider=b.dataset.provider;render();});
 document.querySelectorAll('[data-folder-toggle]').forEach(b=>b.onclick=()=>{const id=b.dataset.folderToggle;s.collapsedFolders.has(id)?s.collapsedFolders.delete(id):s.collapsedFolders.add(id);render();});
-document.getElementById('kind')?.addEventListener('change',e=>{s.kind=e.target.value;render();});
+document.getElementById('kind')?.addEventListener('change',e=>{s.kind=e.target.value;s.modelPage=1;s.page==='models'?load():render();});
 document.getElementById('knowledge-scope')?.addEventListener('change',e=>{s.scope=e.target.value;render();});
 document.querySelectorAll('[data-folder]').forEach(b=>b.onclick=()=>{s.folder=b.dataset.folder;render();});
 document.getElementById('clear-folder')?.addEventListener('click',()=>{s.folder='';render();});
 for(const kind of ['model'])document.querySelectorAll('[data-'+kind+']').forEach(b=>b.onclick=()=>detail(kind,b.dataset[kind]));
 document.getElementById('back')?.addEventListener('click',()=>{const trigger=s.detail?.trigger;clearSecrets();s.detail=null;s.error='';render();[...document.querySelectorAll('[data-model]')].find(b=>b.dataset.model===trigger)?.focus({preventScroll:true});});}
-window.__workbenchReadonlyTest={providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,accountTitle,avatarMarkup,profileUpdateButton,accountView,resetAnalysisView,resetCountdown,setQuery:value=>{s.query=String(value??'');},entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot,defaultAccountMessage};
+window.__workbenchReadonlyTest={modelAvailability,modelRefreshProgress,providerStyle,accountProviders,accountUsage,otherAccountCard,otherAccountsView,modelProviders,compactModelSearch,modelMatches,modelsView,CARD_THEMES,SKILL_THEMES,skillTheme,knowledgeTheme,cardSymbol,chineseTitle,accountTitle,avatarMarkup,profileUpdateButton,accountView,resetAnalysisView,resetCountdown,setQuery:value=>{s.query=String(value??'');},entryTitle,folderPath,filteredConfigurations,configType,configTypeLabel,orderedAccounts,automaticField,nativeUrl,duration,resetTime,findText,payloadRoot,fieldPaths,fieldValue,foldersIn,readResult,color,entityIcon,entityTag,applySync,canonicalKey,timestamp,recordTimestamp,newestRecords,pendingSnapshot,defaultAccountMessage};
 // 隐藏时只清理秘密，公共目录读取继续收尾；避免取消后永远停在忙状态。
 window.addEventListener('pagehide',()=>{clearSnapshotPoll();s.seq++;abort?.abort();s.loading=false;s.syncing=false;clearSecrets();render();clearTimeout(resetCountdownTimer);resetCountdownTimer=null;});
 window.addEventListener('pageshow',event=>{updateResetCountdown();if(event.persisted&&!s.detail&&!s.syncing)load();});

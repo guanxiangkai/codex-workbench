@@ -12,7 +12,7 @@ from codex_workbench.catalog import validate, TOOLS
 from codex_workbench.model_discovery import parse_models, register_models, discover, SOURCES
 from codex_workbench.model_catalog import configured_models
 from codex_workbench.model_observations import ModelObservations
-from codex_workbench.model_refresh import ModelRefresh, ProbeProcesses
+from codex_workbench.model_refresh import ModelRefresh, ProbeProcesses, verify_one
 from codex_workbench.model_status import availability
 from codex_workbench.service import _page_view
 
@@ -47,6 +47,11 @@ class DiscoveryTests(unittest.TestCase):
             models=configured_models(path);new=next(m for m in models if m['id']!='existing')
             self.assertEqual('pending',new['validation_status'])
             self.assertEqual('synthetic.reference',new['credential_id'])
+            speech={**candidates[1], 'model':'speech-3.0-hd', 'model_type':'text_to_speech',
+                    'base_url':'https://api.minimax.cn/v1/t2a_v2'}
+            self.assertEqual(1,register_models(root,'minimax',[speech]))
+            speech_model=next(m for m in configured_models(path) if m['model']=='speech-3.0-hd')
+            self.assertIsNone(speech_model['credential_id'])
             with self.assertRaises(ValueError):register_models(root,'minimax',[{**candidates[1],'base_url':'https://evil.invalid'}])
 
     def test_failed_discovery_keeps_existing_and_duplicate_start(self):
@@ -63,6 +68,17 @@ class DiscoveryTests(unittest.TestCase):
 
 
 class ProjectionTests(unittest.TestCase):
+    def test_skipped_validation_preserves_prior_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            model={'id':'m','provider_id':'minimax','credential_id':'synthetic.reference'}
+            store=ModelObservations(root)
+            store.record(model,success=True,source='probe')
+            result={'model_id':'m','success':False,'status':'skipped','error_code':'unregistered_https_endpoint'}
+            with patch.object(ProbeProcesses,'run',return_value=json.dumps(result).encode()):
+                self.assertEqual('unsupported_validation',verify_one(model,root,root))
+            self.assertEqual('available',store.project([dict(model)])[0]['availability_status'])
+
     def test_refresh_only_exposed_to_app_and_paused_is_preserved(self):
         tool=next(tool for tool in TOOLS if tool['name']=='model_refresh')
         self.assertEqual(['app'],tool['_meta']['ui']['visibility'])

@@ -75,7 +75,7 @@ def verify_one(model, resources_dir, data_dir, processes=None):
         value = json.loads(lines[0])
         if value.get('model_id') != model['id'] or set(value) != {'model_id','success','status','error_code'}:
             raise ValueError('验证结果不匹配')
-        if value['status'] in {'failed','skipped'}:
+        if value['status'] == 'failed':
             ModelObservations(data_dir).record(model, success=False, source='probe', error_code=value['error_code'])
         return availability(value['status'], value['error_code'])
     except InterruptedError:

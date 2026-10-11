@@ -40,11 +40,10 @@ def default_routing_status(data_dir: Path, config_path: Path | None = None) -> d
         return {"routing_ready": False, "routing_reason": "gateway_unavailable"}
     try:
         config = tomllib.loads((config_path or Path.home() / ".codex/config.toml").read_text())
-        provider = config.get("model_providers", {}).get("workbench_gateway", {})
-        if (config.get("model_provider") != "workbench_gateway"
-                or provider.get("base_url", "").rstrip("/") != endpoint
-                or provider.get("wire_api") != "responses"
-                or provider.get("supports_websockets") is not False):
+        # 更换全局 provider 无法覆盖旧线程的 provider 绑定；原生端点覆盖保持同一身份。
+        if (config.get("model_provider", "openai") != "openai"
+                or config.get("openai_base_url", "").rstrip("/") != endpoint
+                or config.get("features", {}).get("enable_request_compression") is not False):
             return {"routing_ready": False, "routing_reason": "native_gateway_inactive"}
     except (OSError, ValueError, TypeError, AttributeError):
         return {"routing_ready": False, "routing_reason": "native_gateway_inactive"}

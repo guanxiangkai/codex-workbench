@@ -22,6 +22,7 @@ from codex_workbench.gateway_routes import AccountTarget, RouteStore
 from codex_workbench.model_gateway import Authorization, ModelGateway, Upstream
 from codex_workbench.native_compatibility import file_digest
 from native_protocol_probe import LocalModel, ProbeRpc
+from codex_workbench.codex_cli import resolve_gateway_cli
 
 
 async def probe(cli: Path) -> dict:
@@ -62,6 +63,26 @@ async def probe(cli: Path) -> dict:
                     gateway.routes.lookup(first)['account_id'] == 'b' and gateway.routes.lookup(second)['account_id'] == 'b')
                 checks['no_upstream_auth_material'] = not model_a.saw_auth and not model_b.saw_auth
                 checks['no_tools_executed'] = rpc.rejected_tools == 0
+                # 保持原生 openai provider，仅更换端点；旧会话不需要覆盖 provider 或改写历史。
+                legacy = ProbeRpc(); cleanup.push_async_callback(legacy.close)
+                legacy_home = root / 'legacy'; legacy_home.mkdir(mode=0o700)
+                await legacy.start(cli, legacy_home, state, model_a, provider='openai', api_key=token)
+                started = await legacy.call('thread/start', {'cwd': str(root), 'model': 'routing-probe', 'ephemeral': False})
+                old = started['thread']['id']
+                checks['legacy_direct_provider_created'] = started['modelProvider'] == 'openai'
+                checks['legacy_direct_turn_completed'] = await legacy.turn(old) == 'completed'
+                await legacy.close()
+                builtin = ProbeRpc(); cleanup.push_async_callback(builtin.close)
+                builtin_home = root / 'builtin'; builtin_home.mkdir(mode=0o700)
+                await builtin.start(cli, builtin_home, state, gateway, provider='openai', api_key=token)
+                calls_before = (model_a.calls, model_b.calls)
+                resumed = await builtin.call('thread/resume', {'threadId': old, 'excludeTurns': True})
+                checks['legacy_thread_preserved'] = resumed['thread']['id'] == old
+                checks['legacy_provider_preserved'] = resumed['modelProvider'] == 'openai'
+                checks['legacy_resume_completed'] = await builtin.turn(old) == 'completed'
+                checks['legacy_resume_uses_gateway_default'] = (
+                    model_a.calls == calls_before[0] and model_b.calls == calls_before[1] + 1
+                    and gateway.routes.lookup(old)['account_id'] == 'b')
             return {'schema_version': 1, 'cli_sha256': file_digest(cli), 'checks': checks,
                     'verified_at': datetime.now(UTC).isoformat(),
                     'source_sha256': {name: file_digest(Path(__file__).resolve().parent / 'src/codex_workbench' / name)
@@ -79,10 +100,10 @@ async def probe(cli: Path) -> dict:
 def main():
     """按需验收；报告使用排他创建，不能覆盖现有证据或修改生产配置。"""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--cli', type=Path, default=Path('/Applications/ChatGPT.app/Contents/Resources/codex'))
+    parser.add_argument('--cli', type=Path)
     parser.add_argument('--report', type=Path)
     args = parser.parse_args()
-    result = asyncio.run(probe(args.cli))
+    result = asyncio.run(probe(resolve_gateway_cli(args.cli)))
     payload = json.dumps(result, ensure_ascii=False, indent=2) + '\n'
     if args.report:
         with args.report.open('x') as stream:

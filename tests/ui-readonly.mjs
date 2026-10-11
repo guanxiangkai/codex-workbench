@@ -6,7 +6,7 @@ const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.
 vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8'),context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__workbenchReadonlyTest={navigation,setPage:value=>{s.page=value;},'),context);
 const h=window.__workbenchReadonlyTest;
 assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('codex://threads/id?token=secret'),null);assert.equal(h.nativeUrl('codex://threads/abc-123'),'codex://threads/abc-123');
-assert.equal(h.defaultAccountMessage({applies_to:'all_sessions_current_default',routing_ready:true}),'默认账户已切换，所有会话跟随当前默认账户');
+assert.equal(h.defaultAccountMessage({applies_to:'all_sessions_current_default',routing_ready:true}),'默认账户已切换；已接入的会话从下一次请求生效，首次接入需重新启动 Codex');
 assert.match(h.defaultAccountMessage({applies_to:'all_sessions_current_default',routing_ready:false}),/账户路由未就绪/);
 assert.equal(h.duration(null),'未提供');assert.equal(h.duration(0),'0 毫秒');assert.equal(h.duration(61234),'1 分 1 秒');
 assert.equal(h.resetTime(null,0),'未提供');assert.equal(h.resetTime(0,0),'等待重置更新');assert.equal(h.resetTime(90061,0),'1 天后重置');assert.equal(h.resetTime(7200,0),'2 小时后重置');assert.equal(h.resetTime(60,0),'1 分钟后重置');

@@ -1,4 +1,4 @@
-"""工作台只公开两个已确认分区。"""
+"""工作台只公开 1.0.0 的三个核心页面。"""
 import unittest
 
 from codex_workbench.catalog import DEFAULT_VIEW, MODULES, TOOLS, validate
@@ -7,11 +7,17 @@ from codex_workbench.catalog import DEFAULT_VIEW, MODULES, TOOLS, validate
 class AccountManagementCatalogTests(unittest.TestCase):
     def test_only_confirmed_workbench_modules_are_exposed(self):
         self.assertEqual(
-            ['accounts', 'other_accounts', 'config', 'knowledge', 'models'],
+            ['accounts', 'other_accounts', 'models'],
             [module['id'] for module in MODULES],
         )
         self.assertEqual('accounts', DEFAULT_VIEW)
-        self.assertEqual(['账户与配置', '能力与知识'], list(dict.fromkeys(module['group'] for module in MODULES)))
+        self.assertEqual(['账户管理', '服务目录'], list(dict.fromkeys(module['group'] for module in MODULES)))
+
+    def test_retired_page_views_are_rejected(self):
+        for view in ('config', 'knowledge'):
+            with self.subTest(view=view):
+                with self.assertRaises(ValueError):
+                    validate('workbench_state', {'view': view})
 
     def test_work_records_planning_and_standalone_connections_are_not_modules(self):
         exposed = {tool['name'] for tool in TOOLS}

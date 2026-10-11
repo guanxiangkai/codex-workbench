@@ -37,10 +37,10 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','knowledge','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','models','other_accounts']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
-        self.service.call('workbench_state',{'view':'config'})
+        with self.assertRaises(ValueError):self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
     def test_only_explicit_account_actions_can_write(self):
         writes={'account_create','account_login','account_status','account_default','account_profile_update','account_profile_capture','account_profile_import'}

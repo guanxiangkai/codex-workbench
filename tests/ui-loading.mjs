@@ -10,7 +10,7 @@ function boot({embedded=false,bootstrap=null,page='models',fieldPayload=null}={}
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'other_accounts',name:'其他账户',group:'账户管理'},{id:'models',name:'模型目录',group:'账户管理'},{id:'config',name:'配置中心',group:'账户管理'},{id:'connections',name:'连接管理',group:'账户管理'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'other_accounts',name:'平台账户',group:'账户管理'},{id:'models',name:'模型服务',group:'账户管理'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(primitives,context);vm.runInNewContext(source,context);
  return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
@@ -91,7 +91,7 @@ assert.match(native.root.innerHTML,/首屏模型/);assert.doesNotMatch(native.ro
 assert.equal(native.requests.length,0);assert.equal(native.messages.filter(x=>x.method==='ui/initialize').length,1);assert(!native.messages.some(x=>x.method==='tools/call'));
 await native.reply(native.messages[0],{});
 const nativeCall=native.messages.find(x=>x.method==='tools/call');assert(nativeCall);assert.equal(nativeCall.params.arguments.view,'models');
-assert(native.messages.findIndex(x=>x.method==='ui/notifications/initialized')<native.messages.indexOf(nativeCall));
+const initialized=native.messages.find(x=>x.method==='ui/notifications/initialized');assert(initialized);assert.equal(initialized.jsonrpc,'2.0');assert.equal(initialized.method,'ui/notifications/initialized');assert.equal(Object.keys(initialized.params).length,0);assert(native.messages.findIndex(x=>x.method==='ui/notifications/initialized')<native.messages.indexOf(nativeCall));
 await native.reply(nativeCall,{structuredContent:{context:'bootstrap-account',revision:'bootstrap-r1',unchanged:true}});
 assert.match(native.root.innerHTML,/首屏模型/);assert.equal(native.timers.size,1);assert.equal(native.requests.length,0);
 // 宿主失联时保留快照，手动重试重新握手；不尝试被原生沙箱阻止的 HTTP。
@@ -132,15 +132,10 @@ await fields.visibility(false);const failing=fields.fields.readSecret('fields');
 console.log('配置默认展开：一次读取、普通字段直显、秘密遮挡、离页与过期清理、错误恢复通过');
 
 
-// 配置中心按用户选择直显全部字段，仍只在详情临时解密，离页清空。
-const plain=boot({page:'config',fieldPayload:{format:'json',fields:{service:'fixture-service',target:'fixture-target',kind:'fixture-kind',password:'synthetic-visible-secret',enabled:false,port:0,nested:{value:'<script>synthetic</script>'}}}});
-await flush();plain.requests[0].resolve({context:'test-account',revision:'config-r1',reset:true,data:{view:'config',entries:[{id:'fixture-entry',label:'Fixture'}],folders:[]}});await flush();
-assert.match(plain.root.innerHTML,/config-card/);assert.doesNotMatch(plain.root.innerHTML,/synthetic-visible-secret/);
-const plainOpen=plain.fields.detail('config','fixture-entry');await flush();assert.equal(JSON.parse(plain.requests.at(-1).options.body).name,'credential_details');plain.requests.at(-1).resolve({});await plainOpen;
-for(const value of ['fixture-service','fixture-target','fixture-kind','synthetic-visible-secret','false','0','&lt;script&gt;synthetic&lt;\/script&gt;'])assert(plain.root.innerHTML.includes(value));
-assert.doesNotMatch(plain.root.innerHTML,/data-reveal|data-copy|••••|<script>synthetic/);
-await plain.visibility(true);assert.equal(plain.fields.s.revealed.size,0);assert.doesNotMatch(plain.root.innerHTML,/synthetic-visible-secret/);
-console.log('配置字段：直显、精确值、无查看复制按钮、转义及离页清理通过');
+// 退役页面不能再被导航或渲染为可用页面。
+const retired=boot({page:'config'});await flush();
+assert.doesNotMatch(retired.root.innerHTML,/配置中心|config-card/);
+console.log('退役页面：配置中心不再出现在工作台导航或视图中通过');
 
 // Only an actual page change requests its target; aborted old responses cannot replace it.
 const navigation=boot();await flush();

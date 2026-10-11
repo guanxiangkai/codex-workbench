@@ -12,8 +12,9 @@ class AccountManagementCatalogTests(unittest.TestCase):
             ['accounts', 'other_accounts', 'models'],
             [module['id'] for module in MODULES],
         )
+        self.assertEqual(['Codex 账户', '其他账户', '模型目录'], [module['name'] for module in MODULES])
         self.assertEqual('accounts', DEFAULT_VIEW)
-        self.assertEqual(['账户管理', '服务目录'], list(dict.fromkeys(module['group'] for module in MODULES)))
+        self.assertEqual(['账户与模型'], list(dict.fromkeys(module['group'] for module in MODULES)))
 
     def test_retired_page_views_are_rejected(self):
         for view in ('config', 'knowledge'):
@@ -45,6 +46,7 @@ class AccountManagementCatalogTests(unittest.TestCase):
         self.assertNotIn('visibility', detail.get('_meta', {}).get('ui', {}))
         contract = json.loads((Path(__file__).parents[1] / 'native-entry-contract.json').read_text())
         self.assertEqual(['accounts', 'other_accounts', 'models'], [item['id'] for item in contract['modules']])
+        self.assertEqual(MODULES, contract['modules'])
         self.assertIn('knowledge_list', contract['tools'])
         self.assertNotIn('skill_detail', contract['tools'])
         self.assertEqual('ui://codex-workbench/v8/workbench.html', contract['resource_uri'])

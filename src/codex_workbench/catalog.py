@@ -7,9 +7,9 @@ VERSION = "1.0.0"
 UI_URIS = {"open_workbench": "ui://codex-workbench/v8/workbench.html"}
 PAGES = {"workbench": ("codex-workbench", "open_workbench", "工作台")}
 MODULES = [
-    {"id": "accounts", "name": "Codex 账户", "group": "账户管理"},
-    {"id": "other_accounts", "name": "平台账户", "group": "账户管理"},
-    {"id": "models", "name": "模型服务", "group": "服务目录"},
+    {"id": "accounts", "name": "Codex 账户", "group": "账户与模型"},
+    {"id": "other_accounts", "name": "其他账户", "group": "账户与模型"},
+    {"id": "models", "name": "模型目录", "group": "账户与模型"},
 ]
 DEFAULT_VIEW = "accounts"
 UI_VIEWS = frozenset(module["id"] for module in MODULES)
@@ -50,7 +50,7 @@ TOOLS = [
     definition("account_profile_update", "更新账户资料", "仅在用户手动更新时读取 Codex 官方资料；不代表已采集网页头像。", {"id": ID}, ["id"]),
     definition("account_profile_capture", "授权官网资料采集", "仅供工作台首次登录或用户点击更新资料后申请十分钟内有效的单次保存授权。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID}, ["view", "id"], idempotent=False),
     definition("account_profile_import", "保存官网账户资料", "需要工作台发起的有效单次 capture_id；仅保存已在官方可见页面核对为同一账户的真实昵称和本地头像；不读取或保存 Cookie、Token。", {"view": {"type": "string", "enum": ["accounts", "other_accounts"]}, "id": ID, "capture_id": text(128), "display_name": text(200), "account_identifier": text(200), "avatar_data_uri": text(1048576), "missing_fields": {"type": "array", "items": {"type": "string", "enum": ["display_name", "avatar_data_uri", "account_identifier"]}, "uniqueItems": True, "maxItems": 3}, "observed_at": text(100)}, ["view", "id", "capture_id"]),
-    definition("open_workbench", "工作台", "打开 Codex 账户、平台账户和模型服务工作台。"),
+    definition("open_workbench", "工作台", "打开 Codex 账户、其他账户和模型目录工作台。"),
     definition("workbench_state", "读取工作台", "按视图读取后台更新的公开 JSON 快照，不在页面请求中访问来源。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS}),
     definition("workbench_sync", "同步工作台变化", "按修订返回后台快照差异；刷新仅排入后台采集，失败保留最后成功数据，不返回密钥。", {"view": {"type": "string", "enum": sorted(UI_VIEWS)}, **FILTERS, "revision": text(64), "refresh": {"type": "boolean"}}, ["view"]),
     definition("module_list", "读取工作台模块", "读取用户可见的工作台模块目录。"),

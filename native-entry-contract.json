@@ -3,9 +3,9 @@
   "default_view": "accounts",
   "read_only": true,
   "modules": [
-    {"id": "accounts", "name": "Codex 账户", "group": "账户管理"},
-    {"id": "other_accounts", "name": "平台账户", "group": "账户管理"},
-    {"id": "models", "name": "模型服务", "group": "服务目录"}
+    {"id": "accounts", "name": "Codex 账户", "group": "账户与模型"},
+    {"id": "other_accounts", "name": "其他账户", "group": "账户与模型"},
+    {"id": "models", "name": "模型目录", "group": "账户与模型"}
   ],
   "tools": ["open_workbench", "workbench_state", "workbench_sync", "module_list", "knowledge_list", "knowledge_detail", "model_list", "model_detail", "connection_list"],
   "resource_uri": "ui://codex-workbench/v8/workbench.html",

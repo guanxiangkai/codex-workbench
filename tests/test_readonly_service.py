@@ -37,10 +37,10 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
                                credential_reader=lambda *args:{'ciphertext':'opaque','entry_id':args[1]},source_versions=versions)
     def tearDown(self):self.service.close();self.patch.stop();self.temp.cleanup()
     def test_constructor_and_read_views_do_not_create_business_files(self):
-        for view in ['accounts','knowledge','models','config']:self.service.call('workbench_state',{'view':view})
+        for view in ['accounts','models','other_accounts']:self.service.call('workbench_state',{'view':view})
         self.assertEqual([],list(self.root.iterdir()))
     def test_config_view_does_not_read_native_accounts_or_sessions(self):
-        self.service.call('workbench_state',{'view':'config'})
+        with self.assertRaises(ValueError):self.service.call('workbench_state',{'view':'config'})
         self.assertEqual([],self.native.calls);self.assertEqual(0,self.credentials.calls)
     def test_only_explicit_account_actions_can_write(self):
         writes={'account_create','account_login','account_status','account_default','account_profile_update','account_profile_capture','account_profile_import'}
@@ -138,11 +138,21 @@ class ReadonlyWorkbenchTest(unittest.TestCase):
         result=self.service.call('workbench_state',{'view':'accounts'})['accounts'][0]
         for field in ('name','name_source','display_name','avatar_data_uri'):
             self.assertNotIn(field,result)
-    def test_secret_read_is_explicit_and_returns_envelope_only(self):
-        value=self.service.call('credential_details',{'id':'entry','public_key':'key','request_id':'request'})
-        self.assertEqual({'ciphertext':'opaque','entry_id':'entry'},value)
-        tool=next(t for t in TOOLS if t['name']=='credential_details')
-        self.assertEqual(['app'],tool['_meta']['ui']['visibility'])
+    def test_configuration_and_service_tools_are_retired(self):
+        for name in ('credential_list','credential_details','service_list','service_detail'):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.service.call(name, {})
+
+    def test_model_detail_exposes_no_credential_or_vault_reference(self):
+        with sqlite3.connect(self.root/'workbench.sqlite3') as c:
+            c.execute('CREATE TABLE provider_models(id TEXT,name TEXT,base_url TEXT,credential_ref TEXT)')
+            c.execute('INSERT INTO provider_models VALUES(?,?,?,?)',('m','M','https://example.invalid/v1','vault:entry'))
+        model=self.service.call('model_list',{})['models'][0]
+        result=self.service.call('model_detail',{'id':model['id']})
+        self.assertNotIn('credential',result)
+        self.assertNotIn('credential_id',result['model'])
+        self.assertNotIn('credential_ref',result['model'])
+        self.assertIn('api_contract',result)
     def test_database_reader_refuses_writes(self):
         db=self.root/'test.sqlite'
         with sqlite3.connect(db) as c:c.execute('CREATE TABLE test(id TEXT)')

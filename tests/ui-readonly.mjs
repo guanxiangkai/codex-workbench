@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 const window={addEventListener(){}};window.parent=window;
-const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户与配置'},{id:'other_accounts',name:'其他账户',group:'账户与配置'},{id:'config',name:'配置中心',group:'账户与配置'},{id:'knowledge',name:'知识中心',group:'能力与知识'},{id:'models',name:'模型目录',group:'能力与知识'}],document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
+const context={window,parent:window,INITIAL_PAGE:'accounts',READONLY_ICONS:JSON.parse(fs.readFileSync(new URL('../ui/assets/readonly-icons.json',import.meta.url),'utf8')),WORKBENCH_MODULES:JSON.parse(fs.readFileSync(new URL('../native-entry-contract.json',import.meta.url),'utf8')).modules,document:{getElementById(){return null;},addEventListener(){}},console,Map,Set,URL};
 vm.createContext(context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8'),context);vm.runInContext(fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__workbenchReadonlyTest={navigation,setPage:value=>{s.page=value;},'),context);
 const h=window.__workbenchReadonlyTest;
 assert.equal(h.nativeUrl('javascript:alert(1)'),null);assert.equal(h.nativeUrl('codex://threads/id?token=secret'),null);assert.equal(h.nativeUrl('codex://threads/abc-123'),'codex://threads/abc-123');
@@ -31,7 +31,7 @@ assert.equal(h.payloadRoot({format:'workbench_credential_v1',fields:{credential:
 const folders=[{id:'a',parent_id:null},{id:'b',parent_id:'a'},{id:'c',parent_id:'b'}];assert.equal(h.foldersIn(folders,'a').size,3);
 assert.equal(h.readResult({structuredContent:{ok:true}}).ok,true);assert.throws(()=>h.readResult({isError:true,structuredContent:{error:{message:'expected'}}}),/expected/);
 const script=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8');assert(!/setInterval\s*\(/.test(script));assert(!/\bprompt\s*\(/.test(script));assert(!/localStorage|sessionStorage/.test(script));assert(script.includes("'X-Workbench-Request':'1'"));
-assert(!script.includes("bridge.tool('skill_detail'"));assert(script.includes("bridge.tool('knowledge_detail',{scope:b.dataset.knowledgeScope,key:trigger})"));assert(script.includes('epoch!==s.detailSeq||page!==s.page'));
+assert(!script.includes("bridge.tool('skill_detail'"));assert(!script.includes("bridge.tool('knowledge_detail'"));assert(!script.includes("bridge.tool('credential_details'"));
 console.log('只读 UI：状态、空值、时间、字段精确定位、目录、响应解包及边界检查通过');
 
 const icons=context.READONLY_ICONS;
@@ -103,5 +103,5 @@ const pendingSummary=h.resetAnalysisView({signal:'present',summary:' 待更新 '
 assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置已全部生效。'}),/分析摘要[\s\S]*本轮额度重置已全部生效。/);
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);
 
-for(const [page,group,expected] of [['accounts','账户与配置',['accounts','other_accounts','config']],['models','能力与知识',['knowledge','models']]]){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.match(nav,new RegExp(group));for(const id of expected)assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
-console.log('工作台导航：账户与配置三个页签、能力与知识两个页签，未显示技能、连接、计划或工作记录');
+for(const page of ['accounts','other_accounts','models']){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.match(nav,/账户与模型/);for(const id of ['accounts','other_accounts','models'])assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['config','knowledge','agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
+console.log('工作台导航：账户与模型单模块，Codex 账户、其他账户、模型目录三个标签页');

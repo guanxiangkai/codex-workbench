@@ -56,7 +56,7 @@ PYTHONPATH=src python3 migrate_resource_catalogs.py --resources-dir <资源目�
 - `list`：只输出非秘密条目清单，包含条目引用和修订号。
 - `exec-stdin <entry-reference> <consumer> <arguments...>`：直接把秘密载荷送入固定消费者 stdin；不得向日志输出。
 
-MiniMax 消费者支持原始 Key 字符串及含 `api_key` 字段的 JSON。公开父进程只接收经过白名单转换的用量与固定错误码。配置详情消费者使用浏览器临时公钥，将结果以 RSA-OAEP / AES-GCM 信封返回。
+MiniMax 消费者支持原始 Key 字符串及含 `api_key` 字段的 JSON。公开父进程只接收经过白名单转换的用量与固定错误码。配置读取仅供内部消费者使用；工作台不注册凭据列表、详情、解密或编辑接口。
 
 ## 测试素材
 

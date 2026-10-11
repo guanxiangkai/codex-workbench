@@ -6,13 +6,13 @@ const primitives=fs.readFileSync(new URL('../ui/readonly-primitives.js',import.m
 const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,s,load,pageChange,updateProfile};window.__workbenchReadonlyTest={');
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 function boot({embedded=false,bootstrap=null,page='models',fieldPayload=null}={}){
- const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map();let timerId=0;
+ const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map(),observers=[];let timerId=0;
  let html='',renders=0;const root={get innerHTML(){return html;},set innerHTML(value){html=value;renders++;},get renders(){return renders;}};
  const document={hidden:false,activeElement:null,addEventListener:(k,v)=>docEvents[k]=v,querySelectorAll:()=>[],getElementById(id){if(id==='app')return root;if(!root.innerHTML.includes(`id="${id}"`))return null;if(!controls.has(id))controls.set(id,{addEventListener(k,v){this[k]=v;},focus(){}});return controls.get(id);}};
  const window={addEventListener:(k,v)=>events[k]=v};const parent=embedded?{postMessage:m=>messages.push(m)}:window;window.parent=parent;
- const context={window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'other_accounts',name:'平台账户',group:'账户管理'},{id:'models',name:'模型服务',group:'账户管理'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
+ const context={IntersectionObserver:class{constructor(callback){this.callback=callback;this.active=false;observers.push(this);}observe(){this.active=true;}disconnect(){this.active=false;}},window,parent,document,INITIAL_PAGE:page,WORKBENCH_MODULES:[{id:'accounts',name:'Codex 账户',group:'账户管理'},{id:'other_accounts',name:'平台账户',group:'账户管理'},{id:'models',name:'模型服务',group:'账户管理'}],READONLY_ICONS:{},ConfigurationCrypto:{async prepare(entry){return {arguments:{id:entry.id},privateKey:{}};},async decrypt(){return fieldPayload;}},WORKBENCH_BOOTSTRAP:bootstrap,URL,console,AbortController,DOMException,crypto:webcrypto,history:{replaceState(){}},setTimeout(fn,ms){const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,options)=>new Promise((resolve,reject)=>{const r={url,options,resolve:body=>resolve({ok:true,json:async()=>body}),response:resolve,reject};requests.push(r);options.signal?.addEventListener('abort',()=>reject(options.signal.reason||new DOMException('Aborted','AbortError')),{once:true});})};
  vm.runInNewContext(primitives,context);vm.runInNewContext(source,context);
- return {fields:window.__fieldTest,root,requests,messages,timers,controls,async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
+ return {fields:window.__fieldTest,root,requests,messages,timers,controls,async scrollModels(){observers.filter(x=>x.active).forEach(x=>x.callback([{isIntersecting:true}]));await flush();},async visibility(hidden){document.hidden=hidden;docEvents.visibilitychange();await flush();},async event(name,args={}){events[name]?.(args);await flush();},async hostResult(result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',method:'ui/notifications/tool-result',params:result}});},async reply(message,result){await this.event('message',{source:parent,data:{jsonrpc:'2.0',id:message.id,result}});},async expire(){for(const [id,{fn}] of [...timers]){timers.delete(id);fn();}await flush();}};
 }
 const data=name=>({context:'test-account',revision:name,reset:true,unchanged:false,data:{models:[{id:name,name,provider:'fixture'}]}});
 // 隐藏窗口不应丢弃公共目录读取，返回时复用尚在执行的请求。
@@ -196,3 +196,43 @@ const refs=boot({page:'other_accounts'});await flush();refs.requests[0].resolve(
 assert.doesNotMatch(refs.root.innerHTML,/配置引用|查看配置|data-config/);
 for(const token of ['credential_list','credential_details','ConfigurationCrypto','readSecret'])assert(!source.includes(token));
 console.log('配置解耦：无目录、解密或操作入口通过');
+
+// 滚动连续加载保留已有行；重复交叉观察不会发出并发请求，失败允许重试同一页。
+const modelBatch=(page,ids,{pages=3,total=45,context='scroll-test'}={})=>({context,revision:'batch-'+page+'-'+ids.join('-'),reset:true,data:{models:ids.map(id=>({id,name:'Model '+id})),pagination:{page,pages,total,page_size:20}}});
+const scrolling=boot();await flush();
+scrolling.requests[0].resolve(modelBatch(1,Array.from({length:20},(_,i)=>String(i))));await flush();
+assert.doesNotMatch(scrolling.root.innerHTML,/模型 · Model|id="model-(previous|next)"/);
+assert.match(scrolling.root.innerHTML,/每次加载条数/);
+await scrolling.scrollModels();await scrolling.scrollModels();
+assert.equal(scrolling.requests.length,2);
+assert.equal(JSON.parse(scrolling.requests[1].options.body).arguments.page,2);
+assert.equal(scrolling.fields.s.data.models.length,20);
+scrolling.requests[1].resolve(modelBatch(2,['0',...Array.from({length:19},(_,i)=>String(i+20))]));await flush();
+assert.equal(scrolling.fields.s.data.models.length,39);
+assert.equal(new Set(scrolling.fields.s.data.models.map(x=>x.id)).size,39);
+await scrolling.scrollModels();scrolling.requests[2].reject(Error('临时网络失败'));await flush();
+assert.equal(scrolling.fields.s.data.models.length,39);assert.match(scrolling.root.innerHTML,/重试加载/);
+await scrolling.scrollModels();assert.equal(scrolling.requests.length,3);
+scrolling.controls.get('model-load-retry').click();await flush();
+assert.equal(JSON.parse(scrolling.requests[3].options.body).arguments.page,3);
+scrolling.requests[3].resolve(modelBatch(3,['40','41','42','43','44']));await flush();
+await scrolling.scrollModels();assert.equal(scrolling.requests.length,4);assert.match(scrolling.root.innerHTML,/已显示全部模型/);
+// 筛选变化取消旧续页，过期响应不得混入新列表；条数选择器从第一页重新加载。
+const scrollFilter=boot();await flush();scrollFilter.requests[0].resolve(modelBatch(1,['old']));await flush();
+await scrollFilter.scrollModels();
+scrollFilter.controls.get('model-status').change({target:{value:'available'}});await flush();
+assert(scrollFilter.requests[1].options.signal.aborted);
+assert.equal(JSON.parse(scrollFilter.requests[2].options.body).arguments.page,1);
+scrollFilter.requests[2].resolve(modelBatch(1,['filtered'],{pages:1,total:1}));
+scrollFilter.requests[1].resolve(modelBatch(2,['obsolete']));await flush();
+assert.equal(scrollFilter.fields.s.data.models.map(x=>x.id).join(','),'filtered');
+scrollFilter.controls.get('model-page-size').change({target:{value:'50'}});await flush();
+assert.equal(JSON.parse(scrollFilter.requests[3].options.body).arguments.page_size,50);
+assert.equal(JSON.parse(scrollFilter.requests[3].options.body).arguments.page,1);
+scrollFilter.requests[3].resolve(modelBatch(1,['resized'],{pages:1,total:1}));await flush();
+assert.equal(scrollFilter.fields.s.data.models.map(x=>x.id).join(','),'resized');
+// 账户环境变化不能拼接到原列表。
+const scrollContext=boot();await flush();scrollContext.requests[0].resolve(modelBatch(1,['original']));await flush();
+await scrollContext.scrollModels();scrollContext.requests[1].resolve(modelBatch(2,['foreign'],{context:'another-context'}));await flush();
+assert.deepEqual(Object.keys(scrollContext.fields.s.data),[]);assert.match(scrollContext.root.innerHTML,/账户环境已变化/);
+console.log('模型滚动加载：追加去重、请求互斥、失败重试、筛选隔离、条数选择及环境切换通过');

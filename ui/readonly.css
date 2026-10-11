@@ -150,6 +150,8 @@ main[data-module="config"] .folder.active{background:color-mix(in srgb,var(--fol
 .toolbar>.select,.toolbar>button{order:2}
 @media(min-width:761px){.toolbar .count{order:3}.toolbar .search{flex-basis:240px}}
 @media(max-width:760px){.toolbar>.select,.toolbar>button{flex-basis:100%;max-width:none}.toolbar .search{max-width:none}}
+.models-toolbar .model-count{order:-1;flex:0 0 auto;white-space:nowrap}
+@media(min-width:761px){.models-toolbar>.select{flex:0 0 168px;max-width:168px}}
 
 /* 平台身份色统一用于卡片、头像、额度和筛选项；状态仍保留语义色。 */
 .other-account .provider-badge{color:var(--type-color);background:var(--type-tint)}
@@ -200,3 +202,5 @@ main[data-module="config"] .config-main{height:100%;min-height:0;min-width:0;ove
 }
 :root .model-pagination{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:16px}
 :root .model-refresh-progress{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px;border:1px solid var(--line,#dce1e8);border-radius:12px;font-size:13px}
+
+.model-load-more{min-height:44px;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-size:13px}

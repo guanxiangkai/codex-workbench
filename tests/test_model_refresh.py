@@ -153,6 +153,19 @@ class ProjectionTests(unittest.TestCase):
         for value in [0,-1,True]:
             with self.assertRaises(ValueError):validate('workbench_sync',{'view':'models','page':value})
 
+    def test_availability_filter_combines_before_pagination(self):
+        models=[{'id':str(i),'provider_id':'minimax' if i%2 else 'bigmodel',
+                 'availability_status':'available' if i%3 else 'insufficient_balance'} for i in range(90)]
+        value=_page_view({'models':models},provider='minimax',availability='insufficient_balance',page=99,page_size=10)
+        self.assertEqual({'page':2,'page_size':10,'total':15,'pages':2},value['pagination'])
+        self.assertEqual(5,len(value['models']))
+        self.assertTrue(all(m['availability_status']=='insufficient_balance' and m['provider_id']=='minimax' for m in value['models']))
+        empty=_page_view({'models':models},availability='temporary_error')
+        self.assertEqual(0,empty['pagination']['total'])
+        for tool in ('workbench_state','workbench_sync'):
+            self.assertEqual('available',validate(tool,{'view':'models','availability':'available'})['availability'])
+            with self.assertRaises(ValueError):validate(tool,{'view':'models','availability':'unknown'})
+
     def test_payment_auth_transient_and_configuration_binding(self):
         for code,expected in [('payment_required','payment_required'),('insufficient_balance','insufficient_balance'),
                               ('credential_rejected','access_denied'),('not_found','unavailable'),('timeout','temporary_error')]:

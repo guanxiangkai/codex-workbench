@@ -36,7 +36,7 @@ def _model_search_text(model):
     return normalized+(' minmax' if 'minimax' in normalized else '')
 
 
-def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', page=1, page_size=20, **_ignored):
+def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='global', page=1, page_size=20, availability='', **_ignored):
     """先筛选与统计，再对模型列表做稳定分页；分类不受当前页限制。"""
     key=next((k for k in ('accounts','skills','knowledge','models','entries','services','connections') if isinstance(value.get(k),list)),None)
     if key is None:return value
@@ -60,7 +60,7 @@ def _page_view(value, query='', kind='', provider='', tag='', folder='', scope='
         text=' '.join(parts).casefold()
         return text+(' minmax' if key=='models' and 'minimax' in text else '')
     q=str(query or '').casefold()
-    selected=[x for x in items if (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or '')))) and (key!='knowledge' or scope in ('', 'global') or scope==x.get('scope_key'))]
+    selected=[x for x in items if (not availability or key!='models' or availability==x.get('availability_status')) and (not q or q in search_text(x)) and (not kind or kind==item_kind(x)) and (not provider or provider in item_providers(x)) and (not tag or tag in (x.get('tags') or [])) and (not folder or folder in set(ancestors(str(x.get('folder_id') or '')))) and (key!='knowledge' or scope in ('', 'global') or scope==x.get('scope_key'))]
     # 没有时间戳时保持源顺序，有时间戳时用标识消除并列顺序的不确定性。
     if any(x.get('updated_at') or x.get('created_at') for x in selected):
         selected.sort(key=lambda x:(str(x.get('updated_at') or x.get('created_at') or ''),str(x.get('id') or '')),reverse=True)
@@ -391,7 +391,7 @@ class Workbench:
 
     def sync(self,view,revision=None,refresh=False,**filters):
         """以快照差异返回筛选后的完整列表；刷新仅通知后台线程。"""
-        allowed={'query','kind','provider','tag','folder','page','page_size'}
+        allowed={'query','kind','provider','tag','folder','page','page_size','availability'}
         if set(filters)-allowed:raise ValueError('当前视图不接受这些筛选参数')
         if view not in {m['id'] for m in MODULES}:raise ValueError('页面不存在')
         context=self.source_versions.context()

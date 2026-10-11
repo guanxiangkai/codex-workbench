@@ -42,6 +42,7 @@ def definition(name, title, description, properties=None, required=None, *, read
 
 
 FILTERS = {"query": text(300), "kind": text(100), "provider": text(200), "tag": text(200), "folder": text(200),
+           "availability": {"type":"string","enum":["","available","insufficient_balance","payment_required","access_denied","missing_credential","unavailable","temporary_error","verification_failed","unsupported_validation","unverified","validating","paused"]},
            "page": {"type":"integer","minimum":1,"maximum":1000},
            "page_size": {"type":"integer","enum":[10,20,50]}}
 TOOLS = [

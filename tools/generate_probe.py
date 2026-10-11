@@ -1,20 +1,23 @@
-"""生成不含人声或个人数据的单声道测试音，不调用外部服务。"""
-import math
-import struct
-import wave
+"""用 macOS 内置语音生成公开测试语句；不录音、不调用外部服务。"""
 from pathlib import Path
+import subprocess
+import tempfile
+import wave
 
 
 def main():
-    """生成一秒 440 Hz、16 kHz、16-bit PCM WAV，只用于传输测试。"""
+    """生成包含有效合成语音的 16 kHz 单声道 PCM WAV，供 ASR 验证。"""
     target = Path(__file__).resolve().parents[1] / "src/codex_workbench/fixtures/probe.wav"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    samples = b"".join(struct.pack("<h", round(1000 * math.sin(2 * math.pi * 440 * i / 16000))) for i in range(16000))
-    with wave.open(str(target), "wb") as output:
-        output.setnchannels(1)
-        output.setsampwidth(2)
-        output.setframerate(16000)
-        output.writeframes(samples)
+    with tempfile.TemporaryDirectory() as directory:
+        intermediate = Path(directory) / "speech.aiff"
+        converted = Path(directory) / "speech.wav"
+        subprocess.run(["/usr/bin/say", "-v", "Tingting", "-o", str(intermediate),
+                        "这是一个语音识别测试。今天阳光很好。"], check=True)
+        subprocess.run(["/usr/bin/afconvert", "-f", "WAVE", "-d", "LEI16@16000", "-c", "1",
+                        str(intermediate), str(converted)], check=True)
+        with wave.open(str(converted), 'rb') as source, wave.open(str(target), 'wb') as output:
+            output.setparams(source.getparams())
+            output.writeframes(source.readframes(source.getnframes()))
 
 
 if __name__ == "__main__":

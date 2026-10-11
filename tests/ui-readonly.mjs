@@ -105,3 +105,11 @@ assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_a
 
 for(const page of ['accounts','other_accounts','models']){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.doesNotMatch(nav,/账户与模型|data-group|subnav/);assert.equal((nav.match(/<nav /g)||[]).length,1);assert.match(nav,new RegExp(`data-page="${page}" aria-current="page"`));for(const id of ['accounts','other_accounts','models'])assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['config','knowledge','agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
 console.log('工作台导航：Codex 账户、其他账户、模型服务三个标签页');
+
+assert.equal(h.modelAvailability({availability_status:'payment_required'})[0],'需要付费');
+assert.equal(h.modelAvailability({availability_status:'insufficient_balance'})[0],'余额不足');
+assert.equal(h.modelAvailability({availability_status:'available'})[0],'可用');
+assert.equal(h.modelAvailability({validation_status:'paused'})[0],'已暂停');
+assert.equal(h.modelAvailability({availability_status:'paused'})[0],'已暂停');
+assert(h.modelRefreshProgress({state:'validating',completed:3,total:8,added:2}).includes('3 / 8'));
+assert(!h.modelRefreshProgress({state:'failed',error:'<script>x</script>'}).includes('<script>'));

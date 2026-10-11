@@ -45,8 +45,8 @@ def main() -> int:
     parser.add_argument("--model-id", action="append", dest="model_ids")
     parser.add_argument("--timeout", type=float, default=30)
     args = parser.parse_args()
-    if not 1 <= args.timeout <= 60:
-        parser.error("--timeout 必须在 1 到 60 秒")
+    if not 1 <= args.timeout <= 120:
+        parser.error("--timeout 必须在 1 到 120 秒")
     try:
         selected = [model for model in configured_models(args.resources_dir / "models" / "catalog.json")
                     if model.get("provider_id") == args.provider and model.get("credential_id") == args.credential_id]

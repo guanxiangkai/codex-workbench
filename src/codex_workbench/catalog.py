@@ -28,11 +28,11 @@ def definition(name, title, description, properties=None, required=None, *, read
         "title": title,
         "description": description,
         "inputSchema": {"type": "object", "properties": properties or {}, "required": required or [], "additionalProperties": False},
-        "annotations": {"readOnlyHint": read_only, "destructiveHint": False, "idempotentHint": idempotent, "openWorldHint": name in ("workbench_state", "workbench_sync")},
+        "annotations": {"readOnlyHint": read_only, "destructiveHint": False, "idempotentHint": idempotent, "openWorldHint": name in ("workbench_state", "workbench_sync", "model_refresh")},
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
-    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
+    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "model_refresh"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
     if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "account_profile_import"):
         result["annotations"]["readOnlyHint"] = False
@@ -41,7 +41,9 @@ def definition(name, title, description, properties=None, required=None, *, read
     return result
 
 
-FILTERS = {"query": text(300), "kind": text(100), "provider": text(200), "tag": text(200), "folder": text(200)}
+FILTERS = {"query": text(300), "kind": text(100), "provider": text(200), "tag": text(200), "folder": text(200),
+           "page": {"type":"integer","minimum":1,"maximum":1000},
+           "page_size": {"type":"integer","enum":[10,20,50]}}
 TOOLS = [
     definition("account_create", "添加 Codex 账户", "准备临时官方登录目录；成功核验后才登记账户，不自动设为默认。", {"name": text(160)}, ["name"]),
     definition("account_login", "登录 Codex 账户", "打开官方 OpenAI 登录页面，登录完成后自动核验账户状态。", {"id": ID}, ["id"]),
@@ -57,11 +59,13 @@ TOOLS = [
     definition("knowledge_list", "读取知识目录", "读取已审核知识的范围和目录，不创建、审核或修改知识。", {"scope": text(200), "query": text(300)}),
     definition("knowledge_detail", "阅读知识", "读取指定范围内已审核且有效的知识，不创建或修改知识。", {"scope": text(200), "key": text(200)}, ["scope", "key"]),
     definition("model_list", "读取模型目录", "读取已经登记的模型与验证快照，不发起验证。"),
+    definition("model_refresh", "刷新模型", "手动发现智谱和 MiniMax 官方稳定模型并逐项实际调用验证；会消费已登记账户的 API 额度，轮询不会重复验证。", read_only=False, idempotent=False),
     definition("model_detail", "读取模型详情", "读取指定模型的公开信息和接口契约，不返回凭据或保险库引用。", {"id": ID}, ["id"]),
     definition("connection_list", "读取工具连接", "读取 MCP 配置及本地已安装插件，不进行探测、登录或安装。"),
 ]
 
 _OUTPUT_KEYS = {
+    "model_refresh": ["refresh"],
     "account_profile_update": ["account"], "account_profile_capture": ["capture_id", "expires_in_seconds"], "account_profile_import": ["profile"],
     "account_create": ["account"], "account_login": ["login"], "account_status": ["account", "login"],
     "account_default": ["default_account_id", "applies_to"], "open_workbench": ["view", "read_only", "status"],

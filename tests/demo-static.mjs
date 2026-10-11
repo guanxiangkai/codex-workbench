@@ -15,7 +15,7 @@ assert.match(index,/静态演示数据/);
 assert.match(index,/connect-src 'none'/);
 assert.match(index,/style-src 'self' 'unsafe-inline'/);
 assert.doesNotMatch(index,/<script(?![^>]*\bsrc=)/);
-for(const forbidden of ['fetch(','/rpc','postMessage','credential_details','ConfigurationCrypto','account_create','account_login','account_status','account_default','data-reveal','data-copy','id="fields"'])assert.ok(!app.includes(forbidden),`static app contains ${forbidden}`);
+for(const forbidden of ['fetch(','/rpc','postMessage','credential_details','ConfigurationCrypto','account_profile_update','account_profile_capture','account_profile_import','data-profile-id','account_create','account_login','account_status','account_default','data-reveal','data-copy','id="fields"'])assert.ok(!app.includes(forbidden),`static app contains ${forbidden}`);
 
 const window={addEventListener(){}};
 window.parent=window;
@@ -38,6 +38,12 @@ assert.ok(!JSON.stringify(data).match(/vault|secret|token|password|api[_-]?key/i
 vm.runInContext(app,context,{filename:'app.js'});
 const modelDetail=await context.WORKBENCH_ADAPTER.call('model_detail',{id:'demo-model'});
 assert.equal(modelDetail.model.id,'demo-model');
+for(const view of ['accounts','other_accounts','models']){
+ const reset=await context.WORKBENCH_ADAPTER.call('workbench_sync',{view});
+ assert.equal(reset.reset,true);assert.deepEqual(JSON.stringify(reset.data),JSON.stringify(data.views[view]));
+ const same=await context.WORKBENCH_ADAPTER.call('workbench_sync',{view,revision:reset.revision});
+ assert.equal(same.unchanged,true);assert.equal(same.context,'static-demo-v1');
+}
 await assert.rejects(context.WORKBENCH_ADAPTER.call('credential_list'),/不支持凭据/);
 await assert.rejects(context.WORKBENCH_ADAPTER.call('credential_details',{}),/不支持凭据/);
 
@@ -55,8 +61,8 @@ for(const page of data.modules.map(item=>item.id)){
   vm.createContext(renderContext);
   vm.runInContext(fixtures,renderContext,{filename:'fixtures.js'});
   vm.runInContext(app.replace("const INITIAL_PAGE='accounts';",`const INITIAL_PAGE='${page}';`),renderContext,{filename:`${page}.js`});
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.doesNotMatch(html,/role="alert"|更新资料|缓存版本已失效/);
   assert.match(html,new RegExp(`data-module="${page}"`));
   assert.ok(!html.includes('undefined'),`${page} rendered an undefined navigation value`);
 }

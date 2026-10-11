@@ -46,8 +46,9 @@ def build_app() -> str:
         source,
         "async function fetchView",
         "const s={",
-        adapter + "\nclass Bridge{constructor(){this.embedded=false;}async initialize(){}async tool(name,args={}){const result=await WORKBENCH_ADAPTER.call(name,args);return result?.data??result;}}\n",
+        adapter + "\nclass Bridge{constructor(){this.embedded=false;}async initialize(){}async tool(name,args={}){return WORKBENCH_ADAPTER.call(name,args);}}\n",
     )
+    source = replace_between(source, "function profileUpdateButton", "function usageRefreshButton", "function profileUpdateButton(){return '';}\n")
     source = replace_between(
         source,
         "function usageRefreshButton()",
@@ -75,6 +76,7 @@ def build_app() -> str:
     source = "function resetCountdown(){}\nfunction updateResetCountdown(){}\n" + source
     source, _ = re.subn(r"window\.__workbenchReadonlyTest=\{.*?\};\n?", "", source, count=1, flags=re.S)
     for handler in (
+        "document.querySelectorAll('[data-profile-id]').forEach(b=>b.onclick=()=>updateProfile(b.dataset.profileView,b.dataset.profileId));\n",
         " document.getElementById('refresh-usage')?.addEventListener('click',()=>load({refresh:true}));\n",
         " document.getElementById('account-create')?.addEventListener('click',()=>createAccount());\n",
         " document.querySelectorAll('[data-account-login]').forEach(button=>button.onclick=()=>loginAccount(button.dataset.accountLogin));\n",
@@ -95,7 +97,7 @@ def build_app() -> str:
         "",
     ))
     app = prefix + primitives + "\n" + source
-    forbidden = ("fetch(", "/rpc", "postMessage", "credential_details", "ConfigurationCrypto", "account_create", "account_login", "account_status", "account_default")
+    forbidden = ("fetch(", "/rpc", "postMessage", "credential_details", "ConfigurationCrypto", "account_profile_update", "account_profile_capture", "account_profile_import", "data-profile-id", "account_create", "account_login", "account_status", "account_default")
     found = [token for token in forbidden if token in app]
     if found:
         raise RuntimeError(f"Generated static app retained prohibited bridge code: {', '.join(found)}")
@@ -120,7 +122,7 @@ def main() -> None:
     csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     page = f"""<!doctype html>
 <html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\"><title>Codex 工作台（静态演示）</title><link rel=\"stylesheet\" href=\"assets/app.css\"></head>
-<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户、模型、配置与连接均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
+<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户和模型均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
 """
     (output / "index.html").write_text(page, encoding="utf-8")
     print(f"Built static demo: {output}")

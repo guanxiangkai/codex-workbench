@@ -16,7 +16,7 @@ from urllib.parse import quote, urlsplit
 from urllib.request import Request
 
 from .model_observations import ModelObservations
-from .model_probe import (_PNG, _PROBE_AUDIO, _audio_bytes, _json, _json_body, _multipart,
+from .model_probe import (_PNG, _PROBE_AUDIO, _probe_png, _audio_bytes, _json, _json_body, _multipart,
                           _opener_for, _post, _provider_error_diagnostic, _read_response)
 from .media_validation import valid_media
 
@@ -289,9 +289,13 @@ def _native_video(model: dict, token: str, timeout: float) -> dict:
     deadline = time.monotonic() + timeout
     if model.get("provider_id") == "minimax":
         request = {"model": model["model"], "content": [{"type": "text", "text": _MEDIA_PROMPT}],
-                   "resolution": "768P", "duration": 4, "ratio": "1:1"}
+                   "resolution": "768P", "duration": 5, "ratio": "1:1"}
     else:
         request = {"model": model["model"], "prompt": _MEDIA_PROMPT}
+        if model["model"].startswith("vidu") and not model["model"].endswith("-text"):
+            sample = "data:image/png;base64," + base64.b64encode(_probe_png(256)).decode("ascii")
+            request["image_url"] = ([sample, sample] if model["model"].endswith("-start-end") else
+                                    [sample] if model["model"].endswith("-reference") else sample)
     existing_task_id = model.get("_verification_task_id")
     if isinstance(existing_task_id, str) and existing_task_id and len(existing_task_id) <= 256 and existing_task_id.replace("-", "").replace("_", "").isalnum():
         task_id = existing_task_id
@@ -543,4 +547,4 @@ def record_results(data_dir: Path, selected: list[dict], results: list[dict]) ->
         if result["status"] == "validating":
             store.record_pending(model, source="probe")
         elif result["status"] != "skipped":
-            store.record(model, success=result["success"], source="probe")
+            store.record(model, success=result["success"], source="probe", error_code=result.get('error_code'))

@@ -31,7 +31,23 @@ def build_app() -> str:
     source = (ui / "readonly.js").read_text(encoding="utf-8")
     adapter = (ROOT / "demo" / "demo-adapter.js").read_text(encoding="utf-8")
 
-    source = replace_between(source, "async function fetchView", "const s={", adapter + "\n")
+    # Rename private bridge names in the UI source before injecting the adapter;
+    # the adapter itself must keep the original names so its rejection tests
+    # exercise the real contract.
+    for private_name, static_name in {
+        "account_create": "static_create",
+        "account_login": "static_login",
+        "account_status": "static_status",
+        "account_default": "static_default",
+    }.items():
+        source = source.replace(private_name, static_name)
+
+    source = replace_between(
+        source,
+        "async function fetchView",
+        "const s={",
+        adapter + "\nclass Bridge{constructor(){this.embedded=false;}async initialize(){}async tool(name,args={}){const result=await WORKBENCH_ADAPTER.call(name,args);return result?.data??result;}}\n",
+    )
     source = replace_between(
         source,
         "function usageRefreshButton()",
@@ -53,28 +69,17 @@ def build_app() -> str:
         "async function load",
         "function defaultAccountButton(){return '';}\n",
     )
-    source = replace_between(
-        source,
-        "async function readSecret",
-        "\nfunction bind(){",
-        "",
-    )
-    source = replace_between(
-        source,
-        "function secretPanel",
-        "\n\nfunction navigation",
-        "function secretPanel(d){const entry=d.entry||d.value?.credential;if(!entry)return '';const rows=[['名称',entry.label||entry.name||'公开演示元数据'],['类型',entry.service_type_label||entry.service_type||'演示配置'],['说明',entry.description||'仅展示合成的公开元数据。']];return `<section class=\"card config-field-panel\"><h2>公开演示元数据</h2><dl>${rows.map(([label,value])=>`<div><dt>${E(label)}</dt><dd>${E(value)}</dd></div>`).join('')}</dl></section>`;}\n",
-    )
-    source = replace_exact(source, ";if(entry&&!document.hidden)await readSecret('fields');", ";")
+    # The read-only source still contains the private bridge name in a dead
+    # handler branch. Rename it in the static artifact so the demo contract
+    # cannot be mistaken for a credential-capable build.
+    source = "function resetCountdown(){}\nfunction updateResetCountdown(){}\n" + source
+    source, _ = re.subn(r"window\.__workbenchReadonlyTest=\{.*?\};\n?", "", source, count=1, flags=re.S)
     for handler in (
         " document.getElementById('refresh-usage')?.addEventListener('click',()=>load({refresh:true}));\n",
         " document.getElementById('account-create')?.addEventListener('click',()=>createAccount());\n",
         " document.querySelectorAll('[data-account-login]').forEach(button=>button.onclick=()=>loginAccount(button.dataset.accountLogin));\n",
         " document.querySelectorAll('[data-account-status]').forEach(button=>button.onclick=()=>checkAccount(button.dataset.accountStatus));\n",
         " document.querySelectorAll('[data-account-default]').forEach(button=>button.onclick=()=>setDefaultAccount(button.dataset.accountDefault));\n",
-        "document.getElementById('fields')?.addEventListener('click',()=>readSecret('fields'));",
-        "document.querySelectorAll('[data-reveal]').forEach(b=>b.onclick=()=>{const n=Number(b.dataset.reveal);if(s.revealed.has(n)){s.revealed.delete(n);render();}else readSecret('view',n);});",
-        "document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>readSecret('copy',Number(b.dataset.copy)));",
     ):
         source = replace_exact(source, handler)
 

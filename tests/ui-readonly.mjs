@@ -31,7 +31,7 @@ assert.equal(h.payloadRoot({format:'workbench_credential_v1',fields:{credential:
 const folders=[{id:'a',parent_id:null},{id:'b',parent_id:'a'},{id:'c',parent_id:'b'}];assert.equal(h.foldersIn(folders,'a').size,3);
 assert.equal(h.readResult({structuredContent:{ok:true}}).ok,true);assert.throws(()=>h.readResult({isError:true,structuredContent:{error:{message:'expected'}}}),/expected/);
 const script=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8');assert(!/setInterval\s*\(/.test(script));assert(!/\bprompt\s*\(/.test(script));assert(!/localStorage|sessionStorage/.test(script));assert(script.includes("'X-Workbench-Request':'1'"));
-assert(!script.includes("bridge.tool('skill_detail'"));assert(script.includes("bridge.tool('knowledge_detail',{scope:b.dataset.knowledgeScope,key:trigger})"));assert(script.includes('epoch!==s.detailSeq||page!==s.page'));
+assert(!script.includes("bridge.tool('skill_detail'"));assert(!script.includes("bridge.tool('knowledge_detail'"));assert(!script.includes("bridge.tool('credential_details'"));
 console.log('只读 UI：状态、空值、时间、字段精确定位、目录、响应解包及边界检查通过');
 
 const icons=context.READONLY_ICONS;
@@ -104,4 +104,4 @@ assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置�
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);
 
 for(const [page,group,expected] of [['accounts','账户与配置',['accounts','other_accounts','config']],['models','能力与知识',['knowledge','models']]]){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.match(nav,new RegExp(group));for(const id of expected)assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
-console.log('工作台导航：账户与配置三个页签、能力与知识两个页签，未显示技能、连接、计划或工作记录');
+console.log('工作台导航：Codex 账户、平台账户、模型服务三页，退役模块不可导航');

@@ -2,6 +2,7 @@
 import json
 import unittest
 from subprocess import CompletedProcess
+from unittest.mock import patch
 
 from codex_workbench.knowledge_catalog import KnowledgeCatalog
 
@@ -31,6 +32,17 @@ class KnowledgeCatalogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '范围不存在'):
             self.catalog.detail('unknown', 'guide')
         self.assertNotIn(('lookup', 'unknown', 'guide'), self.calls)
+
+    def test_scoped_snapshot_reads_only_requested_scope_catalog(self):
+        self.catalog.snapshot(scope='team')
+        self.assertIn(['catalog', 'team', '1000'], self.calls)
+        self.assertEqual(1, sum(call[0] == 'catalog' for call in self.calls))
+
+    def test_global_snapshot_stops_before_runtime_deadline(self):
+        with patch('codex_workbench.knowledge_catalog.time.monotonic', side_effect=[0, 1, 61]):
+            with self.assertRaisesRegex(ValueError, '读取超时'):
+                self.catalog.snapshot()
+        self.assertEqual([['scopes']], self.calls)
 
 
 if __name__ == '__main__':

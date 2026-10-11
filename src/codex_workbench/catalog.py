@@ -32,7 +32,7 @@ def definition(name, title, description, properties=None, required=None, *, read
     }
     if name in UI_URIS:
         result["_meta"] = {"ui": {"resourceUri": UI_URIS[name]}, "openai/ui": {"entrypoints": [{"type": "global", "header": {"enabled": False}}]}}
-    if name in ("credential_details", "knowledge_detail", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
+    if name in ("credential_details", "account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture"):
         result["_meta"] = {"ui": {"visibility": ["app"]}}
     if name in ("account_create", "account_login", "account_status", "account_default", "account_profile_update", "account_profile_capture", "account_profile_import"):
         result["annotations"]["readOnlyHint"] = False
@@ -57,11 +57,7 @@ TOOLS = [
     definition("knowledge_list", "读取知识目录", "读取已审核知识的范围和目录，不创建、审核或修改知识。", {"scope": text(200), "query": text(300)}),
     definition("knowledge_detail", "阅读知识", "读取指定范围内已审核且有效的知识，不创建或修改知识。", {"scope": text(200), "key": text(200)}, ["scope", "key"]),
     definition("model_list", "读取模型目录", "读取已经登记的模型与验证快照，不发起验证。"),
-    definition("model_detail", "读取模型详情", "读取指定模型的公开配置与保险库条目引用。", {"id": ID}, ["id"]),
-    definition("credential_list", "读取配置目录", "仅展示非秘密目录与匹配当前修订的结构索引。"),
-    definition("credential_details", "读取单条配置", "返回由请求浏览器临时私钥解密的单条信封，不返回明文。", {"id": ID, "public_key": text(5500), "request_id": text(128)}, ["id", "public_key", "request_id"]),
-    definition("service_list", "读取服务目录", "从已登记模型或当前凭证结构生成只读引用，不解密、不重新登记服务。"),
-    definition("service_detail", "读取服务引用", "读取服务来源和其关联配置引用。", {"id": ID}, ["id"]),
+    definition("model_detail", "读取模型详情", "读取指定模型的公开信息和接口契约，不返回凭据或保险库引用。", {"id": ID}, ["id"]),
     definition("connection_list", "读取工具连接", "读取 MCP 配置及本地已安装插件，不进行探测、登录或安装。"),
 ]
 
@@ -70,10 +66,7 @@ _OUTPUT_KEYS = {
     "account_create": ["account"], "account_login": ["login"], "account_status": ["account", "login"],
     "account_default": ["default_account_id", "applies_to"], "open_workbench": ["view", "read_only", "status"],
     "workbench_state": ["view", "read_only", "status"], "workbench_sync": ["context", "revision", "base_revision", "unchanged"],
-    "module_list": ["modules", "read_only"], "knowledge_list": ["scopes", "knowledge", "selected_scope"], "knowledge_detail": ["knowledge"], "model_list": ["models"], "model_detail": ["model", "credential"],
-    "credential_list": ["entries", "folders", "status"],
-    "credential_details": ["entry_id", "revision", "generation", "request_id", "public_key_sha256", "wrapped_key", "iv", "ciphertext"],
-    "service_list": ["services"], "service_detail": ["service"], "connection_list": ["connections", "source_errors"],
+    "module_list": ["modules", "read_only"], "knowledge_list": ["scopes", "knowledge", "selected_scope"], "knowledge_detail": ["knowledge"], "model_list": ["models"], "model_detail": ["model", "api_contract"], "connection_list": ["connections", "source_errors"],
 }
 for _tool in TOOLS:
     _tool["outputSchema"] = {"type": "object", "required": _OUTPUT_KEYS[_tool["name"]], "additionalProperties": True}

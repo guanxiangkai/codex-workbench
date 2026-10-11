@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import {webcrypto} from 'node:crypto';
 const primitives=fs.readFileSync(new URL('../ui/readonly-primitives.js',import.meta.url),'utf8');
-const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,readSecret,s,load,pageChange,updateProfile};window.__workbenchReadonlyTest={');
+const source=fs.readFileSync(new URL('../ui/readonly.js',import.meta.url),'utf8').replace('window.__workbenchReadonlyTest={','window.__fieldTest={detail,s,load,pageChange,updateProfile};window.__workbenchReadonlyTest={');
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 function boot({embedded=false,bootstrap=null,page='models',fieldPayload=null}={}){
  const events={},docEvents={},controls=new Map(),requests=[],messages=[],timers=new Map();let timerId=0;
@@ -115,22 +115,13 @@ network.controls.get('retry').click();await flush();network.requests.at(-1).reso
 assert.match(network.root.innerHTML,/latest-network-data/);assert.doesNotMatch(network.root.innerHTML,/暂时无法连接|id="retry"/);assert.equal(network.timers.size,0);
 console.log('浏览器网络恢复：中文错误、缓存保留、手动重试更新、不自动轮询通过');
 
-// 详情自动展开只读取一次；普通字段可见，Key 不进入 DOM，离页清理明文。
-const fields=boot({page:'models',fieldPayload:{format:'json',fields:{type:'api-key',authentication_tested:false,endpoint:'https://example.invalid/v1/chat/completions',api_key:'synthetic-secret-do-not-display'}}});
-await flush();fields.requests[0].resolve({context:'test-account',revision:'fields-r1',reset:true,data:{models:[]}});await flush();
+// 模型详情只读取公开元数据，不提供配置读取、解密或复制入口。
+const fields=boot({page:'models'});await flush();fields.requests[0].resolve({context:'test-account',revision:'fields-r1',reset:true,data:{models:[]}});await flush();
 const opening=fields.fields.detail('model','model-1');await flush();
-fields.requests.at(-1).resolve({model:{id:'model-1',name:'Synthetic model'},credential:{id:'entry-1'}});await flush();
-assert.equal(JSON.parse(fields.requests.at(-1).options.body).name,'credential_details');
-fields.requests.at(-1).resolve({});await opening;
-assert.match(fields.root.innerHTML,/api-key/);assert.match(fields.root.innerHTML,/>否</);
-assert.doesNotMatch(fields.root.innerHTML,/synthetic-secret-do-not-display/);
-assert.match(fields.root.innerHTML,/data-reveal="3"/);assert.doesNotMatch(fields.root.innerHTML,/data-reveal="0"/);
-const reads=fields.requests.length;await fields.visibility(true);assert.equal(fields.fields.s.revealed.size,0);assert.doesNotMatch(fields.root.innerHTML,/api-key/);assert.equal(fields.requests.length,reads);
-// 旧条目在后台解密完成，不应重新显示；失败保留手动重试。
-const again=fields.fields.readSecret('fields');await flush();await fields.visibility(true);fields.requests.at(-1).resolve({});await again;assert.equal(fields.fields.s.revealed.size,0);
-await fields.visibility(false);const failing=fields.fields.readSecret('fields');await flush();fields.requests.at(-1).reject(new TypeError('synthetic network failure'));await failing;assert.equal(fields.fields.s.fieldBusy,false);assert.equal(fields.fields.s.detail.fieldsState,'error');
-console.log('配置默认展开：一次读取、普通字段直显、秘密遮挡、离页与过期清理、错误恢复通过');
-
+fields.requests.at(-1).resolve({model:{id:'model-1',name:'Synthetic model'}});await opening;
+assert.equal(fields.requests.length,2);assert.match(fields.root.innerHTML,/Synthetic model/);
+assert.doesNotMatch(fields.root.innerHTML,/配置字段|data-reveal|data-copy/);
+console.log('模型详情：仅公开元数据，不读取凭据通过');
 
 // 退役页面不能再被导航或渲染为可用页面。
 const retired=boot({page:'config'});await flush();
@@ -199,3 +190,9 @@ assert.doesNotMatch(filteredCapture.root.innerHTML,/<h2[^>]*>官网新名称/);
 assert.equal(filteredCapture.fields.s.data.accounts[0].display_name,'官网新名称');
 assert(![...filteredCapture.timers.values()].some(timer=>timer.ms===5000));
 console.log('官网资料更新：搜索与供应商筛选不影响完成判定，仍保留用户的筛选条件');
+
+// 平台账户不再提供独立配置或凭据入口。
+const refs=boot({page:'other_accounts'});await flush();refs.requests[0].resolve({context:'refs',revision:'1',reset:true,data:{accounts:[]}});await flush();
+assert.doesNotMatch(refs.root.innerHTML,/配置引用|查看配置|data-config/);
+for(const token of ['credential_list','credential_details','ConfigurationCrypto','readSecret'])assert(!source.includes(token));
+console.log('配置解耦：无目录、解密或操作入口通过');

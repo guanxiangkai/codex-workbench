@@ -20,8 +20,8 @@ class DefaultRoutingTests(unittest.TestCase):
         (gateway / 'status.json').write_text(json.dumps({
             'ready': True, 'port': 18742, 'provider': 'workbench_gateway'}))
         self.config = self.root / 'config.toml'
-        self.config.write_text('model_provider="workbench_gateway"\n[model_providers.workbench_gateway]\n'
-                               'base_url="http://127.0.0.1:18742/v1"\nwire_api="responses"\nsupports_websockets=false\n')
+        self.config.write_text('openai_base_url="http://127.0.0.1:18742/v1"\n'
+                               '[features]\nenable_request_compression=false\n')
         self.response = MagicMock(status=200)
         self.response.read.return_value = b'{"ready":true,"protocol":1}'
         self.client = MagicMock()
@@ -35,6 +35,13 @@ class DefaultRoutingTests(unittest.TestCase):
         self.assertTrue(default_routing_status(self.root, self.config)['routing_ready'])
         self.config.write_text('model_provider="openai"')
         self.assertEqual(default_routing_status(self.root, self.config)['routing_reason'], 'native_gateway_inactive')
+
+    def test_named_provider_or_request_compression_is_not_native_ready(self):
+        for text in ('model_provider="workbench_gateway"\n[model_providers.workbench_gateway]\n'
+                     'base_url="http://127.0.0.1:18742/v1"\nwire_api="responses"\nsupports_websockets=false\n',
+                     'openai_base_url="http://127.0.0.1:18742/v1"\n[features]\nenable_request_compression=true\n'):
+            self.config.write_text(text)
+            self.assertEqual(default_routing_status(self.root, self.config)['routing_reason'], 'native_gateway_inactive')
 
     def test_stale_status_or_dead_gateway_never_reports_success(self):
         self.response.status = 503

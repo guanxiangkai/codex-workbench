@@ -14,6 +14,7 @@ sys.dont_write_bytecode=True
 sys.path.insert(0,str(Path(__file__).resolve().parent/'src'))
 from codex_workbench.account_runtime import account_environment,current_account_home
 from codex_workbench.gateway_daemon import atomic_json
+from codex_workbench.codex_cli import resolve_gateway_cli
 
 
 _ACCOUNT_ID = re.compile(r'[A-Za-z0-9_.:@-]{1,160}\Z')
@@ -28,7 +29,9 @@ def _expected_account_id() -> str:
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--tools',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--tools',action='store_true')
+    parser.add_argument('--builtin',action='store_true',help='验证官方 openai provider 的受支持端点覆盖')
+    args=parser.parse_args()
     expected_account_id=_expected_account_id()
     root=Path.home()/'Library/Application Support/CodexWorkbench/model-gateway'
     with tempfile.TemporaryDirectory(prefix='workbench-native-gateway-') as temp:
@@ -52,7 +55,11 @@ def main():
                   'sqlite_home':str(temporary/'state'),'log_dir':str(temporary/'logs'),
                   'model_instructions_file':str(temporary/'instructions.md'),'project_doc_max_bytes':0,
                   'features.apps':False,'analytics.enabled':False}
-        command=['/Applications/ChatGPT.app/Contents/Resources/codex','exec','--ephemeral','--ignore-user-config',
+        if args.builtin:
+            settings={key:value for key,value in settings.items() if not key.startswith('model_providers.')}
+            settings.update(model_provider='openai',openai_base_url='http://127.0.0.1:18742/v1')
+            settings['features.enable_request_compression'] = False
+        command=[str(resolve_gateway_cli()),'exec','--ephemeral','--ignore-user-config',
                  '--skip-git-repo-check','--json','-s','read-only','-C',str(temporary)]
         for key,value in settings.items():command.extend(['-c',key+'='+json.dumps(value)])
         command.append(prompt)
@@ -87,7 +94,8 @@ def main():
         record['passed']=all((record['exit_code']==0,record['completed'],record['expected_reply'],(record['successful_commands']==3 if args.tools else record['tool_calls']==0),
                               record['routed_account_id']==expected_account_id))
         record['native_desktop_button_verified']=False
-        atomic_json(root/('official-tools-validation.json' if args.tools else 'official-cli-validation.json'),record)
+        name=('official-tools-validation.json' if args.tools else 'official-cli-validation.json')
+        atomic_json(root/(('builtin-' if args.builtin else '')+name),record)
         print(json.dumps(record))
         raise SystemExit(0 if record['passed'] else 1)
 

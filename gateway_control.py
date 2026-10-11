@@ -23,6 +23,7 @@ from codex_workbench.gateway_daemon import atomic_json
 from codex_workbench.gateway_routes import RouteStore
 from codex_workbench.runtime import secure_directory
 from codex_workbench.codex_cli import resolve_gateway_cli
+from codex_workbench.gateway_config import ENDPOINT_BLOCK, enable_builtin, disable_builtin
 
 DATA=Path.home()/'Library/Application Support/CodexWorkbench'
 ROOT=DATA/'model-gateway'
@@ -130,56 +131,32 @@ def activate():
     finally:client.close()
     evidence=json.loads((ROOT/'subscription-validation.json').read_text())
     if evidence.get('passed') is not True:raise ValueError('缺少真实账户验收')
-    if json.loads((ROOT/'official-cli-validation.json').read_text()).get('passed') is not True:raise ValueError('完整 CLI 链路尚未通过')
-    settings=json.loads((ROOT/'settings.json').read_text())
-    main=next(a for a in settings['accounts'] if a['id']=='current')
-    before=CONFIG.read_bytes();parsed=tomllib.loads(before.decode())
-    if parsed.get('model_provider')=='workbench_gateway':
-        print(json.dumps({'already_active':True}));return
+    if json.loads((ROOT/'builtin-official-cli-validation.json').read_text()).get('passed') is not True:raise ValueError('原生提供方 CLI 链路尚未通过')
+    before=CONFIG.read_bytes();text=before.decode()
+    # 只迁移本工具原样写入的旧块；第三方 provider 和手工修改的块保持不动。
     disabled_top=TOP.replace('model_provider = "workbench_gateway"', 'model_provider = "openai"')
-    text=before.decode()
-    provider_block=re.search(r'^# BEGIN CODEX WORKBENCH PROVIDER\s*\n.*?^# END CODEX WORKBENCH PROVIDER\s*$',text,re.M|re.S)
-    expected_provider=tomllib.loads(BOTTOM)['model_providers']['workbench_gateway']
-    managed_provider=(text.count('# BEGIN CODEX WORKBENCH PROVIDER')==1
-                      and text.count('# END CODEX WORKBENCH PROVIDER')==1 and provider_block
-                      and tomllib.loads(provider_block.group()).get('model_providers',{}).get('workbench_gateway')==expected_provider
-                      and parsed.get('model_providers',{}).get('workbench_gateway')==expected_provider)
-    if parsed.get('model_provider')=='openai' and text.count(disabled_top)==1 and managed_provider:
-        # 允许官方写入器调整空白；受管 provider 的所有值仍须精确匹配。
-        replace_config(before,text.replace(disabled_top,TOP,1).encode())
-        atomic_json(ROOT/'activation.json',{'enabled':True,'reactivated':True,'native_ui_verified':False})
-        print(json.dumps({'enabled':True,'reactivated':True,'native_ui_verified':False}));return
-    if parsed.get('model_provider') or 'workbench_gateway' in parsed.get('model_providers',{}):raise ValueError('已有其他 provider，未覆盖')
-    store=RouteStore(ROOT)
-    with sqlite3.connect('file:'+str(Path.home()/'.codex/state_5.sqlite')+'?mode=ro',uri=True) as native:
-        existing=dict(native.execute('SELECT id,source FROM threads WHERE model_provider="openai"'))
-    def root_of(key):
-        seen=set();cursor=key
-        while cursor in existing:
-            if cursor in seen:raise ValueError('原生子代理归属出现循环')
-            seen.add(cursor);source=existing[cursor]
-            if not isinstance(source,str) or not source.startswith('{'):return cursor
-            parent=(json.loads(source).get('subagent') or {}).get('thread_spawn',{}).get('parent_thread_id')
-            if not parent:return cursor
-            cursor=parent
-        raise ValueError('原生子代理缺少主会话归属')
-    # 只建立网关路由归属，原生会话、目录和数据库完全保留。
-    with store._db() as db:
-        import time
-        for key in existing:
-            db.execute('INSERT OR IGNORE INTO routes VALUES(?,?,?,?,?)',(key,root_of(key),'current',main['subject_id'],time.time()))
+    if TOP in text or disabled_top in text:
+        owned_top=TOP if TOP in text else disabled_top
+        if text.count(owned_top)!=1 or text.count(BOTTOM)!=1:raise ValueError('旧接入块已变化，未覆盖')
+        text=text.replace(owned_top,'',1).replace(BOTTOM,'',1)
+    after=enable_builtin(text).encode()
     backup=ROOT/'config.before-gateway.toml'
     if not backup.exists():
         fd=os.open(backup,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         with os.fdopen(fd,'wb') as stream:stream.write(before)
-    replace_config(before,(TOP+before.decode()+BOTTOM).encode())
-    atomic_json(ROOT/'activation.json',{'enabled':True,'existing_routes_preserved':len(existing),'native_ui_verified':False})
-    print(json.dumps({'enabled':True,'existing_routes_preserved':len(existing),'native_ui_verified':False}))
+    if after!=before:replace_config(before,after)
+    result={'enabled':True,'mode':'openai_endpoint','configuration_changed':after!=before,
+            'native_reload_required':True,'native_ui_verified':False}
+    atomic_json(ROOT/'activation.json',result)
+    print(json.dumps(result))
 
 
 def recovery():
     """只恢复受管 provider 的官方重试值；不变更账户、模型或其他配置。"""
     before=CONFIG.read_bytes();text=before.decode()
+    if ENDPOINT_BLOCK in text:
+        enable_builtin(text)
+        print(json.dumps({'recovery_enabled':True,'built_in_retry_policy':True}));return
     previous=BOTTOM.replace('request_max_retries = 4','request_max_retries = 0').replace('stream_max_retries = 5','stream_max_retries = 0')
     if BOTTOM in text:
         print(json.dumps({'recovery_enabled':True,'already_configured':True}));return
@@ -197,8 +174,12 @@ def recovery():
 def deactivate():
     """仅移除本工具原样写入的配置块；其他编辑保留，修改过的块拒绝自动覆盖。"""
     before=CONFIG.read_bytes();text=before.decode()
-    if TOP not in text or BOTTOM not in text:raise ValueError('接入块已变化，未自动修改')
-    replace_config(before,text.replace(TOP,'',1).replace(BOTTOM,'',1).encode())
+    if ENDPOINT_BLOCK in text:
+        after=disable_builtin(text)
+    else:
+        if text.count(TOP)!=1 or text.count(BOTTOM)!=1:raise ValueError('接入块已变化，未自动修改')
+        after=text.replace(TOP,'',1).replace(BOTTOM,'',1)
+    replace_config(before,after.encode())
     atomic_json(ROOT/'activation.json',{'enabled':False})
     print(json.dumps({'enabled':False,'other_configuration_preserved':True}))
 

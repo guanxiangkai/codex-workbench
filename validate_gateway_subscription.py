@@ -17,8 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / 'src'))
 from codex_workbench.gateway_auth import OfficialAuth, UPSTREAM
 from codex_workbench.gateway_routes import AccountTarget, RouteStore
 from codex_workbench.model_gateway import ModelGateway, Upstream
+from codex_workbench.codex_cli import resolve_gateway_cli
 
-APP = '/Applications/ChatGPT.app/Contents/Resources/codex'
 _ACCOUNT_ID = re.compile(r'[A-Za-z0-9_.:@-]{1,160}\Z')
 
 
@@ -40,8 +40,9 @@ def main():
     with sqlite3.connect('file:'+str(db_path)+'?mode=ro', uri=True) as db:
         db.row_factory = sqlite3.Row
         saved = {r['id']: dict(r) for r in db.execute('SELECT id,codex_home,subject_id FROM execution_accounts') if r['id'] in ALLOWED}
+    cli = str(resolve_gateway_cli())
     auth = {key: OfficialAuth(Path.home()/'.codex' if key=='current' else Path(saved[key]['codex_home']),
-                  saved[key]['subject_id'], APP, current=key=='current') for key in ALLOWED}
+                  saved[key]['subject_id'], cli, current=key=='current') for key in ALLOWED}
     selected = ['current']
     accounts = lambda key=None: AccountTarget(key or selected[0], saved[key or selected[0]]['subject_id'])
     results = []

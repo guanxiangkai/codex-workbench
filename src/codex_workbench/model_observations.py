@@ -73,6 +73,9 @@ class ModelObservations:
         with closing(sqlite3.connect(self.path.resolve().as_uri()+'?mode=ro',uri=True)) as conn:
             has_code='error_code' in {row[1] for row in conn.execute('PRAGMA table_info(observations)')}
             for model in models:
+                if model.get('validation_status') == 'paused':
+                    model['availability_status']='paused'
+                    continue
                 row=conn.execute('''SELECT status,checked_at,verified_at,source,'''+('error_code' if has_code else 'NULL')+''' FROM observations
                     WHERE model_id=? AND fingerprint=?''',
                     (model['id'],configuration_fingerprint(model))).fetchone()

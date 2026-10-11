@@ -73,7 +73,7 @@ class DiscoveryTests(unittest.TestCase):
             with sqlite3.connect(root/'workbench.sqlite3') as db:
                 db.execute('CREATE TABLE provider_models(id TEXT,name TEXT,model_type TEXT,base_url TEXT,model TEXT,credential_ref TEXT)')
                 db.execute('INSERT INTO provider_models VALUES(?,?,?,?,?,?)',
-                           ('legacy','M3','multimodal','https://api.minimax.cn/v1/chat/completions','MiniMax-M3','vault:synthetic.reference'))
+                           ('legacy','M3','multimodal','https://api.minimax.cn/v1','MiniMax-M3','vault:synthetic.reference'))
             candidate=parse_models(document(['MiniMax-M3']),'minimax','/v1/chat/completions','reasoning')
             seen=[]
             task=ModelRefresh(root,root,discoverer=lambda provider:candidate if provider=='minimax' else [],
@@ -83,6 +83,29 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(['legacy'],seen);self.assertEqual(0,task.status()['added'])
             self.assertEqual('synthetic.reference',registered_models(root,root)[0]['credential_id'])
             self.assertEqual('minimax',registered_models(root,root)[0]['provider_id'])
+            extra=parse_models(document(['MiniMax-M4']),'minimax','/v1/chat/completions','reasoning')
+            self.assertEqual(1,register_models(root,'minimax',extra,data_dir=root))
+            self.assertEqual('synthetic.reference',configured_models(root/'models/catalog.json')[0]['credential_id'])
+
+    def test_paused_legacy_model_is_not_scheduled_or_probed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            with sqlite3.connect(root/'workbench.sqlite3') as db:
+                db.execute('CREATE TABLE provider_models(id TEXT,name TEXT,model_type TEXT,base_url TEXT,model TEXT,credential_ref TEXT,validation_status TEXT)')
+                db.execute('INSERT INTO provider_models VALUES(?,?,?,?,?,?,?)',
+                           ('legacy','M3','multimodal','https://api.minimax.cn/v1','MiniMax-M3','vault:synthetic.reference','paused'))
+            candidate=parse_models(document(['MiniMax-M3']),'minimax','/v1/chat/completions','reasoning')
+            seen=[]
+            task=ModelRefresh(root,root,discoverer=lambda provider:candidate if provider=='minimax' else [],
+                              verifier=lambda model,*args:seen.append(model['id']) or 'available')
+            task.start();task.thread.join(3)
+            self.assertFalse(task.thread.is_alive());self.assertEqual([],seen)
+            self.assertEqual(0,task.status()['total']);self.assertEqual(0,task.status()['added'])
+            model=registered_models(root,root)[0]
+            with patch('codex_workbench.model_refresh.ProbeProcesses.run') as probe:
+                self.assertEqual('paused',verify_one(model,root,root));probe.assert_not_called()
+            store=ModelObservations(root);store.record(model,success=True,source='probe')
+            self.assertEqual('paused',store.project([model])[0]['availability_status'])
 
     def test_close_waits_for_discovery_and_does_not_register_after_stop(self):
         with tempfile.TemporaryDirectory() as directory:

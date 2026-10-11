@@ -57,6 +57,7 @@ class ProbeProcesses:
 
 def verify_one(model, resources_dir, data_dir, processes=None):
     """保险库将秘密直接送入验证子进程 stdin；父进程只接收固定结果字段。"""
+    if model.get('validation_status') == 'paused':return 'paused'
     reference = model.get('credential_id')
     if not reference:
         ModelObservations(data_dir).record(model, success=False, source='probe', error_code='credential_missing')
@@ -154,7 +155,8 @@ class ModelRefresh:
                 except (OSError,ValueError,KeyError,TypeError):
                     value['providers'][provider]={'state':'failed','error':'官方目录暂时无法读取，保留已有模型'}
                 update()
-            models=[m for m in registered_models(self.resources_dir,self.data_dir) if m.get('provider_id') in SOURCES]
+            models=[m for m in registered_models(self.resources_dir,self.data_dir)
+                    if m.get('provider_id') in SOURCES and m.get('validation_status') != 'paused']
             update(state='validating',total=len(models))
             def provider_batch(provider):
                 for model in models:

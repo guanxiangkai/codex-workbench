@@ -91,16 +91,20 @@ class LocalModel:
 class ProbeRpc:
     """真实 stdio 协议客户端，支持响应与通知分流，拒绝所有工具请求。"""
 
-    async def start(self, cli: Path, home: Path, database: Path, model: LocalModel):
+    async def start(self, cli: Path, home: Path, database: Path, model: LocalModel, *, provider: str = 'probe', api_key: str | None = None):
         # 使用白名单环境和临时 HOME；不能继承当前桌面的认证、MCP 或代理环境。
         env = {key: os.environ[key] for key in ('PATH', 'LANG', 'LC_ALL', 'TMPDIR', 'SYSTEMROOT') if key in os.environ}
         env.update(HOME=str(home), CODEX_HOME=str(home))
-        settings = {'sqlite_home': str(database), 'model_provider': 'probe', 'model': 'routing-probe',
-                    'model_providers.probe.name': 'Local protocol probe',
-                    'model_providers.probe.base_url': model.url,
-                    'model_providers.probe.wire_api': 'responses',
-                    'model_providers.probe.requires_openai_auth': False,
+        settings = {'sqlite_home': str(database), 'model_provider': provider, 'model': 'routing-probe',
+                    f'model_providers.{provider}.name': 'Local protocol probe',
+                    f'model_providers.{provider}.base_url': model.url,
+                    f'model_providers.{provider}.wire_api': 'responses',
+                    f'model_providers.{provider}.requires_openai_auth': False,
                     'check_for_update_on_startup': False, 'analytics.enabled': False, 'features.apps': False}
+        if provider == 'openai':
+            settings = {key: value for key, value in settings.items() if not key.startswith('model_providers.')}
+            settings.update(openai_base_url=model.url)
+            settings['features.enable_request_compression'] = False
         args = [arg for key, value in settings.items() for arg in ('-c', f'{key}={json.dumps(value)}')]
         self.process = await asyncio.create_subprocess_exec(str(cli), *args, 'app-server', '--listen', 'stdio://',
             cwd=home, env=env, stdin=-1, stdout=-1, stderr=asyncio.subprocess.DEVNULL,
@@ -113,6 +117,8 @@ class ProbeRpc:
         await self.call('initialize', {'clientInfo': {'name': 'workbench_protocol_probe', 'version': '1'},
                                        'capabilities': {'experimentalApi': True}})
         await self._send({'method': 'initialized'})
+        if api_key is not None:
+            await self.call('account/login/start', {'type': 'apiKey', 'apiKey': api_key})
         return self
 
     async def _send(self, value):

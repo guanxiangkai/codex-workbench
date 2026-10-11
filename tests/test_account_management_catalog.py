@@ -12,7 +12,7 @@ class AccountManagementCatalogTests(unittest.TestCase):
             ['accounts', 'other_accounts', 'models'],
             [module['id'] for module in MODULES],
         )
-        self.assertEqual(['Codex 账户', '其他账户', '模型目录'], [module['name'] for module in MODULES])
+        self.assertEqual(['Codex 账户', '其他账户', '模型服务'], [module['name'] for module in MODULES])
         self.assertEqual('accounts', DEFAULT_VIEW)
         self.assertEqual(['账户与模型'], list(dict.fromkeys(module['group'] for module in MODULES)))
 

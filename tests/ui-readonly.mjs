@@ -104,4 +104,4 @@ assert.match(h.resetAnalysisView({signal:'present',summary:'本轮额度重置�
 assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_at:"2026-09-26T18:17:00Z"}),/人工重置信号|近期有信号|暂无法确认|参考时点|根据当前数据无法判断|没有可用预测/);
 
 for(const page of ['accounts','other_accounts','models']){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.doesNotMatch(nav,/账户与模型|data-group|subnav/);assert.equal((nav.match(/<nav /g)||[]).length,1);assert.match(nav,new RegExp(`data-page="${page}" aria-current="page"`));for(const id of ['accounts','other_accounts','models'])assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['config','knowledge','agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
-console.log('工作台导航：单层 Codex 账户、其他账户、模型目录三个标签页');
+console.log('工作台导航：Codex 账户、其他账户、模型服务三个标签页');

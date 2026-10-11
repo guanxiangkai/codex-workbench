@@ -301,7 +301,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
                 return
             self._authorize()
-            raise GatewayError('http_only', '模型网关使用 HTTP Responses；请禁用 provider 的 WebSocket', 405)
+            if self.path == '/v1/responses' and self.headers.get('Upgrade', '').lower() == 'websocket':
+                # 官方客户端收到 426 会立即改用完整上下文的 HTTP，不消耗重试预算。
+                raise GatewayError('upgrade_required', '模型网关使用 HTTP Responses', 426)
+            raise GatewayError('http_only', '模型网关使用 HTTP Responses', 405)
         except GatewayError as exc:
             self._error(exc)
 

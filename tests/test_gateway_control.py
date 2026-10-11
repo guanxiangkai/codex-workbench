@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sqlite3
 import tempfile
+import tomllib
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -43,7 +44,7 @@ class GatewayReactivationTests(unittest.TestCase):
                 self.assertEqual(settings['authorized_account_ids'], ['current'])
                 self.assertEqual(settings['accounts'][0]['subject_id'], 'synthetic-current')
 
-    def test_reactivation_preserves_other_settings_and_refuses_changed_block(self):
+    def test_activation_migrates_owned_provider_and_preserves_native_thread_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             source = Path(__file__).resolve().parents[1] / 'gateway_control.py'
@@ -53,32 +54,51 @@ class GatewayReactivationTests(unittest.TestCase):
                 spec.loader.exec_module(module)
             module.ROOT.mkdir(parents=True)
             module.CONFIG.parent.mkdir(parents=True)
-            for name in ('subscription-validation', 'official-cli-validation'):
-                (module.ROOT / (name + '.json')).write_text('{"passed":true}')
             (module.ROOT / 'status.json').write_text('{"ready":true}')
-            (module.ROOT / 'settings.json').write_text(json.dumps({'accounts': [{'id': 'current'}]}))
-            disabled = module.TOP.replace('"workbench_gateway"', '"openai"')
-            unrelated = '\nmodel = "synthetic-model"\n[desktop]\nexample = "preserve"\n'
-            before = disabled + unrelated + module.BOTTOM
-            module.CONFIG.write_text(before)
+            for name in ('subscription-validation', 'builtin-official-cli-validation'):
+                (module.ROOT / (name + '.json')).write_text('{"passed":true}')
             response = MagicMock(status=200)
             response.read.return_value = b'{"ready":true}'
             client = MagicMock()
             client.getresponse.return_value = response
+            unrelated = 'model = "synthetic-model"\n[features]\napps = true\n[desktop]\nexample = "preserve"\n'
             with patch.object(module.http.client, 'HTTPConnection', return_value=client), contextlib.redirect_stdout(io.StringIO()):
-                module.activate()
-                self.assertEqual(module.CONFIG.read_text(), module.TOP + unrelated + module.BOTTOM)
-                self.assertFalse(json.loads((module.ROOT / 'activation.json').read_text())['native_ui_verified'])
-                formatted = before.replace('request_max_retries = 4', 'request_max_retries=4  # retained formatting')
-                formatted = formatted.replace('# END CODEX WORKBENCH PROVIDER', '[browser_use]\nexample = true\n# END CODEX WORKBENCH PROVIDER')
-                module.CONFIG.write_text(formatted)
-                module.activate()
-                self.assertEqual(module.CONFIG.read_text(), formatted.replace(disabled, module.TOP, 1))
-                modified = before.replace('request_max_retries = 4', 'request_max_retries = 3')
+                for before in (unrelated, 'model_provider = "openai"\n' + unrelated,
+                               module.TOP + unrelated + module.BOTTOM):
+                    module.CONFIG.write_text(before)
+                    module.activate()
+                    configured = module.CONFIG.read_text()
+                    parsed = tomllib.loads(configured)
+                    self.assertEqual(parsed.get('model_provider', 'openai'), 'openai')
+                    self.assertEqual(parsed['openai_base_url'], 'http://127.0.0.1:18742/v1')
+                    self.assertFalse(parsed['features']['enable_request_compression'])
+                    self.assertTrue(parsed['features']['apps'])
+                    module.activate()
+                    self.assertEqual(module.CONFIG.read_text(), configured)
+                    self.assertFalse(json.loads((module.ROOT / 'activation.json').read_text())['native_ui_verified'])
+                    module.deactivate()
+                    restored = tomllib.loads(module.CONFIG.read_text())
+                    self.assertEqual(restored, tomllib.loads(before if module.TOP not in before else unrelated))
+                modified = (module.TOP + unrelated + module.BOTTOM).replace('request_max_retries = 4', 'request_max_retries = 3')
                 module.CONFIG.write_text(modified)
                 with self.assertRaisesRegex(ValueError, '未覆盖'):
                     module.activate()
                 self.assertEqual(module.CONFIG.read_text(), modified)
+
+    def test_transport_restore_and_foreign_settings_are_protected(self):
+        from codex_workbench.gateway_config import enable_builtin, disable_builtin
+        for previous in ('true', 'false'):
+            original = f'model="synthetic"\n[features]\nenable_request_compression = {previous} # existing\napps=true\n'
+            enabled = enable_builtin(original)
+            self.assertEqual(disable_builtin(enabled), original)
+            with self.assertRaises(ValueError):
+                disable_builtin(enabled.replace('enable_request_compression = false\n', 'enable_request_compression = true\n'))
+        fresh = disable_builtin(enable_builtin('model="synthetic"\n'))
+        self.assertEqual(tomllib.loads(fresh), {'model': 'synthetic', 'features': {}})
+        for foreign in ('model_provider="other"\n', 'openai_base_url="https://example.invalid/v1"\n',
+                        'features = {apps=true}\n'):
+            with self.assertRaises(ValueError):
+                enable_builtin(foreign)
 
 
 if __name__ == '__main__':

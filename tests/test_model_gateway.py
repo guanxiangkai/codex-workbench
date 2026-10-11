@@ -114,6 +114,18 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.request(self.body())[0], 200)
         self.assertEqual([x[2] for x in self.seen], ['Bearer upstream-a', 'Bearer upstream-b', 'Bearer upstream-b'])
 
+    def test_native_websocket_handshake_selects_http_without_binding_or_inference(self):
+        for path, token, expected in (('/v1/responses', TOKEN, 426),
+                                      ('/v1/responses', 'invalid', 401),
+                                      ('/unknown', TOKEN, 405)):
+            with self.subTest(path=path, expected=expected):
+                conn = http.client.HTTPConnection('127.0.0.1', self.server.server_port, timeout=6)
+                conn.request('GET', path, headers={'Authorization': 'Bearer ' + token, 'Upgrade': 'websocket'})
+                response = conn.getresponse()
+                self.assertEqual(response.status, expected)
+                response.read(); conn.close()
+        self.assertEqual(self.seen, [])
+
     def test_prewarms_do_not_bind_or_infer(self):
         body = self.body(generate=False)
         self.assertEqual(self.error_code(self.request(body)), 'prewarm_unsupported')

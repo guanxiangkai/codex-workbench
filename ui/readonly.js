@@ -605,11 +605,11 @@ function render(){
 function defaultAccountButton(account){
  if(account.is_default)return '';
  const busy=s.accountSaving===account.id,disabled=account.is_default||account.login_status!=='ready'||s.accountSaving!==null;
- return `<button id="account-default-${E(account.id)}" class="soft" data-account-default="${E(account.id)}" aria-label="${E(accountTitle(account))}：${account.is_default?'默认账户':'设为默认账户'}" ${disabled?'disabled':''} ${busy?'aria-busy="true"':''} title="${account.login_status==='ready'?'切换后，所有会话跟随当前默认账户':'账户未登录或身份尚未确认'}">${I('star')}${busy?'设置中…':account.is_default?'默认账户':'设为默认'}</button>`;
+ return `<button id="account-default-${E(account.id)}" class="soft" data-account-default="${E(account.id)}" aria-label="${E(accountTitle(account))}：${account.is_default?'默认账户':'设为默认账户'}" ${disabled?'disabled':''} ${busy?'aria-busy="true"':''} title="${account.login_status==='ready'?'已接入账户路由的会话，从下一次请求使用此账户':'账户未登录或身份尚未确认'}">${I('star')}${busy?'设置中…':account.is_default?'默认账户':'设为默认'}</button>`;
 }
 function defaultAccountMessage(result){
  return result?.applies_to==='all_sessions_current_default'&&result?.routing_ready===true
-  ?'默认账户已切换，所有会话跟随当前默认账户'
+  ?'默认账户已切换；已接入的会话从下一次请求生效，首次接入需重新启动 Codex'
   :'默认账户已保存；账户路由未就绪，尚未在 Codex 中生效';
 }
 /** 仅在服务端确认保存后更新标记；错误保持原选择，过期读取不得覆盖结果。 */

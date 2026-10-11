@@ -58,7 +58,9 @@ python3 -m venv .venv
 
 工作台模型网关实时读取当前默认账户。切换后，同一会话、同一任务轮次中的后续模型调用立即跟随新默认，无需新建任务或会话。已经发送的请求保持其发送时的账户，不中断、重放工具。任务领取时的账户快照用于历史审计，不作为后续请求的固定绑定；旧原生线程仍从原目录续接，上游账户由网关独立选择。默认账户不可用或网关未就绪时明确报错，不静默直连旧账户。
 
-切换接口分别返回偏好保存结果和路由就绪状态。原生配置仍为直连、网关未启动或健康检查失败时，页面明确提示尚未在 Codex 中生效。网关兼容桌面应用官方 CLI 目录迁移，自定义失效路径不会被静默替换。
+切换接口分别返回偏好保存结果和路由配置就绪状态。原生配置仍为直连、网关未启动或健康检查失败时，页面明确提示尚未在 Codex 中生效。配置就绪不证明正在运行的桌面进程已加载；首次接入需重新启动 Codex，此后已接入会话的后续请求实时读取默认账户，不需重复登录或重启。网关兼容桌面应用官方 CLI 目录迁移，自定义失效路径不会被静默替换。
+
+原生接入保留内置 `openai` provider，以官方 `openai_base_url` 将 Responses 指向本机网关，并关闭请求压缩。旧会话保存的 provider 不会被全局 `model_provider` 自动覆盖，因此不再用改名 provider 的方式接入，也不改写原生会话历史。网关对已认证的 WebSocket 握手返回 `426`，使官方客户端直接采用 HTTP/SSE，保留跨账户请求所需的完整上下文。首次准备并启动网关后，分别执行账户验证与 `validate_gateway_cli.py --builtin`；两项通过后才运行 `gateway_control.py activate`。该工具仅迁移自己原样写入的旧接入块，其他提供方或手工改动会拒绝覆盖；`deactivate` 只撤回受管端点并恢复原压缩选项，保留其他配置。
 
 新准备的网关默认使用 `registered_accounts` 策略，允许新登录并登记的工作台账户动态接入，无需逐个重启网关。已有策略保持不变；从旧版 `fixed` 配置升级并启用动态切换时，显式运行 `WORKBENCH_GATEWAY_ACCOUNT_POLICY=registered_accounts python gateway_control.py prepare`，再运行 `python gateway_control.py start`，并核对设置中的策略与网关健康状态。固定授权仍可通过 `WORKBENCH_GATEWAY_ACCOUNT_POLICY=fixed` 显式选择。HTTP 模式由 Codex 携带完整上下文；跨账户的服务器 `previous_response_id` 引用无法代替上下文，网关会拒绝这种不完整请求而非静默丢失历史。
 

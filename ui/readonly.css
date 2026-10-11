@@ -198,3 +198,5 @@ main[data-module="config"] .config-main{height:100%;min-height:0;min-width:0;ove
  main[data-module="config"] .config-layout{grid-template-rows:minmax(100px,22dvh) minmax(0,1fr);gap:16px}
  main[data-module="config"] .directories{height:100%;max-height:none}
 }
+:root .model-pagination{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:16px}
+:root .model-refresh-progress{display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px;border:1px solid var(--line,#dce1e8);border-radius:12px;font-size:13px}

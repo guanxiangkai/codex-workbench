@@ -40,13 +40,14 @@ class DirectorySignalTest(unittest.TestCase):
 
 
 class FilterShapeTest(unittest.TestCase):
-    def test_realistic_model_shape_returns_all_matching_items(self):
+    def test_realistic_model_shape_pages_matching_items(self):
         rows=[{'id':f'm{i}','name':f'MiniMax {i}','model_type':'chat',
                'provider_id':'minimax','provider_name':'MiniMax',
                'tags':['minmax'] if i % 2 == 0 else []} for i in range(25)]
         result=_page_view({'models':rows},query='minmax')
-        self.assertEqual(25,len(result['models']))
-        self.assertNotIn('pagination',result)
+        self.assertEqual(20,len(result['models']))
+        self.assertEqual(25,result['pagination']['total'])
+        self.assertEqual(5,len(_page_view({'models':rows},query='minmax',page=2)['models']))
 
     def test_accounts_do_not_leak_full_provider_lists(self):
         rows=[{'id':str(i),'provider_id':'glm','is_current':i==24} for i in range(25)]
@@ -55,8 +56,8 @@ class FilterShapeTest(unittest.TestCase):
         self.assertEqual('24',result['accounts'][0]['id'])
         self.assertNotIn('accounts',result['providers'][0])
 
-    def test_empty_shape_has_no_pagination(self):
-        self.assertNotIn('pagination',_page_view({'models':[]}))
+    def test_empty_models_have_a_valid_first_page(self):
+        self.assertEqual({'page':1,'page_size':20,'total':0,'pages':1},_page_view({'models':[]})['pagination'])
 
     def test_filter_aliases_and_array_tags(self):
         value={'entries':[{'id':'a','kind':'service','service_type':'chat','service_type_label':'对话','account_provider_ids':['glm'],'tags':['production']}]}

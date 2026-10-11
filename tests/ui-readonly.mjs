@@ -105,3 +105,28 @@ assert.doesNotMatch(h.resetAnalysisView({status:"likely_reset",announced_reset_a
 
 for(const page of ['accounts','other_accounts','models']){h.setPage(page);const nav=h.navigation();assert.match(nav,/<div class="brand">/);assert.doesNotMatch(nav,/data-workbench-home|<button[^>]*class="brand"/);assert.doesNotMatch(nav,/账户与模型|data-group|subnav/);assert.equal((nav.match(/<nav /g)||[]).length,1);assert.match(nav,new RegExp(`data-page="${page}" aria-current="page"`));for(const id of ['accounts','other_accounts','models'])assert.match(nav,new RegExp(`data-page="${id}"`));for(const removed of ['config','knowledge','agents','connections','planning','projects','work_records'])assert.doesNotMatch(nav,new RegExp(`data-page="${removed}"`));}h.setPage('accounts');
 console.log('工作台导航：Codex 账户、其他账户、模型服务三个标签页');
+
+assert.equal(h.modelAvailability({availability_status:'payment_required'})[0],'需要付费');
+assert.equal(h.modelAvailability({availability_status:'insufficient_balance'})[0],'余额不足');
+assert.equal(h.modelAvailability({availability_status:'available'})[0],'可用');
+assert.equal(h.modelAvailability({validation_status:'paused'})[0],'已暂停');
+assert.equal(h.modelAvailability({availability_status:'paused'})[0],'已暂停');
+assert(h.modelRefreshProgress({state:'validating',running:true,completed:3,total:8,added:2}).includes('3 / 8'));
+assert(!h.modelRefreshProgress({state:'failed',error:'<script>x</script>'}).includes('<script>'));
+
+assert.equal(h.modelRefreshProgress({state:'completed',running:false,added:46,total:64,completed:64}), '');
+const toast={textContent:''};let timer=null;
+context.document.getElementById=id=>id==='toast'?toast:null;
+context.clearTimeout=()=>{timer=null;};
+context.setTimeout=(callback,delay)=>{timer={callback,delay};return 1;};
+h.observeModelRefresh({started_at:'old',state:'completed',running:false});
+assert.equal(toast.textContent,'');
+h.observeModelRefresh({started_at:'new',state:'validating',running:true});
+h.observeModelRefresh({started_at:'new',state:'completed',running:false});
+assert.equal(toast.textContent,'模型刷新已完成');assert.equal(timer.delay,10000);
+timer.callback();assert.equal(toast.textContent,'');
+h.observeModelRefresh({started_at:'new',state:'validating',running:true});
+h.observeModelRefresh({started_at:'new',state:'completed',running:false});
+assert.equal(toast.textContent,'');
+assert.match(h.modelsView(),/id="model-status"/);
+console.log('模型刷新完成提示：10 秒消失，历史作业和重复快照不重复提示；状态筛选入口存在');

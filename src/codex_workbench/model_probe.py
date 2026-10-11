@@ -29,9 +29,9 @@ def _png_chunk(kind: bytes, data: bytes) -> bytes:
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
 
 
-def _probe_png() -> bytes:
-    """生成 32×32 的纯红 PNG，避免极小图片被视觉模型拒绝。"""
-    width = height = 32
+def _probe_png(size: int = 32) -> bytes:
+    """生成纯红 PNG；视频参考图使用不低于 128 像素的样本。"""
+    width = height = size
     scanlines = b"".join(b"\x00" + b"\xff\x00\x00" * width for _ in range(height))
     header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     return b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", header) + _png_chunk(b"IDAT", zlib.compress(scanlines)) + _png_chunk(b"IEND", b"")

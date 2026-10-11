@@ -83,7 +83,7 @@ class RegisteredModelVerifierTests(unittest.TestCase):
                 argv.extend(["--model-id", model_id])
             output = io.StringIO()
             with self.subTest(requested=requested), patch("sys.argv", argv), patch("sys.stdout", output), \
-                 patch.object(script, "configured_models", return_value=[self.model(credential_id="test")]), \
+                 patch.object(script, "registered_models", return_value=[self.model(credential_id="test")]), \
                  patch.object(script, "_decode_selected_credential") as decode:
                 self.assertEqual(2, script.main())
             decode.assert_not_called()
@@ -118,6 +118,20 @@ class RegisteredModelVerifierTests(unittest.TestCase):
                 result = verify_model(self.model(base_url=url), "synthetic-key")
             self.assertEqual({"model_id": "glm", "success": False, "status": "skipped", "error_code": "unregistered_https_endpoint"}, result)
             probe.assert_not_called()
+
+    def test_legacy_responses_protocol_reaches_actual_probe(self):
+        for path in ('/api/paas/v4', '/api/paas/v4/responses'):
+            with self.subTest(path=path), patch('codex_workbench.model_probe.probe_model', return_value={'success':True,'code':'ok'}) as probe:
+                result=verify_model(self.model(base_url='https://open.bigmodel.cn'+path,protocol='openai-responses'),'synthetic-key')
+                self.assertTrue(result['success'])
+                self.assertEqual('openai-responses',probe.call_args.args[0]['protocol'])
+
+    def test_paused_model_never_enters_review_or_probe(self):
+        with patch('codex_workbench.registered_model_verifier._post') as post, \
+             patch('codex_workbench.model_probe.probe_model') as probe:
+            result,review=verify_model_with_review(self.model(validation_status='paused'),'synthetic-key')
+            self.assertEqual('paused',result['status']);self.assertIsNone(review)
+            post.assert_not_called();probe.assert_not_called()
 
     def test_native_ocr_and_asr_send_documented_public_fixture_payloads(self):
         ocr = self.model(model_type="multimodal", base_url="https://open.bigmodel.cn/api/paas/v4/layout_parsing")
@@ -262,7 +276,19 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
         body = json.loads(post.call_args.args[1])
         self.assertEqual([{"type": "text", "text": body["content"][0]["text"]}], body["content"])
-        self.assertEqual(4, body["duration"])
+        self.assertEqual(5, body["duration"])
+
+    def test_vidu_supplies_required_synthetic_reference_images(self):
+        for name, count in (("viduq1-image", 1), ("vidu2-start-end", 2), ("vidu2-reference", 1)):
+            model = self.model(id="video", model_type="video_generation", model=name,
+                               base_url="https://open.bigmodel.cn/api/paas/v4/videos/generations")
+            completed = b'{"task_id":"task-1","status":"success","video_result":{"url":"https://cdn.example/video.mp4"}}'
+            with patch("codex_workbench.registered_model_verifier._post", return_value=(completed, "application/json", None)) as post:
+                self.assertTrue(verify_model(model, "synthetic-key", timeout=2)["success"])
+            images = json.loads(post.call_args.args[1])["image_url"]
+            self.assertEqual(count, len(images) if isinstance(images, list) else 1)
+            image = images[0] if isinstance(images, list) else images
+            self.assertTrue(image.startswith("data:image/png;base64,"))
 
     def test_pending_video_task_is_resumed_without_a_second_submission(self):
         model = self.model(id="video", provider_id="minimax", model_type="video_generation", model="MiniMax-H3",

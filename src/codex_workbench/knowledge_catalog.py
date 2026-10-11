@@ -2,6 +2,7 @@
 from pathlib import Path
 import json
 import subprocess
+import time
 
 
 class KnowledgeCatalog:
@@ -11,9 +12,12 @@ class KnowledgeCatalog:
         self.command = Path(command or Path.home() / ".codex/skills/manage-personal-knowledge/scripts/personal-knowledge")
         self.run = run or subprocess.run
 
-    def _read(self, args):
+    def _read(self, args, *, deadline=None):
+        timeout = 20 if deadline is None else min(20, deadline - time.monotonic())
+        if timeout <= 0:
+            raise ValueError("知识目录读取超时，请限定知识范围后重试")
         try:
-            result = self.run([str(self.command), *args], text=True, capture_output=True, timeout=20)
+            result = self.run([str(self.command), *args], text=True, capture_output=True, timeout=timeout)
             if result.returncode or len(result.stdout.encode()) > 2 * 1024 * 1024:
                 raise ValueError("知识来源暂时不可用")
             records = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
@@ -23,19 +27,22 @@ class KnowledgeCatalog:
         except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
             raise ValueError("知识来源暂时不可用") from None
 
-    def scopes(self):
+    def scopes(self, *, deadline=None):
         return [
             {"id": item["scope_key"], "name": item.get("display_name") or item["scope_key"], "kind": item.get("kind")}
-            for item in self._read(["scopes"])
+            for item in self._read(["scopes"], deadline=deadline)
             if item.get("is_active") and isinstance(item.get("scope_key"), str)
         ][:500]
 
-    def snapshot(self):
-        scopes = self.scopes()
+    def snapshot(self, scope=None):
+        deadline = time.monotonic() + 60
+        scopes = self.scopes(deadline=deadline)
+        if scope not in (None, '', 'global'):
+            scopes = [item for item in scopes if item['id'] == scope]
         records, limited = [], []
         keys = ("knowledge_key", "scope_key", "title", "summary", "tags", "scope_priority")
         for scope in scopes:
-            items = self._read(["catalog", scope["id"], "1000"])
+            items = self._read(["catalog", scope["id"], "1000"], deadline=deadline)
             own = [item for item in items if item.get("scope_key") == scope["id"]]
             records.extend({key: item[key] for key in keys if key in item} for item in own)
             if len(own) >= 1000:

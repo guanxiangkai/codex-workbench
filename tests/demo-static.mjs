@@ -15,7 +15,7 @@ assert.match(index,/静态演示数据/);
 assert.match(index,/connect-src 'none'/);
 assert.match(index,/style-src 'self' 'unsafe-inline'/);
 assert.doesNotMatch(index,/<script(?![^>]*\bsrc=)/);
-for(const forbidden of ['fetch(','/rpc','postMessage','credential_details','ConfigurationCrypto','account_create','account_login','account_status','account_default','data-reveal','data-copy','id="fields"'])assert.ok(!app.includes(forbidden),`static app contains ${forbidden}`);
+for(const forbidden of ['fetch(','/rpc','postMessage','credential_details','ConfigurationCrypto','account_profile_update','account_profile_capture','account_profile_import','data-profile-id','account_create','account_login','account_status','account_default','data-reveal','data-copy','id="fields"'])assert.ok(!app.includes(forbidden),`static app contains ${forbidden}`);
 
 const window={addEventListener(){}};
 window.parent=window;
@@ -27,25 +27,25 @@ context.globalThis=context;
 vm.createContext(context);
 vm.runInContext(fixtures,context,{filename:'fixtures.js'});
 const data=context.DEMO_FIXTURES;
-assert.equal(data.views.accounts.accounts.length,8);
-assert.equal(data.views.other_accounts.accounts.length,6);
-assert.equal(data.views.models.models.length,24);
-assert.equal(data.views.agents.skills.length,18);
-assert.equal(data.views.config.entries.length,24);
-assert.equal(data.views.knowledge.knowledge.length,40);
-assert.equal(data.views.other_accounts.accounts[0].usage_windows.length,2);
-assert.equal(data.views.other_accounts.facets.providers[0].count,2);
-assert.deepEqual(Array.from(data.modules,item=>item.id),['accounts','other_accounts','config','agents','knowledge','models']);
+assert.equal(data.views.accounts.accounts.length,1);
+assert.equal(data.views.other_accounts.accounts.length,1);
+assert.equal(data.views.models.models.length,1);
+assert.deepEqual(Array.from(data.modules,item=>item.id),['accounts','other_accounts','models']);
+assert.doesNotMatch(JSON.stringify(data.modules),/config|connections|knowledge|agents/);
 assert.ok(data.modules.every(item=>typeof item.name==='string'&&typeof item.group==='string'));
 assert.ok(JSON.stringify(data).includes('demo.invalid'));
 assert.ok(!JSON.stringify(data).match(/vault|secret|token|password|api[_-]?key/i));
 vm.runInContext(app,context,{filename:'app.js'});
-const scoped=await context.DEMO_STATIC_ADAPTER.tool('workbench_sync',{view:'knowledge',scope:'team-demo'});
-const searched=await context.DEMO_STATIC_ADAPTER.tool('workbench_sync',{view:'knowledge',scope:'team-demo',query:'演示知识 3'});
-assert.equal(scoped.data.knowledge.length,20);
-assert.ok(searched.data.knowledge.length>0&&searched.data.knowledge.length<scoped.data.knowledge.length);
-assert.throws(()=>context.DEMO_STATIC_ADAPTER.tool('account_default',{id:'demo-codex-2'}));
-assert.throws(()=>context.DEMO_STATIC_ADAPTER.tool('credential_details',{}));
+const modelDetail=await context.WORKBENCH_ADAPTER.call('model_detail',{id:'demo-model'});
+assert.equal(modelDetail.model.id,'demo-model');
+for(const view of ['accounts','other_accounts','models']){
+ const reset=await context.WORKBENCH_ADAPTER.call('workbench_sync',{view});
+ assert.equal(reset.reset,true);assert.deepEqual(JSON.stringify(reset.data),JSON.stringify(data.views[view]));
+ const same=await context.WORKBENCH_ADAPTER.call('workbench_sync',{view,revision:reset.revision});
+ assert.equal(same.unchanged,true);assert.equal(same.context,'static-demo-v1');
+}
+await assert.rejects(context.WORKBENCH_ADAPTER.call('credential_list'),/不支持凭据/);
+await assert.rejects(context.WORKBENCH_ADAPTER.call('credential_details',{}),/不支持凭据/);
 
 for(const page of data.modules.map(item=>item.id)){
   let html='';
@@ -61,8 +61,8 @@ for(const page of data.modules.map(item=>item.id)){
   vm.createContext(renderContext);
   vm.runInContext(fixtures,renderContext,{filename:'fixtures.js'});
   vm.runInContext(app.replace("const INITIAL_PAGE='accounts';",`const INITIAL_PAGE='${page}';`),renderContext,{filename:`${page}.js`});
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.doesNotMatch(html,/role="alert"|更新资料|缓存版本已失效/);
   assert.match(html,new RegExp(`data-module="${page}"`));
   assert.ok(!html.includes('undefined'),`${page} rendered an undefined navigation value`);
 }

@@ -31,7 +31,24 @@ def build_app() -> str:
     source = (ui / "readonly.js").read_text(encoding="utf-8")
     adapter = (ROOT / "demo" / "demo-adapter.js").read_text(encoding="utf-8")
 
-    source = replace_between(source, "async function fetchView", "const s={", adapter + "\n")
+    # Rename private bridge names in the UI source before injecting the adapter;
+    # the adapter itself must keep the original names so its rejection tests
+    # exercise the real contract.
+    for private_name, static_name in {
+        "account_create": "static_create",
+        "account_login": "static_login",
+        "account_status": "static_status",
+        "account_default": "static_default",
+    }.items():
+        source = source.replace(private_name, static_name)
+
+    source = replace_between(
+        source,
+        "async function fetchView",
+        "const s={",
+        adapter + "\nclass Bridge{constructor(){this.embedded=false;}async initialize(){}async tool(name,args={}){return WORKBENCH_ADAPTER.call(name,args);}}\n",
+    )
+    source = replace_between(source, "function profileUpdateButton", "function usageRefreshButton", "function profileUpdateButton(){return '';}\n")
     source = replace_between(
         source,
         "function usageRefreshButton()",
@@ -53,28 +70,18 @@ def build_app() -> str:
         "async function load",
         "function defaultAccountButton(){return '';}\n",
     )
-    source = replace_between(
-        source,
-        "async function readSecret",
-        "\nfunction bind(){",
-        "",
-    )
-    source = replace_between(
-        source,
-        "function secretPanel",
-        "\n\nfunction navigation",
-        "function secretPanel(d){const entry=d.entry||d.value?.credential;if(!entry)return '';const rows=[['名称',entry.label||entry.name||'公开演示元数据'],['类型',entry.service_type_label||entry.service_type||'演示配置'],['说明',entry.description||'仅展示合成的公开元数据。']];return `<section class=\"card config-field-panel\"><h2>公开演示元数据</h2><dl>${rows.map(([label,value])=>`<div><dt>${E(label)}</dt><dd>${E(value)}</dd></div>`).join('')}</dl></section>`;}\n",
-    )
-    source = replace_exact(source, ";if(entry&&!document.hidden)await readSecret('fields');", ";")
+    # The read-only source still contains the private bridge name in a dead
+    # handler branch. Rename it in the static artifact so the demo contract
+    # cannot be mistaken for a credential-capable build.
+    source = "function resetCountdown(){}\nfunction updateResetCountdown(){}\n" + source
+    source, _ = re.subn(r"window\.__workbenchReadonlyTest=\{.*?\};\n?", "", source, count=1, flags=re.S)
     for handler in (
+        "document.querySelectorAll('[data-profile-id]').forEach(b=>b.onclick=()=>updateProfile(b.dataset.profileView,b.dataset.profileId));\n",
         " document.getElementById('refresh-usage')?.addEventListener('click',()=>load({refresh:true}));\n",
         " document.getElementById('account-create')?.addEventListener('click',()=>createAccount());\n",
         " document.querySelectorAll('[data-account-login]').forEach(button=>button.onclick=()=>loginAccount(button.dataset.accountLogin));\n",
         " document.querySelectorAll('[data-account-status]').forEach(button=>button.onclick=()=>checkAccount(button.dataset.accountStatus));\n",
         " document.querySelectorAll('[data-account-default]').forEach(button=>button.onclick=()=>setDefaultAccount(button.dataset.accountDefault));\n",
-        "document.getElementById('fields')?.addEventListener('click',()=>readSecret('fields'));",
-        "document.querySelectorAll('[data-reveal]').forEach(b=>b.onclick=()=>{const n=Number(b.dataset.reveal);if(s.revealed.has(n)){s.revealed.delete(n);render();}else readSecret('view',n);});",
-        "document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>readSecret('copy',Number(b.dataset.copy)));",
     ):
         source = replace_exact(source, handler)
 
@@ -90,7 +97,7 @@ def build_app() -> str:
         "",
     ))
     app = prefix + primitives + "\n" + source
-    forbidden = ("fetch(", "/rpc", "postMessage", "credential_details", "ConfigurationCrypto", "account_create", "account_login", "account_status", "account_default")
+    forbidden = ("fetch(", "/rpc", "postMessage", "credential_details", "ConfigurationCrypto", "account_profile_update", "account_profile_capture", "account_profile_import", "data-profile-id", "account_create", "account_login", "account_status", "account_default")
     found = [token for token in forbidden if token in app]
     if found:
         raise RuntimeError(f"Generated static app retained prohibited bridge code: {', '.join(found)}")
@@ -115,7 +122,7 @@ def main() -> None:
     csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     page = f"""<!doctype html>
 <html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"{csp}\"><title>Codex 工作台（静态演示）</title><link rel=\"stylesheet\" href=\"assets/app.css\"></head>
-<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户、模型、配置与连接均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
+<body><div class=\"demo-banner\" role=\"status\"><strong>静态演示数据</strong><span>全部账户和模型均为合成数据。</span></div><div id=\"app\"></div><script src=\"assets/fixtures.js\"></script><script src=\"assets/app.js\"></script></body></html>
 """
     (output / "index.html").write_text(page, encoding="utf-8")
     print(f"Built static demo: {output}")

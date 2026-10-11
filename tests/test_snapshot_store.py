@@ -28,25 +28,17 @@ class SnapshotStoreTest(unittest.TestCase):
             scheduler.provider_errors.clear()
             self.assertEqual('ready',board.state('accounts')['status']['snapshot']['state'])
 
-    def test_restored_views_are_scheduled_and_survive_restart(self):
+    def test_retired_views_are_not_scheduled(self):
         with tempfile.TemporaryDirectory() as directory, patch('codex_workbench.service.UiRelease') as release:
             release.return_value.revision = 'test'
             native = Mock()
-            knowledge = Mock()
-            knowledge.snapshot.return_value = {'scopes': [], 'knowledge': [{'knowledge_key': 'example', 'title': 'Example'}]}
             versions = Mock(); versions.context.return_value = 'account-a'
             board = Workbench(Path(directory), Path(directory)/'resources', native_reader=native,
-                              knowledge_catalog=knowledge, source_versions=versions)
+                              source_versions=versions)
             board.snapshot_scheduler = SnapshotScheduler(board)
             try:
-                for view, key in (('knowledge', 'knowledge'),):
-                    with self.subTest(view=view):
-                        self.assertEqual('pending', board.state(view)['status']['snapshot']['state'])
-                        self.assertIn(('account-a', view), board.snapshot_scheduler.requested)
-                        self.assertTrue(board.collect_snapshot(view))
-                        self.assertEqual('ready', board.state(view)['status']['snapshot']['state'])
-                        restored = SnapshotStore(Path(directory)).get('account-a', view)
-                        self.assertEqual(1, len(restored['data'][key]))
+                with self.assertRaises(ValueError): board.state('knowledge')
+                self.assertNotIn(('account-a', 'knowledge'), board.snapshot_scheduler.requested)
             finally:
                 board.close()
 

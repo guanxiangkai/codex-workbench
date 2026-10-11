@@ -146,7 +146,7 @@ function avatarMarkup(account){
 }
 const PAGES=Object.fromEntries(WORKBENCH_MODULES.map(x=>[x.id,x.name]));
 const GROUPS=[...new Set(WORKBENCH_MODULES.map(x=>x.group))].map(name=>({name,pages:WORKBENCH_MODULES.filter(x=>x.group===name).map(x=>x.id)}));
-const NAV={accounts:'user',other_accounts:'users',config:'shield',knowledge:'book-open',models:'brain'};
+const NAV={accounts:'user',other_accounts:'users',models:'brain'};
 const STATES={backlog:['待处理','orange','inbox'],ready:['待执行','blue','clock'],running:['执行中','purple','circle-play'],done:['已完成','green','circle-check'],archived:['已归档','muted','archive']};
 const TYPES={image_generation:'图像生成',video_generation:'视频生成',reasoning:'推理',multimodal:'多模态',speech_to_text:'语音转文字',text_to_speech:'文字转语音',embedding:'嵌入',rerank:'重排序',unconfigured:'未配置'};
 const RESULTS={completed:'成功',failed:'失败',interrupted:'已中断',cancelled:'已取消',inProgress:'执行中'};
@@ -295,7 +295,7 @@ class Bridge{
  /** 原生读取先完成宿主握手；首屏缓存可提前渲染，不能提前调用工具。 */
  async initialize(){
   if(!this.embedded)return;
-  if(!this.ready)this.ready=this.rpc('ui/initialize',{appInfo:{name:'codex-workbench-ui',version:'0.10.8'},appCapabilities:{},protocolVersion:'2026-01-26'}).then(()=>{parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');}).catch(error=>{this.ready=null;throw error;});
+  if(!this.ready)this.ready=this.rpc('ui/initialize',{appInfo:{name:'codex-workbench-ui',version:'1.0.0'},appCapabilities:{},protocolVersion:'2026-01-26'}).then(()=>{parent.postMessage({jsonrpc:'2.0',method:'ui/notifications/initialized',params:{}},'*');}).catch(error=>{this.ready=null;throw error;});
   return this.ready;
  }
  async tool(name,args={},signal){
@@ -582,7 +582,7 @@ function render(){
  const focused=document.activeElement?.id,selection=document.activeElement?.selectionStart;
  const scrolls=[...document.querySelectorAll('.directories')].map(x=>[x.scrollTop,x.scrollLeft]);
  const pageDetail=Boolean(s.detail);
-  root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,config:configView,knowledge:knowledgeView,models:modelsView}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite"></div>`;
+  root.innerHTML=`${navigation()}<main data-module="${s.page}" aria-label="${E(PAGES[s.page])}" class="" aria-busy="${s.loading}">${pageDetail?detailView():''}${s.error?`<div class="error" role="alert">${E(s.error.replaceAll('请点击刷新读取','请重试'))} <button id="retry">重试</button></div>`:''}${!pageDetail?(s.loading&&!Object.keys(s.data).length?'<div class="loading" role="status">正在读取…</div>':pendingSnapshot()?`<div class="${s.data.status?.snapshot?.state==='error'?'error':'loading'}" role="status">${s.data.status?.snapshot?.state==='error'?'暂时无法读取可用数据，请重试。':'正在准备可用数据…'}</div>`:({accounts:accountView,other_accounts:otherAccountsView,models:modelsView}[s.page]||(()=>empty('暂无此页面数据')))()):''}</main><div id="toast" role="status" aria-live="polite"></div>`;
  bind();updateResetCountdown();document.querySelectorAll('.directories').forEach((x,i)=>{if(scrolls[i]){x.scrollTop=scrolls[i][0];x.scrollLeft=scrolls[i][1];}});
  if(focused&&focused!=='query')document.getElementById(focused)?.focus({preventScroll:true});
  if(focused==='query'){const q=document.getElementById('query');q?.focus();try{q?.setSelectionRange(selection,selection);}catch{}}
@@ -630,7 +630,7 @@ async function load({cursor,session,refresh=false,poll=false}={}){
  const seq=++s.seq;abort?.abort();abort=new AbortController();clearSecrets();s.error='';s.syncing=true;
  const page=s.page,usageRefresh=['accounts','other_accounts'].includes(page)&&refresh,shouldRefresh=refresh,args={view:page};
  if(['other_accounts','models'].includes(page))args.provider=page==='models'?s.modelProvider:s.accountProvider;
- if(['other_accounts','models','config'].includes(page))Object.assign(args,{query:s.query,kind:s.kind,folder:s.folder});
+ if(['other_accounts','models'].includes(page))Object.assign(args,{query:s.query,kind:s.kind,folder:s.folder});
  // 资料改名后可能不再匹配当前搜索；采集完成判定读取完整本地账户快照，展示仍沿用前端筛选。
  if(s.profileCapture?.view===page)for(const field of ['query','provider','kind','folder'])delete args[field];
 

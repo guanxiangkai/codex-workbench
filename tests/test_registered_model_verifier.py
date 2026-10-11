@@ -119,6 +119,20 @@ class RegisteredModelVerifierTests(unittest.TestCase):
             self.assertEqual({"model_id": "glm", "success": False, "status": "skipped", "error_code": "unregistered_https_endpoint"}, result)
             probe.assert_not_called()
 
+    def test_legacy_responses_protocol_reaches_actual_probe(self):
+        for path in ('/api/paas/v4', '/api/paas/v4/responses'):
+            with self.subTest(path=path), patch('codex_workbench.model_probe.probe_model', return_value={'success':True,'code':'ok'}) as probe:
+                result=verify_model(self.model(base_url='https://open.bigmodel.cn'+path,protocol='openai-responses'),'synthetic-key')
+                self.assertTrue(result['success'])
+                self.assertEqual('openai-responses',probe.call_args.args[0]['protocol'])
+
+    def test_paused_model_never_enters_review_or_probe(self):
+        with patch('codex_workbench.registered_model_verifier._post') as post, \
+             patch('codex_workbench.model_probe.probe_model') as probe:
+            result,review=verify_model_with_review(self.model(validation_status='paused'),'synthetic-key')
+            self.assertEqual('paused',result['status']);self.assertIsNone(review)
+            post.assert_not_called();probe.assert_not_called()
+
     def test_native_ocr_and_asr_send_documented_public_fixture_payloads(self):
         ocr = self.model(model_type="multimodal", base_url="https://open.bigmodel.cn/api/paas/v4/layout_parsing")
         with patch("codex_workbench.registered_model_verifier._post", return_value=(b'{"md_results":"# OK"}', "application/json", None)) as post:

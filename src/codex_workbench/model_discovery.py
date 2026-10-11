@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 from urllib.request import build_opener, HTTPRedirectHandler, Request
 
 from .model_catalog import configured_models, registered_models, _model
+from .model_endpoints import resolve_endpoint
 
 
 class _NoRedirect(HTTPRedirectHandler):
@@ -128,7 +129,14 @@ def register_models(resources_dir, provider, candidates, *, data_dir=None):
     directory = Path(resources_dir)/'models'
     existing = (registered_models(resources_dir,data_dir) if data_dir is not None
                 else configured_models(directory/'catalog.json'))
-    keys = {(m.get('provider_id'), m.get('model'), m.get('base_url')) for m in existing}
+    endpoints = []
+    for model in existing:
+        endpoint = model.get('base_url')
+        if model.get('source') != 'model_catalog':
+            try: endpoint = resolve_endpoint(endpoint, model.get('model_type'), model.get('protocol') or 'openai-chat')
+            except (ValueError, TypeError): endpoint = None
+        endpoints.append((model, endpoint))
+    keys = {(m.get('provider_id'), m.get('model'), endpoint) for m, endpoint in endpoints}
     allowed = {ORIGINS[provider]+path for _, path, _ in SOURCES[provider]}
     additions = []
     for candidate in candidates:
@@ -137,8 +145,8 @@ def register_models(resources_dir, provider, candidates, *, data_dir=None):
         key = (provider, candidate['model'], candidate['base_url'])
         if key in keys:
             continue
-        refs = {m.get('credential_id') for m in existing if m.get('provider_id') == provider
-                and m.get('base_url') == candidate['base_url'] and m.get('credential_id')}
+        refs = {m.get('credential_id') for m, endpoint in endpoints if m.get('provider_id') == provider
+                and endpoint == candidate['base_url'] and m.get('credential_id') and m.get('validation_status') != 'paused'}
         reference = next(iter(refs)) if len(refs) == 1 else None
         digest = hashlib.sha256(json.dumps(key).encode()).hexdigest()[:24]
         item = {'id': provider+'-'+digest, 'name': candidate['model'], 'service_name': NAMES[provider],

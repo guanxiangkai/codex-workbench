@@ -86,7 +86,7 @@ def _native_probe(model: dict, token: str, *, timeout: float) -> dict:
     from .model_probe import probe_model
     capability = model["model_type"]
     config = {"model_type": capability, "base_url": model["base_url"], "model": model["model"],
-              "protocol": "openai-chat", "voice": "tongtong"}
+              "protocol": model.get("protocol") or "openai-chat", "voice": "tongtong"}
     if model.get("provider_id") == "bigmodel" and str(model.get("model", "")).startswith("glm-5.3"):
         config["reasoning_effort"] = "low"
     if capability in {"reasoning", "multimodal"}:
@@ -379,6 +379,8 @@ def _get(url: str, token: str, deadline: float, *, error_diagnostics: bool = Fal
 def _verify_model(model: dict, token: str, *, timeout: float = 30) -> tuple[dict, dict]:
     """验证一个登记模型；每个成功结果都必须有对应能力的有效输出。"""
     model_id = model.get("id") if isinstance(model.get("id"), str) else ""
+    if model.get("validation_status") == "paused":
+        return safe_result(model_id, False, "paused", "model_paused"), {}
     if not model_id or not _official_endpoint(model):
         return safe_result(model_id, False, "skipped", "unregistered_https_endpoint"), {}
     if not isinstance(token, str) or not token:
@@ -436,8 +438,8 @@ def verify_model_with_review(model: dict, token: str, *, timeout: float = 30,
     model_id = model.get("id") if isinstance(model.get("id"), str) else ""
     capability = model.get("model_type")
     path = urlsplit(str(model.get("base_url") or "")).path.rstrip("/")
-    if (not _official_endpoint(model) or not isinstance(token, str) or not token or capability not in {"reasoning", "multimodal"}
-            or not path.endswith("/chat/completions")):
+    if (model.get("validation_status") == "paused" or not _official_endpoint(model) or not isinstance(token, str) or not token or capability not in {"reasoning", "multimodal"}
+            or (model.get("protocol") or "openai-chat") != "openai-chat" or not path.endswith("/chat/completions")):
         safe, diagnostic = _verify_model(model, token, timeout=timeout)
         return (safe, None, diagnostic) if include_diagnostics else (safe, None)
     request: dict = {"model": model["model"], "max_completion_tokens": 2048}
@@ -546,5 +548,5 @@ def record_results(data_dir: Path, selected: list[dict], results: list[dict]) ->
         result = by_id[model["id"]]
         if result["status"] == "validating":
             store.record_pending(model, source="probe")
-        elif result["status"] != "skipped":
+        elif result["status"] not in {"skipped", "paused"}:
             store.record(model, success=result["success"], source="probe", error_code=result.get('error_code'))

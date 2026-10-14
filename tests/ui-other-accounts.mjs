@@ -21,13 +21,29 @@ html=h.otherAccountsView({accounts},'不存在','');assert(html.includes('没有
 html=h.otherAccountsView({accounts:[],providers:[{id:'unused',name:'不应显示'}]},'','');assert(!html.includes('不应显示'));assert(!html.includes('全部平台'));assert(html.includes('暂无其他账户'));
 html=h.otherAccountsView({accounts},'','removed');assert(html.includes('开发账户'));assert(html.includes('接口账户'));
 html=h.otherAccountCard({...account,label:'<script>bad()</script>',vault_id:'2.account.ref',is_used:true,observed_at:'2026-09-16T09:00:00+08:00',status_source:'provider_console'});
-assert(html.includes('&lt;script&gt;'));assert(!html.includes('<script>'));assert(!html.includes('data-config='));assert(html.includes('使用中'));assert(html.includes('检查于'));assert(!html.includes('<summary>数据来源</summary>'));assert(!html.includes('主账户'));assert(!html.includes('默认'));assert(!html.includes('重置卡'));
+assert(html.includes('&lt;script&gt;'));assert(!html.includes('<script>'));assert(!html.includes('data-config='));assert(html.includes('使用中'));assert(!html.includes('检查于'));assert(!html.includes('<summary>数据来源</summary>'));assert(!html.includes('主账户'));assert(!html.includes('默认'));assert(!html.includes('重置卡'));
 html=h.otherAccountCard({...account,label:'旧标签',display_name:'资料昵称',profile_observed_at:'2026-09-16T09:00:00+08:00'});
-assert(html.includes('<h2>资料昵称</h2>'));assert(!html.includes('旧标签'));assert(html.includes('资料更新于'));
+assert(html.includes('<h2>资料昵称</h2>'));assert(!html.includes('旧标签'));assert(!html.includes('资料更新于'));
 assert(h.otherAccountCard(account).includes('状态未核验'));assert(h.otherAccountCard(accounts[1]).includes('未使用'));
 assert(!h.otherAccountCard({...account,is_used:undefined,api_auth:{status:'accepted',source:'provider_api',observed_at:'2026-09-16T09:00:00+08:00'}}).includes('状态未核验'));
 const verified={...account,provider_id:'minimax',provider_name:'MiniMax',is_used:null,api_auth:{status:'accepted',source:'provider_api',observed_at:'2026-09-16T09:00:00+08:00'},usage_windows:[{id:'five-hour',label:'5 小时',usage:{used:20,limit:100,remaining:80,unit:'%',observed_at:'2026-09-16T09:00:00+08:00',source:'provider_api'},resets_at:'2026-09-16T14:00:00+08:00'},{id:'weekly',label:'每周',usage:{used:0,limit:100,remaining:100,unit:'%',observed_at:'2026-09-16T09:00:00+08:00',source:'provider_api'},resets_at:null}],field_notes:{usage:'视频套餐额度尚未核验',resets_at:'接口未返回',expires_at:'接口未返回到期时间',last_used_at:'接口未返回最近使用时间'}};
-html=h.otherAccountCard({...verified,usage_refresh:{state:'failed',message:'<更新失败>'}});assert(html.includes('API 已验证'));assert(html.includes('检查于'));assert(!html.includes('状态未核验'));assert(html.includes('5 小时'));assert(html.includes('每周'));assert(!html.includes('视频套餐额度尚未核验'));assert(!html.includes('接口未返回到期时间'));assert(!html.includes('接口未返回最近使用时间'));assert(html.includes('&lt;更新失败&gt;'));assert(!html.includes('<更新失败>'));assert.equal((html.match(/<dt>重置时间<\/dt>/g)||[]).length,0);
+html=h.otherAccountCard({...verified,usage_refresh:{state:'failed',message:'<更新失败>'}});assert(!html.includes('API 已验证'));assert(!html.includes('检查于'));assert(!html.includes('状态未核验'));assert(html.includes('5 小时'));assert(html.includes('每周'));assert(!html.includes('视频套餐额度尚未核验'));assert(!html.includes('接口未返回到期时间'));assert(!html.includes('接口未返回最近使用时间'));assert(html.includes('&lt;更新失败&gt;'));assert(!html.includes('<更新失败>'));assert.equal((html.match(/<dt>重置时间<\/dt>/g)||[]).length,0);
+
+// 资料日期保持不变时，成功刷新仍推进额度日期；失败尝试不会伪造新的成功时间。
+const quotaUpdatedAt=card=>h.otherAccountCard(card).match(/<dt>更新于<\/dt><dd>([^<]*)<\/dd>/)[1];
+const formatDate=value=>new Date(value).toLocaleString('zh-CN',{hour12:false});
+const firstAt='2026-10-14T01:00:00Z',secondAt='2026-10-14T01:01:00Z',attemptAt='2026-10-14T01:02:00Z';
+for(const provider_id of ['minimax','bigmodel']){
+ const first={...verified,provider_id,profile_observed_at:'2026-10-11T00:39:58Z',updated_at:firstAt,usage_refresh:{state:'ok',observed_at:firstAt}};
+ const refreshed={...first,updated_at:secondAt,usage_refresh:{state:'ok',observed_at:secondAt}};
+ const failed={...refreshed,profile_observed_at:attemptAt,usage_refresh:{state:'failed',observed_at:attemptAt,message:'保留上次数据'}};
+ assert.equal(quotaUpdatedAt(first),formatDate(firstAt));
+ assert.equal(quotaUpdatedAt(refreshed),formatDate(secondAt));
+ assert.equal(quotaUpdatedAt(failed),formatDate(secondAt));
+}
+assert.equal(quotaUpdatedAt({...account,usage:{remaining:1,unit:'次',observed_at:firstAt}}),formatDate(firstAt));
+assert.equal(quotaUpdatedAt({...account,observed_at:firstAt}),formatDate(firstAt));
+assert.equal(quotaUpdatedAt({...account,profile_observed_at:firstAt}),'未提供');
 console.log('其他账户 UI：分类隐藏、筛选、未知与零值、用量单位、状态来源、配置关联、转义通过');
 
 // Quota bars and the headline both show remaining quota.

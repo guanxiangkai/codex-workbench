@@ -168,6 +168,89 @@ class AccountUsageReliabilityTests(unittest.TestCase):
         self.assertEqual(200, adapter.cached(ACCOUNT)['usage']['used'])
         self.assertNotIn(binding, adapter.inflight)
 
+    def test_follower_timeout_returns_while_owner_holds_lock_saving_cache(self):
+        owner_fetching = threading.Event()
+        allow_owner_success = threading.Event()
+        follower_waiting = threading.Event()
+        trigger_timeout = threading.Event()
+        saving_cache = threading.Event()
+        release_save = threading.Event()
+        follower_done = threading.Event()
+        owner_results = []
+        follower_results = []
+        errors = []
+
+        def fetcher(_credential):
+            owner_fetching.set()
+            allow_owner_success.wait(5)
+            return {'ok': True, 'snapshot': snapshot('2026-10-15T01:00:00+00:00', 200, 800)}
+
+        def slow_save():
+            saving_cache.set()
+            release_save.wait()
+
+        adapter = self._successful_adapter()
+        adapter.fetcher = fetcher
+
+        def run_owner():
+            try:
+                owner_results.append(adapter.refresh(ACCOUNT))
+            except BaseException as error:
+                errors.append(error)
+
+        def run_follower():
+            try:
+                follower_results.append(adapter.refresh(ACCOUNT))
+            except BaseException as error:
+                errors.append(error)
+            finally:
+                follower_done.set()
+
+        owner = threading.Thread(target=run_owner)
+        follower = threading.Thread(target=run_follower)
+
+        def wait_then_timeout(_future, timeout=None):
+            follower_waiting.set()
+            trigger_timeout.wait(5)
+            raise TimeoutError()
+
+        owner.start()
+        try:
+            self.assertTrue(owner_fetching.wait(5))
+            with patch.object(adapter, '_save_cache', side_effect=slow_save), patch(
+                    'codex_workbench.account_usage.Future.result', autospec=True,
+                    side_effect=wait_then_timeout):
+                follower.start()
+                self.assertTrue(follower_waiting.wait(5))
+                allow_owner_success.set()
+                self.assertTrue(saving_cache.wait(5))
+                trigger_timeout.set()
+                self.assertTrue(follower_done.wait(5))
+
+                self.assertEqual([], errors)
+                self.assertFalse(release_save.is_set())
+                lock_acquired = adapter.lock.acquire(blocking=False)
+                if lock_acquired:
+                    adapter.lock.release()
+                self.assertFalse(lock_acquired)
+                self._assert_failed_preserves(follower_results[0], 'provider_unavailable')
+                self.assertTrue(owner.is_alive())
+                release_save.set()
+        finally:
+            allow_owner_success.set()
+            trigger_timeout.set()
+            release_save.set()
+            owner.join(5)
+            follower.join(5)
+
+        binding = adapter._binding(ACCOUNT)
+        self.assertFalse(owner.is_alive())
+        self.assertFalse(follower.is_alive())
+        self.assertEqual([], errors)
+        self.assertEqual('ok', owner_results[0]['usage_refresh']['state'])
+        self.assertEqual(200, adapter.cached(ACCOUNT)['usage']['used'])
+        self.assertNotIn(binding, adapter.inflight)
+
     def test_concurrent_followers_share_one_owner_result(self):
         started = threading.Event()
         release = threading.Event()

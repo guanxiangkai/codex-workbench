@@ -156,28 +156,33 @@ class AccountUsage:
                 return {}
             return deepcopy(previous)
 
+    def _failed_result_from_previous(self, binding, account, previous, checked, code):
+        """基于已捕获的快照构造失败结果，不取得共享锁。"""
+        # 人工登记的更新数据优先于进程里更早的成功快照。
+        if previous and self._is_catalog_newer(account, previous):
+            previous = {}
+        result = {**deepcopy(previous), 'usage_refresh': {
+            'state': 'failed',
+            'observed_at': checked,
+            'message': MESSAGES.get(code, MESSAGES['provider_unavailable']),
+            'code': code,
+        }}
+        if code == 'auth_rejected':
+            result['api_auth'] = {
+                'status': 'rejected',
+                'source': BIGMODEL_ENDPOINT if binding[0] == 'bigmodel' else ENDPOINT,
+                'observed_at': checked,
+            }
+        return result
+
     def _failed_result(self, binding, account, checked, code, remember=True):
         """在受控失败中保留同一绑定的最后成功快照。"""
         with self.lock:
-            previous = self.snapshots.get(binding, {})
-            # 人工登记的更新数据优先于进程里更早的成功快照。
-            if previous and self._is_catalog_newer(account, previous):
-                previous = {}
-            result = {**deepcopy(previous), 'usage_refresh': {
-                'state': 'failed',
-                'observed_at': checked,
-                'message': MESSAGES.get(code, MESSAGES['provider_unavailable']),
-                'code': code,
-            }}
-            if code == 'auth_rejected':
-                result['api_auth'] = {
-                    'status': 'rejected',
-                    'source': BIGMODEL_ENDPOINT if binding[0] == 'bigmodel' else ENDPOINT,
-                    'observed_at': checked,
-                }
+            result = self._failed_result_from_previous(
+                binding, account, self.snapshots.get(binding, {}), checked, code)
             if remember:
                 self._remember(binding, result)
-        return result
+            return result
 
     def refresh(self, account):
         """返回用量覆盖字段，失败不清空上次成功的额度或伪造新的用量时间。"""
@@ -192,14 +197,17 @@ class AccountUsage:
             if owner:
                 future = Future()
                 self.inflight[binding] = future
+            else:
+                # Owner 可能在完成时持锁写缓存；等待者超时后必须仍可立即返回。
+                previous = deepcopy(self.snapshots.get(binding, {}))
         if not owner:
             try:
                 return deepcopy(future.result(timeout=20))
             except Exception:
                 # 等待者不能取消 owner，也不能把自身超时写入共享缓存。
-                return self._failed_result(
-                    binding, account, datetime.now(timezone.utc).isoformat(),
-                    'provider_unavailable', remember=False)
+                return self._failed_result_from_previous(
+                    binding, account, previous, datetime.now(timezone.utc).isoformat(),
+                    'provider_unavailable')
         try:
             try:
                 response = (self.bigmodel_fetcher if provider=='bigmodel' else self.fetcher)(credential)

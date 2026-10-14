@@ -75,6 +75,34 @@ for(const page of ['accounts','other_accounts']){
 }
 console.log('账户用量：采集中保留旧数据，完成后统一替换，两个账户页通过');
 
+// 供应商失败不能替换成功数据或推进额度日期；再次点击成功后解除错误和忙状态。
+for(const page of ['accounts','other_accounts']){
+ const board=boot({page});await flush();
+ const oldAt='2026-10-14T01:00:00Z',newAt='2026-10-14T02:00:00Z';
+ const result=(revision,state,name,remaining,at)=>({context:'usage-recovery',revision,reset:true,data:{view:page,
+  accounts:[{id:'one',provider_id:'minimax',display_name:name,updated_at:at,observed_at:at,
+   usage:{used:100-remaining,limit:100,remaining,unit:'%',observed_at:at}}],
+  status:{snapshot:{state,refreshing:false,updated_at:at}}}});
+ board.requests[0].resolve(result('old','ready','成功旧数据',80,oldAt));await flush();
+ board.controls.get('refresh-usage').click();await flush();
+ const calls=board.requests.length;
+ board.controls.get('refresh-usage').click();await flush();assert.equal(board.requests.length,calls);
+ board.requests.at(-1).resolve(result('failed','stale','失败中间数据',0,newAt));await flush();
+ assert.match(board.root.innerHTML,/用量刷新失败，已保留原数据/);
+ assert.match(board.root.innerHTML,/成功旧数据/);assert.doesNotMatch(board.root.innerHTML,/失败中间数据|刷新中\.\.\./);
+ assert.equal(board.fields.s.data.accounts[0].usage.remaining,80);
+ assert.equal(board.fields.s.data.accounts[0].updated_at,oldAt);
+ assert.equal(board.fields.s.usageRefreshing,false);
+ board.controls.get('refresh-usage').click();await flush();
+ assert.equal(JSON.parse(board.requests.at(-1).options.body).arguments.refresh,true);
+ board.requests.at(-1).resolve(result('recovered','ready','恢复新数据',60,newAt));await flush();
+ assert.match(board.root.innerHTML,/恢复新数据/);assert.doesNotMatch(board.root.innerHTML,/用量刷新失败|成功旧数据|刷新中\.\.\./);
+ assert.equal(board.fields.s.data.accounts[0].usage.remaining,60);
+ assert.equal(board.fields.s.data.accounts[0].updated_at,newAt);
+ assert.equal(board.fields.s.usageRefreshing,false);
+}
+console.log('账户用量可靠性：重复点击互斥、失败保留额度与日期、再次成功恢复，两个账户页通过');
+
 
 // 原生入口会主动推送首屏结果，即使页面自主 tools/call 仍在等待也必须显示。
 const pushed=boot({embedded:true});await flush();await pushed.reply(pushed.messages[0],{});assert.match(pushed.root.innerHTML,/正在读取/);

@@ -81,6 +81,18 @@ class AccountUsage:
         except (TypeError, ValueError):
             return False
 
+    @staticmethod
+    def _valid_snapshot(snapshot):
+        """刷新结果和持久化缓存共用同一份最小快照契约。"""
+        usage = snapshot.get('usage') if isinstance(snapshot, dict) else None
+        windows = snapshot.get('usage_windows') if isinstance(snapshot, dict) else None
+        usage_valid = usage is None or isinstance(usage, dict)
+        windows_valid = windows is None or (isinstance(windows, list) and all(
+            isinstance(window, dict) and isinstance(window.get('usage'), dict) for window in windows))
+        has_quota = isinstance(usage, dict) or isinstance(windows, list)
+        return (isinstance(snapshot, dict) and isinstance(snapshot.get('updated_at'), str)
+                and usage_valid and windows_valid and has_quota)
+
     def _load_cache(self):
         if self.cache_path is None:
             return
@@ -93,14 +105,7 @@ class AccountUsage:
                 if not isinstance(entry, dict):
                     continue
                 provider, account_id, credential_hash, snapshot = (entry.get('provider_id'), entry.get('account_id'), entry.get('credential_hash'), entry.get('snapshot'))
-                usage = snapshot.get('usage') if isinstance(snapshot, dict) else None
-                windows = snapshot.get('usage_windows') if isinstance(snapshot, dict) else None
-                usage_valid = usage is None or isinstance(usage, dict)
-                windows_valid = windows is None or (isinstance(windows, list) and all(
-                    isinstance(window, dict) and isinstance(window.get('usage'), dict) for window in windows))
-                has_quota = isinstance(usage, dict) or isinstance(windows, list)
-                valid_snapshot = isinstance(snapshot, dict) and isinstance(snapshot.get('updated_at'), str) and usage_valid and windows_valid and has_quota
-                if provider in ('minimax', 'bigmodel') and isinstance(account_id, str) and re.fullmatch(r'[0-9a-f]{64}', str(credential_hash)) and valid_snapshot:
+                if provider in ('minimax', 'bigmodel') and isinstance(account_id, str) and re.fullmatch(r'[0-9a-f]{64}', str(credential_hash)) and self._valid_snapshot(snapshot):
                     self.snapshots[(provider, account_id, credential_hash)] = snapshot
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # A runtime cache is expendable. Corruption must never block page reads.
@@ -151,6 +156,29 @@ class AccountUsage:
                 return {}
             return deepcopy(previous)
 
+    def _failed_result(self, binding, account, checked, code, remember=True):
+        """在受控失败中保留同一绑定的最后成功快照。"""
+        with self.lock:
+            previous = self.snapshots.get(binding, {})
+            # 人工登记的更新数据优先于进程里更早的成功快照。
+            if previous and self._is_catalog_newer(account, previous):
+                previous = {}
+            result = {**deepcopy(previous), 'usage_refresh': {
+                'state': 'failed',
+                'observed_at': checked,
+                'message': MESSAGES.get(code, MESSAGES['provider_unavailable']),
+                'code': code,
+            }}
+            if code == 'auth_rejected':
+                result['api_auth'] = {
+                    'status': 'rejected',
+                    'source': BIGMODEL_ENDPOINT if binding[0] == 'bigmodel' else ENDPOINT,
+                    'observed_at': checked,
+                }
+            if remember:
+                self._remember(binding, result)
+        return result
+
     def refresh(self, account):
         """返回用量覆盖字段，失败不清空上次成功的额度或伪造新的用量时间。"""
         credential = account.get('usage_credential_id')
@@ -165,37 +193,40 @@ class AccountUsage:
                 future = Future()
                 self.inflight[binding] = future
         if not owner:
-            return deepcopy(future.result(timeout=20))
+            try:
+                return deepcopy(future.result(timeout=20))
+            except Exception:
+                # 等待者不能取消 owner，也不能把自身超时写入共享缓存。
+                return self._failed_result(
+                    binding, account, datetime.now(timezone.utc).isoformat(),
+                    'provider_unavailable', remember=False)
         try:
             try:
                 response = (self.bigmodel_fetcher if provider=='bigmodel' else self.fetcher)(credential)
             except Exception:
                 response = {'ok': False, 'code': 'provider_unavailable'}
             checked = datetime.now(timezone.utc).isoformat()
-            with self.lock:
-                if response.get('ok') is True:
+            if not isinstance(response, dict) or type(response.get('ok')) is not bool:
+                response = {'ok': False, 'code': 'invalid_response'}
+            elif response['ok'] and not self._valid_snapshot(response.get('snapshot')):
+                response = {'ok': False, 'code': 'invalid_response'}
+            if response.get('ok') is True:
+                with self.lock:
                     snapshot = deepcopy(response['snapshot'])
                     result = {**snapshot, 'usage_refresh': {'state': 'ok', 'observed_at': checked}}
                     self._remember(binding, result)
                     self._save_cache()
-                else:
-                    previous = self.snapshots.get(binding, {})
-                    # 人工登记的更新数据优先于进程里更早的成功快照。
-                    if previous and self._is_catalog_newer(account, previous):
-                        previous = {}
-                    code = response.get('code')
-                    result = {**deepcopy(previous), 'usage_refresh': {'state': 'failed', 'observed_at': checked,
-                        'message': MESSAGES.get(code, MESSAGES['provider_unavailable'])}}
-                    if code == 'auth_rejected':
-                        result['api_auth'] = {'status': 'rejected', 'source': BIGMODEL_ENDPOINT if provider=='bigmodel' else ENDPOINT, 'observed_at': checked}
-                    result['usage_refresh']['code'] = code or 'provider_unavailable'
-                    self._remember(binding, result)
+            else:
+                code = response.get('code')
+                result = self._failed_result(
+                    binding, account, checked, code or 'provider_unavailable')
             future.set_result(deepcopy(result))
             return result
         except Exception:
             # 意外失败也不允许带出异常中的秘密值。
-            result = {'usage_refresh': {'state': 'failed', 'observed_at': datetime.now(timezone.utc).isoformat(),
-                       'message': MESSAGES['provider_unavailable']}}
+            result = self._failed_result(
+                binding, account, datetime.now(timezone.utc).isoformat(),
+                'provider_unavailable', remember=False)
             future.set_result(result)
             return result
         finally:

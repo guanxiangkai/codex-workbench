@@ -17,6 +17,8 @@ jobs:
       PATCH_SHA256: e1e93cd9e4078d2cd26ffd6346661e8b04fc8a3768f1c6e7c5dacd85a211ac32
       TARGET: x86_64-apple-darwin
       CARGO_INCREMENTAL: '0'
+      # Match the pinned upstream macOS release workflow for native submodules.
+      CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
     steps:
       - name: Check out the exact upstream source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

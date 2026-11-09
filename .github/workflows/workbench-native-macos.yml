@@ -57,26 +57,36 @@ jobs:
           set -euo pipefail
           cp Cargo.lock "$RUNNER_TEMP/reviewed-Cargo.lock"
           cargo metadata --format-version 1 --filter-platform "$TARGET" > /dev/null
-          python3 - "$RUNNER_TEMP/reviewed-Cargo.lock" Cargo.lock <<'PY'
-          import difflib
+          python3 - "$RUNNER_TEMP/reviewed-Cargo.lock" Cargo.lock "$CLI_VERSION" <<'PY'
           from pathlib import Path
           import sys
           import tomllib
 
-          reviewed, resolved = (Path(p).read_text() for p in sys.argv[1:])
-          print("".join(difflib.unified_diff(
-              reviewed.splitlines(keepends=True), resolved.splitlines(keepends=True),
-              fromfile="reviewed-Cargo.lock", tofile="resolved-Cargo.lock",
-          ))[:12000])
-          def identities(lock):
+          reviewed, resolved = (tomllib.loads(Path(p).read_text()) for p in sys.argv[1:3])
+          release = sys.argv[3]
+          # The tagged workspace manifest has the release version, while its
+          # lockfile still uses 0.0.0 for local workspace packages.
+          normalized = []
+          for item in reviewed["package"]:
+              if "source" not in item and "checksum" not in item and item["version"] == "0.0.0":
+                  item["version"] = release
+                  normalized.append(item["name"])
+          if len(normalized) != 171:
+              raise SystemExit(f"Unexpected workspace version placeholders: {len(normalized)}")
+
+          def packages(lock):
               return {
-                  (p["name"], p["version"], p.get("source"), p.get("checksum"))
-                  for p in tomllib.loads(lock)["package"]
+                  (p["name"], p["version"], p.get("source"), p.get("checksum")):
+                  sorted(p.get("dependencies", ()))
+                  for p in lock["package"]
               }
-          added = identities(resolved) - identities(reviewed)
-          if added:
-              raise SystemExit(f"Unreviewed dependency identities: {sorted(map(str, added))}")
-          print("No new dependency names, versions, sources, or checksums.")
+          expected, actual = packages(reviewed), packages(resolved)
+          if expected != actual:
+              added = sorted(map(str, actual.keys() - expected.keys()))
+              removed = sorted(map(str, expected.keys() - actual.keys()))
+              edges = sorted(str(k) for k in expected.keys() & actual.keys() if expected[k] != actual[k])
+              raise SystemExit(f"Unexpected lockfile change: added={added}; removed={removed}; edges={edges}")
+          print(f"Normalized {len(normalized)} workspace versions; all dependency identities and edges match.")
           PY
           shasum -a 256 "$RUNNER_TEMP/reviewed-Cargo.lock" Cargo.lock
       - name: Check that a turn keeps its account and the next turn switches

@@ -53,6 +53,11 @@ jobs:
       - name: Resolve the lockfile without changing pinned dependencies
         working-directory: codex-rs
         shell: bash
+        timeout-minutes: 25
+        env:
+          GIT_HTTP_LOW_SPEED_LIMIT: '1'
+          GIT_HTTP_LOW_SPEED_TIME: '120'
+          CARGO_HTTP_TIMEOUT: '120'
         run: |
           set -euo pipefail
           cp Cargo.lock "$RUNNER_TEMP/reviewed-Cargo.lock"

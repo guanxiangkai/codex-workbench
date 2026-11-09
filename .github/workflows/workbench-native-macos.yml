@@ -50,6 +50,35 @@ jobs:
         uses: ./.github/actions/setup-rusty-v8
         with:
           target: x86_64-apple-darwin
+      - name: Resolve the lockfile without changing pinned dependencies
+        working-directory: codex-rs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp Cargo.lock "$RUNNER_TEMP/reviewed-Cargo.lock"
+          cargo metadata --format-version 1 --filter-platform "$TARGET" > /dev/null
+          python3 - "$RUNNER_TEMP/reviewed-Cargo.lock" Cargo.lock <<'PY'
+          import difflib
+          from pathlib import Path
+          import sys
+          import tomllib
+
+          reviewed, resolved = (Path(p).read_text() for p in sys.argv[1:])
+          print("".join(difflib.unified_diff(
+              reviewed.splitlines(keepends=True), resolved.splitlines(keepends=True),
+              fromfile="reviewed-Cargo.lock", tofile="resolved-Cargo.lock",
+          ))[:12000])
+          def identities(lock):
+              return {
+                  (p["name"], p["version"], p.get("source"), p.get("checksum"))
+                  for p in tomllib.loads(lock)["package"]
+              }
+          added = identities(resolved) - identities(reviewed)
+          if added:
+              raise SystemExit(f"Unreviewed dependency identities: {sorted(map(str, added))}")
+          print("No new dependency names, versions, sources, or checksums.")
+          PY
+          shasum -a 256 "$RUNNER_TEMP/reviewed-Cargo.lock" Cargo.lock
       - name: Check that a turn keeps its account and the next turn switches
         working-directory: codex-rs
         shell: bash

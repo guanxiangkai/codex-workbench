@@ -115,7 +115,7 @@ Upstream: openai/codex c40729ea5cf8e947481b130c59807273eda2f8e9 (rust-v0.167.0-a
 +                last_inference_tools: Arc::clone(&self.state.last_inference_tools),
 +            }),
 +            agent_identity_policy: AgentIdentityAuthPolicy::JwtOnly,
-+            prompt_cache_key_policy: self.prompt_cache_key_policy,
++            prompt_cache_key_policy: self.prompt_cache_key_policy.clone(),
 +            session_id_override: self.session_id_override.clone(),
 +            codex_responses_headers: self.codex_responses_headers.clone(),
 +            event_sender: self.event_sender.clone(),
@@ -474,6 +474,15 @@ Upstream: openai/codex c40729ea5cf8e947481b130c59807273eda2f8e9 (rust-v0.167.0-a
          return None;
      }
      let mut state = sess.state.lock().await;
+@@ -176,7 +179,7 @@
+     sess: &Session,
+     step_context: &StepContext,
+ ) -> Option<Box<BackgroundCompactionCandidate>> {
+-    if !enabled(&step_context.turn) {
++    if !enabled(sess, &step_context.turn) {
+         return None;
+     }
+     let result = {
 --- a/core/src/session/turn.rs
 +++ b/core/src/session/turn.rs
 @@ -5,6 +5,7 @@

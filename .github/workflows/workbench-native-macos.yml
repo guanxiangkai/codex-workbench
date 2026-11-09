@@ -14,7 +14,7 @@ jobs:
     env:
       CLI_VERSION: 0.167.0-alpha.3.2
       CODEX_SOURCE: c40729ea5cf8e947481b130c59807273eda2f8e9
-      PATCH_SHA256: e1e93cd9e4078d2cd26ffd6346661e8b04fc8a3768f1c6e7c5dacd85a211ac32
+      PATCH_SHA256: 5a71bce953a2ef6f8d644ea97383277040b033aef20274f8bcfeab431f3250db
       TARGET: x86_64-apple-darwin
       CARGO_INCREMENTAL: '0'
       # Match the pinned upstream macOS release workflow for native submodules.

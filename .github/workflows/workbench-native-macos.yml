@@ -1,0 +1,89 @@
+name: Workbench native CLI candidate
+
+on:
+  push:
+    branches: [ci/workbench-native-0.167.0-alpha.3.2]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    env:
+      CLI_VERSION: 0.167.0-alpha.3.2
+      CODEX_SOURCE: c40729ea5cf8e947481b130c59807273eda2f8e9
+      PATCH_SHA256: e1e93cd9e4078d2cd26ffd6346661e8b04fc8a3768f1c6e7c5dacd85a211ac32
+      TARGET: x86_64-apple-darwin
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Check out the exact upstream source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          repository: openai/codex
+          ref: c40729ea5cf8e947481b130c59807273eda2f8e9
+          persist-credentials: false
+      - name: Check out the Workbench patch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          path: workbench-patch
+          persist-credentials: false
+      - name: Verify and apply the reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          test "$(git rev-parse HEAD)" = "$CODEX_SOURCE"
+          patch="$PWD/workbench-patch/native-runtime/native-account-selection.patch"
+          printf '%s  %s\n' "$PATCH_SHA256" "$patch" | shasum -a 256 -c
+          git apply --check --whitespace=error -p1 --directory=codex-rs "$patch"
+          git apply --whitespace=error -p1 --directory=codex-rs "$patch"
+          df -h .
+      - name: Set up the upstream Rust toolchain
+        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          targets: x86_64-apple-darwin
+      - name: Verify upstream V8 build inputs
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: x86_64-apple-darwin
+      - name: Check that a turn keeps its account and the next turn switches
+        working-directory: codex-rs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo test --locked --target "$TARGET" --profile dev-small -p codex-core --lib \
+            workbench_default_switch_uses_new_token_on_the_same_thread \
+            | tee "$RUNNER_TEMP/routing-test.log"
+          grep -F 'workbench_default_switch_uses_new_token_on_the_same_thread ... ok' "$RUNNER_TEMP/routing-test.log"
+      - name: Build and identify the candidate
+        working-directory: codex-rs
+        shell: bash
+        run: |
+          set -euo pipefail
+          export STABLE_GIT_COMMIT="$CODEX_SOURCE"
+          cargo build --locked --target "$TARGET" --profile dev-small -p codex-cli --bin codex
+          candidate="target/$TARGET/dev-small/codex"
+          test "$(lipo -archs "$candidate")" = x86_64
+          test "$("$candidate" --version)" = "codex-cli $CLI_VERSION"
+          staging="$(mktemp -d)"
+          cp "$candidate" "$staging/codex"
+          cp "$RUNNER_TEMP/routing-test.log" "$staging/"
+          {
+            printf 'source=%s\npatch_sha256=%s\nversion=%s\ntarget=%s\n' \
+              "$CODEX_SOURCE" "$PATCH_SHA256" "$CLI_VERSION" "$TARGET"
+            shasum -a 256 Cargo.lock
+            rustc --version --verbose
+          } > "$staging/build-info.txt"
+          (cd "$staging" && shasum -a 256 codex > codex.sha256)
+          tar -czf "$RUNNER_TEMP/workbench-native-candidate.tar.gz" -C "$staging" \
+            codex codex.sha256 build-info.txt routing-test.log
+      - name: Retain the candidate for verification
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: workbench-native-0.167.0-alpha.3.2-x86_64
+          path: ${{ runner.temp }}/workbench-native-candidate.tar.gz
+          retention-days: 3
+          if-no-files-found: error

@@ -1,0 +1,1021 @@
+Subject: Bind direct Codex model requests to the Workbench default account
+Upstream: openai/codex c40729ea5cf8e947481b130c59807273eda2f8e9 (rust-v0.167.0-alpha.3.2)
+
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -3056,6 +3056,7 @@
+  "sha1 0.10.6",
+  "shlex",
+  "similar",
++ "sqlx",
+  "tempfile",
+  "test-case",
+  "test-log",
+--- a/core/Cargo.toml
++++ b/core/Cargo.toml
+@@ -116,6 +116,7 @@
+ sha1 = { workspace = true }
+ shlex = { workspace = true }
+ similar = { workspace = true }
++sqlx = { workspace = true }
+ tempfile = { workspace = true }
+ thiserror = { workspace = true }
+ tokio = { workspace = true, features = [
+--- a/core/src/client.rs
++++ b/core/src/client.rs
+@@ -227,7 +227,7 @@
+     agent_identity_session_fallback: AgentIdentitySessionFallback,
+     cached_websocket_session: StdMutex<WebsocketSession>,
+     /// Last full tool list used for sampling, retained across turns and connection resets.
+-    last_inference_tools: StdMutex<Option<Arc<[ToolSpec]>>>,
++    last_inference_tools: Arc<StdMutex<Option<Arc<[ToolSpec]>>>>,
+ }
+ 
+ enum ClientRouting {
+@@ -310,6 +310,7 @@
+     // Resolved once when the session is created, like other session feature flags.
+     api_key_cyber_access_programs: cyber_access_program::ApiKeyCyberAccessPrograms,
+     runtime_auth: Option<(Arc<RuntimeAuthManager>, RuntimeAuthMode)>,
++    workbench_account_pinned: bool,
+ }
+ 
+ /// A turn-scoped streaming session created from a [`ModelClient`].
+@@ -635,7 +636,7 @@
+                 disable_websockets: AtomicBool::new(false),
+                 agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
+                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
+-                last_inference_tools: StdMutex::new(None),
++                last_inference_tools: Arc::default(),
+             }),
+             agent_identity_policy,
+             prompt_cache_key_policy: PromptCacheKey::default(),
+@@ -644,6 +645,7 @@
+             event_sender: None,
+             http_client_factory,
+             runtime_auth: None,
++            workbench_account_pinned: false,
+             restored_history: false,
+             request_contributors,
+             executed_tool_calls: None,
+@@ -756,6 +758,85 @@
+             websocket_session,
+             turn_state: Arc::new(OnceLock::new()),
+         }
++    }
++
++    /// Resolve the workbench account once at the request boundary.
++    ///
++    /// The returned client owns a fresh provider snapshot; callers must retain it for the
++    /// complete turn so a default-account change cannot affect an in-flight request.
++    pub(crate) async fn request_snapshot(&self) -> Result<Self> {
++        if self.runtime_auth.is_some() {
++            return Ok(self.clone());
++        }
++        let Some(db) = crate::workbench_accounts::configured_db(&self.state.provider) else {
++            return Ok(self.clone());
++        };
++        self.request_snapshot_from_db(&db).await
++    }
++
++    async fn request_snapshot_from_db(&self, db: &std::path::Path) -> Result<Self> {
++        if self.workbench_account_pinned {
++            return Ok(self.clone());
++        }
++        let provider =
++            crate::workbench_accounts::selected_provider_from_db(&self.state.provider, db).await?;
++        let http_client_factory = provider.auth_manager().map_or_else(
++            || self.http_client_factory.clone(),
++            |manager| manager.http_client_factory(),
++        );
++        Ok(Self {
++            state: Arc::new(ModelClientState {
++                thread_id: self.state.thread_id.clone(),
++                provider,
++                workspace_routing: self.state.workspace_routing.clone(),
++                auth_env_telemetry: self.state.auth_env_telemetry.clone(),
++                session_source: self.state.session_source.clone(),
++                originator: self.state.originator.clone(),
++                model_verbosity: self.state.model_verbosity.clone(),
++                content_item_kinds_enabled: self.state.content_item_kinds_enabled,
++                reasoning_effort_override_enabled: self.state.reasoning_effort_override_enabled,
++                enable_request_compression: self.state.enable_request_compression,
++                include_timing_metrics: self.state.include_timing_metrics,
++                beta_features_header: self.state.beta_features_header.clone(),
++                concurrent_reasoning_summaries_enabled: self
++                    .state
++                    .concurrent_reasoning_summaries_enabled,
++                output_token_replay_enabled: self.state.output_token_replay_enabled,
++                include_attestation: self.state.include_attestation,
++                attestation_provider: self.state.attestation_provider.clone(),
++                disable_websockets: AtomicBool::new(
++                    self.state.disable_websockets.load(Ordering::Relaxed),
++                ),
++                agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
++                cached_websocket_session: StdMutex::new(WebsocketSession::default()),
++                last_inference_tools: Arc::clone(&self.state.last_inference_tools),
++            }),
++            agent_identity_policy: AgentIdentityAuthPolicy::JwtOnly,
++            prompt_cache_key_policy: self.prompt_cache_key_policy,
++            session_id_override: self.session_id_override.clone(),
++            codex_responses_headers: self.codex_responses_headers.clone(),
++            event_sender: self.event_sender.clone(),
++            http_client_factory,
++            restored_history: self.restored_history,
++            request_contributors: self.request_contributors.clone(),
++            executed_tool_calls: self.executed_tool_calls.clone(),
++            api_key_cyber_access_programs: self.api_key_cyber_access_programs.clone(),
++            runtime_auth: None,
++            workbench_account_pinned: true,
++        })
++    }
++
++    pub(crate) fn uses_workbench_account_selection(&self) -> bool {
++        self.runtime_auth.is_none()
++            && crate::workbench_accounts::configured_db(&self.state.provider).is_some()
++    }
++
++    fn needs_workbench_account_snapshot(&self) -> bool {
++        !self.workbench_account_pinned && self.uses_workbench_account_selection()
++    }
++
++    pub(crate) fn workbench_account_pinned(&self) -> bool {
++        self.workbench_account_pinned
+     }
+ 
+     pub(crate) fn auth_manager(&self) -> Option<Arc<AuthManager>> {
+@@ -1257,8 +1338,12 @@
+                 runtime_id,
+             });
+         }
+-        self.provider_client_setup(routing, &self.state.provider)
+-            .await
++        let routing = if self.workbench_account_pinned {
++            ClientRouting::ConfiguredProvider
++        } else {
++            routing
++        };
++        self.provider_client_setup(routing, &self.state.provider).await
+     }
+ 
+     // Realtime keeps provider auth until its runtime integration lands later in the stack.
+@@ -1394,6 +1479,9 @@
+     }
+ 
+     pub(crate) async fn prewarm_auth(&self) -> Result<()> {
++        if self.needs_workbench_account_snapshot() {
++            return Ok(());
++        }
+         self.current_client_setup(ClientRouting::Workspace)
+             .await
+             .map(|_| ())
+@@ -1548,13 +1636,29 @@
+ 
+ impl Drop for ModelClientSession {
+     fn drop(&mut self) {
+-        let websocket_session = std::mem::take(&mut self.websocket_session);
+-        self.client
+-            .store_cached_websocket_session(websocket_session);
++        if !self.client.workbench_account_pinned() {
++            let websocket_session = std::mem::take(&mut self.websocket_session);
++            self.client
++                .store_cached_websocket_session(websocket_session);
++        }
+     }
+ }
+ 
+ impl ModelClientSession {
++    pub(crate) async fn begin_request_snapshot(&mut self) -> Result<()> {
++        if !self.client.needs_workbench_account_snapshot() {
++            return Ok(());
++        }
++        self.client = self.client.request_snapshot().await?;
++        self.websocket_session = WebsocketSession::default();
++        self.turn_state = Arc::new(OnceLock::new());
++        Ok(())
++    }
++
++    pub(crate) fn request_client(&self) -> &ModelClient {
++        &self.client
++    }
++
+     pub(crate) fn inference_tools_changed(&self, tools: &Arc<[ToolSpec]>) -> bool {
+         let previous = self
+             .client
+@@ -1696,7 +1800,9 @@
+         session_telemetry: &SessionTelemetry,
+         responses_metadata: &CodexResponsesMetadata,
+     ) -> Result<()> {
+-        if !self.client.responses_websocket_enabled() {
++        if self.client.needs_workbench_account_snapshot()
++            || !self.client.responses_websocket_enabled()
++        {
+             return Ok(());
+         }
+         let provider = Arc::clone(&self.client.state.provider);
+@@ -2445,7 +2551,9 @@
+         service_tier: Option<String>,
+         responses_metadata: &CodexResponsesMetadata,
+     ) -> Result<()> {
+-        if !self.client.responses_websocket_enabled() {
++        if self.client.needs_workbench_account_snapshot()
++            || !self.client.responses_websocket_enabled()
++        {
+             return Ok(());
+         }
+         if self.is_websocket_prewarmed().await {
+@@ -2507,6 +2615,7 @@
+         responses_metadata: &CodexResponsesMetadata,
+         inference_trace: &InferenceTraceContext,
+     ) -> Result<ResponseStream> {
++        self.begin_request_snapshot().await?;
+         let wire_api = self.client.state.provider.info().wire_api;
+         match wire_api {
+             WireApi::Responses => {
+--- a/core/src/client_tests.rs
++++ b/core/src/client_tests.rs
+@@ -465,6 +465,97 @@
+     }
+ }
+ 
++#[cfg(unix)]
++#[tokio::test]
++async fn workbench_default_switch_uses_new_token_on_the_same_thread() {
++    use sqlx::SqlitePool;
++    use sqlx::sqlite::SqliteConnectOptions;
++    use std::os::unix::fs::DirBuilderExt;
++
++    async fn request_identity(client: &ModelClient) -> (String, String) {
++        let setup = client
++            .current_client_setup(super::ClientRouting::Workspace)
++            .await
++            .unwrap();
++        let mut headers = http::HeaderMap::new();
++        setup.api_auth.add_auth_headers(&mut headers).unwrap();
++        (
++            headers[http::header::AUTHORIZATION].to_str().unwrap().to_string(),
++            headers["chatgpt-account-id"].to_str().unwrap().to_string(),
++        )
++    }
++
++    let temp = TempDir::new().unwrap();
++    let root = temp.path().canonicalize().unwrap();
++    let desktop_home = root.join("desktop");
++    std::fs::create_dir(&desktop_home).unwrap();
++    let manager = AuthManager::from_auth_for_testing_with_home(
++        CodexAuth::create_dummy_chatgpt_auth_for_testing(),
++        desktop_home,
++    );
++    let mut client = test_model_client(SessionSource::Cli);
++    Arc::get_mut(&mut client.state).unwrap().provider = create_model_provider(
++        ModelProviderInfo::create_openai_provider(None),
++        Some(manager),
++    );
++
++    let db = root.join("workbench.sqlite3");
++    let pool = SqlitePool::connect_with(
++        SqliteConnectOptions::new().filename(&db).create_if_missing(true),
++    )
++    .await
++    .unwrap();
++    for statement in [
++        "CREATE TABLE preferences(singleton INTEGER PRIMARY KEY, default_execution_account_id TEXT)",
++        "CREATE TABLE execution_accounts(id TEXT PRIMARY KEY, codex_home TEXT, subject_id TEXT)",
++        "INSERT INTO preferences VALUES (1, 'a')",
++    ] {
++        sqlx::query(statement).execute(&pool).await.unwrap();
++    }
++    for (id, subject, token) in [
++        ("a", "workbench-account-a", "workbench-token-a"),
++        ("b", "workbench-account-b", "workbench-token-b"),
++    ] {
++        let home = root.join(id);
++        std::fs::DirBuilder::new().mode(0o700).create(&home).unwrap();
++        // The fixture has no live credentials. Only the authorization headers are inspected.
++        let auth = json!({
++            "auth_mode": AuthMode::Chatgpt,
++            "tokens": {
++                "id_token": "e30.e30.fixture",
++                "access_token": token,
++                "refresh_token": "unused-fixture",
++                "account_id": subject,
++            },
++            "last_refresh": chrono::Utc::now(),
++        });
++        std::fs::write(home.join("auth.json"), auth.to_string()).unwrap();
++        sqlx::query("INSERT INTO execution_accounts VALUES (?, ?, ?)")
++            .bind(id)
++            .bind(home.to_str().unwrap())
++            .bind(subject)
++            .execute(&pool)
++            .await
++            .unwrap();
++    }
++
++    let first_turn = client.request_snapshot_from_db(&db).await.unwrap();
++    let a = ("Bearer workbench-token-a".into(), "workbench-account-a".into());
++    let b = ("Bearer workbench-token-b".into(), "workbench-account-b".into());
++    assert_eq!(request_identity(&first_turn).await, a);
++
++    sqlx::query("UPDATE preferences SET default_execution_account_id='b' WHERE singleton=1")
++        .execute(&pool)
++        .await
++        .unwrap();
++    let still_first_turn = first_turn.request_snapshot_from_db(&db).await.unwrap();
++    let next_turn = client.request_snapshot_from_db(&db).await.unwrap();
++    assert_eq!(still_first_turn.state.thread_id, client.state.thread_id);
++    assert_eq!(next_turn.state.thread_id, client.state.thread_id);
++    assert_eq!(request_identity(&still_first_turn).await, a);
++    assert_eq!(request_identity(&next_turn).await, b);
++}
++
+ fn test_responses_metadata_for_client(
+     client: &ModelClient,
+     turn_id: Option<&str>,
+--- a/core/src/compact.rs
++++ b/core/src/compact.rs
+@@ -4,6 +4,7 @@
+ use std::time::Instant;
+ 
+ use crate::Prompt;
++use crate::client::ModelClient;
+ use crate::client::ModelClientSession;
+ use crate::client_common::ResponseEvent;
+ use crate::context::BaseInstructionsFragment;
+@@ -116,6 +117,7 @@
+ 
+ pub(crate) async fn run_inline_auto_compact_task(
+     sess: Arc<Session>,
++    model_client: &ModelClient,
+     turn_context: Arc<TurnContext>,
+     replacement_step_context: Arc<StepContext>,
+     world_state: Arc<WorldState>,
+@@ -136,6 +138,7 @@
+ 
+     run_compact_task_inner(
+         sess,
++        model_client,
+         turn_context,
+         replacement_step_context,
+         input,
+@@ -157,8 +160,10 @@
+     world_state: Arc<WorldState>,
+     input: Vec<UserInput>,
+ ) -> CodexResult<()> {
++    let model_client = sess.services.model_client.request_snapshot().await?;
+     run_compact_task_inner(
+         sess.clone(),
++        &model_client,
+         Arc::clone(&step_context.turn),
+         step_context,
+         input,
+@@ -176,6 +181,7 @@
+ 
+ async fn run_compact_task_inner(
+     sess: Arc<Session>,
++    model_client: &ModelClient,
+     turn_context: Arc<TurnContext>,
+     replacement_step_context: Arc<StepContext>,
+     input: Vec<UserInput>,
+@@ -212,6 +218,7 @@
+     }
+     let result = run_compact_task_inner_impl(
+         Arc::clone(&sess),
++        model_client,
+         Arc::clone(&turn_context),
+         replacement_step_context,
+         input,
+@@ -262,6 +269,7 @@
+ 
+ async fn run_compact_task_inner_impl(
+     sess: Arc<Session>,
++    model_client: &ModelClient,
+     turn_context: Arc<TurnContext>,
+     replacement_step_context: Arc<StepContext>,
+     input: Vec<UserInput>,
+@@ -294,7 +302,7 @@
+     let mut retries = 0;
+     // Reuse one client session so turn-scoped state (sticky routing and websocket incremental
+     // request tracking) survives retries within this compact turn.
+-    let mut client_session = sess.services.model_client.new_session();
++    let mut client_session = model_client.new_session();
+     let compaction_response = loop {
+         // Clone is required because of the loop
+         let mut turn_input = history
+--- a/core/src/compact_remote_v2.rs
++++ b/core/src/compact_remote_v2.rs
+@@ -150,11 +150,19 @@
+         CompactionImplementation::ResponsesCompactionV2,
+         CompactionPhase::StandaloneTurn,
+     );
++    let mut workbench_client_session =
++        if sess.services.model_client.uses_workbench_account_selection() {
++            let mut client_session = sess.services.model_client.new_session();
++            client_session.begin_request_snapshot().await?;
++            Some(client_session)
++        } else {
++            None
++        };
+     run_remote_compact_task_inner(
+         &sess,
+         &step_context,
+         &step_context,
+-        /*client_session*/ None,
++        workbench_client_session.as_mut(),
+         world_state,
+         compaction_metadata,
+         /*candidate*/ None,
+--- a/core/src/lib.rs
++++ b/core/src/lib.rs
+@@ -242,6 +242,7 @@
+ mod tasks;
+ mod user_shell_command;
+ pub mod util;
++mod workbench_accounts;
+ 
+ pub use attestation::AttestationContext;
+ pub use attestation::AttestationProvider;
+--- a/core/src/session/async_compaction.rs
++++ b/core/src/session/async_compaction.rs
+@@ -38,11 +38,14 @@
+     shutdown_cancellation: CancellationToken,
+ }
+ 
+-pub(super) fn enabled(turn_context: &TurnContext) -> bool {
+-    turn_context
+-        .config
+-        .features
+-        .enabled(Feature::AsyncCompaction)
++pub(super) fn enabled(sess: &Session, turn_context: &TurnContext) -> bool {
++    // Background requests use the desktop-wide client. Account-bound turns
++    // compact in the foreground with their own credentials instead.
++    !sess.services.model_client.uses_workbench_account_selection()
++        && turn_context
++            .config
++            .features
++            .enabled(Feature::AsyncCompaction)
+         && !turn_context.config.features.enabled(Feature::TokenBudget)
+         && matches!(
+             turn_context.provider.capabilities().remote_compaction,
+@@ -64,7 +67,7 @@
+     if matches!(phase, CompactionPhase::PreTurn) && turn_state.is_none() {
+         return;
+     }
+-    if !enabled(turn_context)
++    if !enabled(sess, turn_context)
+         || token_status.token_limit_reached
+         || (matches!(phase, CompactionPhase::PostTurn)
+             && token_status.turn_end_compaction_threshold_reached)
+@@ -155,7 +158,7 @@
+     sess: &Session,
+     turn_context: &TurnContext,
+ ) -> Option<Box<BackgroundCompactionCandidate>> {
+-    if !enabled(turn_context) {
++    if !enabled(sess, turn_context) {
+         return None;
+     }
+     let mut state = sess.state.lock().await;
+--- a/core/src/session/turn.rs
++++ b/core/src/session/turn.rs
+@@ -5,6 +5,7 @@
+ use std::time::Duration;
+ use std::time::Instant;
+ 
++use crate::client::ModelClient;
+ use crate::client::ModelClientSession;
+ use crate::client_common::Prompt;
+ use crate::client_common::ResponseEvent;
+@@ -180,6 +181,7 @@
+     mut input: Vec<TurnInput>,
+     mcp_startup_requirements: &mut McpStartupRequirements,
+     prewarmed_client_session: Option<ModelClientSession>,
++    workbench_request_client: &mut Option<ModelClient>,
+     cancellation_token: CancellationToken,
+ ) -> CodexResult<Option<String>> {
+     if input.iter().any(turn_input_has_uploaded_audio_file) {
+@@ -209,8 +211,26 @@
+     // Record results from hooks that finished after the previous turn before this turn's user prompt.
+     drain_async_hook_results(&sess, &turn_context, /*before_user_prompt*/ true).await;
+ 
+-    let mut client_session =
+-        prewarmed_client_session.unwrap_or_else(|| sess.services.model_client.new_session());
++    let mut client_session = prewarmed_client_session.unwrap_or_else(|| {
++        workbench_request_client
++            .as_ref()
++            .unwrap_or(&sess.services.model_client)
++            .new_session()
++    });
++    if let Err(error) = client_session.begin_request_snapshot().await {
++        let _ = run_hooks_and_record_inputs(
++            &sess,
++            &turn_context,
++            &turn_context.capture_current_model_info(),
++            &input,
++            PersistContext::TurnStart,
++        )
++        .await?;
++        return Err(error);
++    }
++    if client_session.request_client().workbench_account_pinned() {
++        *workbench_request_client = Some(client_session.request_client().clone());
++    }
+     // TODO(ccunningham): Pre-turn compaction runs before context updates and the
+     // new user message are recorded. Estimate pending incoming items (context
+     // diffs/full reinjection + user input) and trigger compaction preemptively
+@@ -451,7 +471,7 @@
+         .await;
+     }
+ 
+-    if super::async_compaction::enabled(&turn_context) {
++    if super::async_compaction::enabled(&sess, &turn_context) {
+         let token_status = super::context_window::context_window_token_status(
+             sess.as_ref(),
+             turn_context.as_ref(),
+@@ -1684,6 +1704,7 @@
+             );
+             run_inline_auto_compact_task(
+                 Arc::clone(sess),
++                client_session.request_client(),
+                 Arc::clone(turn_context),
+                 replacement_step_context,
+                 world_state,
+--- a/core/src/tasks/regular.rs
++++ b/core/src/tasks/regular.rs
+@@ -112,6 +112,7 @@
+         let mut next_input = input;
+         let mut prewarmed_client_session = prewarmed_client_session;
+         let mut mcp_startup_requirements = McpStartupRequirements::default();
++        let mut workbench_request_client = None;
+         loop {
+             let last_agent_message = run_turn(
+                 Arc::clone(&sess),
+@@ -119,6 +120,7 @@
+                 next_input,
+                 &mut mcp_startup_requirements,
+                 prewarmed_client_session.take(),
++                &mut workbench_request_client,
+                 cancellation_token.child_token(),
+             )
+             .instrument(run_turn_span.clone())
+--- /dev/null
++++ b/core/src/workbench_accounts.rs
+@@ -0,0 +1,283 @@
++use codex_model_provider::CHATGPT_CODEX_BASE_URL;
++use codex_model_provider::SharedModelProvider;
++use codex_model_provider::create_model_provider;
++use codex_protocol::config_types::ForcedLoginMethod;
++use sqlx::Row;
++use sqlx::sqlite::SqliteConnectOptions;
++use sqlx::sqlite::SqlitePoolOptions;
++use std::path::Path;
++use std::path::PathBuf;
++
++const ACCOUNT_DB_ENV: &str = "CODEX_WORKBENCH_ACCOUNT_DB";
++
++#[derive(Debug, PartialEq, Eq)]
++struct Selection {
++    account_id: String,
++    codex_home: PathBuf,
++    subject_id: String,
++}
++
++pub(crate) fn configured_db(base: &SharedModelProvider) -> Option<PathBuf> {
++    let info = base.info();
++    let is_supported = info.is_openai()
++        && info.requires_openai_auth
++        && info.base_url.as_deref().is_none_or(|url| {
++            url.trim_end_matches('/') == CHATGPT_CODEX_BASE_URL
++        })
++        && info.env_key.is_none()
++        && info.experimental_bearer_token.is_none()
++        && info.auth.is_none()
++        && info.aws.is_none()
++        && base.runtime_auth().is_none();
++    if !is_supported {
++        return None;
++    }
++    std::env::var_os(ACCOUNT_DB_ENV).map(PathBuf::from)
++}
++
++pub(crate) async fn selected_provider_from_db(
++    base: &SharedModelProvider,
++    db: &Path,
++) -> Result<SharedModelProvider, std::io::Error> {
++    let Some(manager) = base.auth_manager() else {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::InvalidInput,
++            "workbench account selection requires an auth manager",
++        ));
++    };
++    if !manager.is_login_method_allowed(ForcedLoginMethod::Chatgpt)
++        || manager.is_workload_identity_selected()
++        || manager.has_external_auth()
++    {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::PermissionDenied,
++            "workbench account selection requires managed ChatGPT login",
++        ));
++    }
++    validate_local_file(db, "account database", false)?;
++    let current_home = canonical_local_path(&manager.runtime_config().codex_home, "current home")?;
++    let Selection {
++        account_id,
++        codex_home: home,
++        subject_id: subject,
++    } = read_selection(db, &current_home).await?;
++    let selected_home = if account_id == "current" {
++        let selected = home;
++        if selected != current_home {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "current account home does not match runtime home",
++            ));
++        }
++        validate_auth_file(&selected)?;
++        selected
++    } else {
++        let selected = validate_isolated_home(&home)?;
++        if selected == current_home
++            || selected.starts_with(&current_home)
++            || current_home.starts_with(&selected)
++        {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "isolated account home overlaps current home",
++            ));
++        }
++        selected
++    };
++    let child = manager
++        .account_manager_for_home(selected_home, &subject)
++        .await?;
++    if let Some(receipts) = std::env::var_os("CODEX_WORKBENCH_RUNTIME_RECEIPTS") {
++        // Readiness is separate from request authentication: a status-write failure
++        // must not make an authenticated model request switch identity or fail.
++        if let Err(error) = write_runtime_receipt(Path::new(&receipts), db, &account_id) {
++            tracing::warn!(%error, "could not publish workbench account runtime receipt");
++        }
++    }
++    Ok(create_model_provider(base.info().clone(), Some(child)))
++}
++
++fn write_runtime_receipt(directory: &Path, db: &Path, account_id: &str) -> std::io::Result<()> {
++    let metadata = std::fs::symlink_metadata(directory)?;
++    if !metadata.is_dir() || metadata.file_type().is_symlink() {
++        return Err(std::io::Error::other(
++            "runtime receipt directory must be an ordinary directory",
++        ));
++    }
++    let directory = canonical_local_path(directory, "runtime receipt directory")?;
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::MetadataExt;
++        if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o777 != 0o700 {
++            return Err(std::io::Error::other(
++                "runtime receipt directory must be owner-only",
++            ));
++        }
++    }
++    let pid = std::process::id();
++    #[cfg(unix)]
++    let ppid = unsafe { libc::getppid() };
++    #[cfg(not(unix))]
++    let ppid = 0;
++    let observed_at_ms = std::time::SystemTime::now()
++        .duration_since(std::time::UNIX_EPOCH)
++        .map_err(std::io::Error::other)?
++        .as_millis() as u64;
++    let receipt = serde_json::json!({
++        "schema": 1,
++        "mode": "request_account_snapshot",
++        "pid": pid,
++        "ppid": ppid,
++        "executable": std::fs::canonicalize(std::env::current_exe()?)?,
++        "database": std::fs::canonicalize(db)?,
++        "observed_at_ms": observed_at_ms,
++        "account_id": account_id,
++    });
++    let mut temporary = tempfile::NamedTempFile::new_in(&directory)?;
++    serde_json::to_writer(temporary.as_file_mut(), &receipt).map_err(std::io::Error::other)?;
++    temporary.as_file().sync_all()?;
++    temporary
++        .persist(directory.join(format!("{pid}.json")))
++        .map_err(|error| error.error)?;
++    Ok(())
++}
++
++async fn read_selection(db: &Path, current_home: &Path) -> Result<Selection, std::io::Error> {
++    let options = SqliteConnectOptions::new()
++        .filename(db)
++        .read_only(true)
++        .create_if_missing(false)
++        .busy_timeout(std::time::Duration::from_secs(2));
++    let pool = SqlitePoolOptions::new()
++        .max_connections(1)
++        .connect_with(options)
++        .await
++        .map_err(|e| std::io::Error::other(format!("cannot open account database: {e}")))?;
++    sqlx::query("PRAGMA trusted_schema=OFF")
++        .execute(&pool)
++        .await
++        .map_err(|e| std::io::Error::other(format!("cannot set SQLite policy: {e}")))?;
++    let row = sqlx::query(
++        "WITH pref AS (SELECT default_execution_account_id FROM preferences WHERE singleton=1)
++         SELECT p.default_execution_account_id, e.codex_home, e.subject_id
++         FROM pref p LEFT JOIN execution_accounts e ON e.id=p.default_execution_account_id
++         UNION ALL
++         SELECT 'current', e.codex_home, e.subject_id FROM execution_accounts e
++         WHERE e.id='current' AND e.codex_home=? AND NOT EXISTS(SELECT 1 FROM pref)",
++    )
++    .bind(current_home.to_str().ok_or_else(|| {
++        std::io::Error::new(std::io::ErrorKind::InvalidData, "current home is not UTF-8")
++    })?)
++    .fetch_optional(&pool)
++    .await
++    .map_err(|e| std::io::Error::other(format!("incompatible account database schema: {e}")))?;
++    pool.close().await;
++    let row = row.ok_or_else(|| {
++        std::io::Error::new(
++            std::io::ErrorKind::InvalidData,
++            "current account binding is missing",
++        )
++    })?;
++    let account_id: Option<String> = row.try_get(0).map_err(sql_error)?;
++    let home: Option<String> = row.try_get(1).map_err(sql_error)?;
++    let subject_id: Option<String> = row.try_get(2).map_err(sql_error)?;
++    Ok(Selection {
++        account_id: account_id.filter(|v| !v.is_empty()).ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "default account is invalid",
++            )
++        })?,
++        codex_home: PathBuf::from(home.filter(|v| !v.is_empty()).ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "default account home is invalid",
++            )
++        })?),
++        subject_id: subject_id.filter(|v| !v.is_empty()).ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::InvalidData,
++                "default account subject is invalid",
++            )
++        })?,
++    })
++}
++
++fn sql_error(error: sqlx::Error) -> std::io::Error {
++    std::io::Error::other(format!("invalid account database row: {error}"))
++}
++
++fn canonical_local_path(path: &Path, label: &str) -> Result<PathBuf, std::io::Error> {
++    if !path.is_absolute() {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::InvalidInput,
++            format!("{label} must be absolute"),
++        ));
++    }
++    let canonical = std::fs::canonicalize(path)?;
++    if canonical.components().any(|component| {
++        matches!(component, std::path::Component::Normal(value) if value == "CloudStorage" || value == "Mobile Documents" || value == "iCloud")
++    }) {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::PermissionDenied,
++            format!("{label} must be on local storage"),
++        ));
++    }
++    Ok(canonical)
++}
++
++fn validate_local_file(path: &Path, label: &str, single_link: bool) -> Result<(), std::io::Error> {
++    canonical_local_path(path, label)?;
++    let metadata = std::fs::symlink_metadata(path)?;
++    if !metadata.file_type().is_file() {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::InvalidInput,
++            format!("{label} must be an ordinary non-symlink file"),
++        ));
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::MetadataExt;
++        if single_link && metadata.nlink() != 1 {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                format!("{label} must have exactly one hard link"),
++            ));
++        }
++        if metadata.uid() != unsafe { libc::geteuid() } {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                format!("{label} has a different owner"),
++            ));
++        }
++    }
++    Ok(())
++}
++
++fn validate_isolated_home(path: &Path) -> Result<PathBuf, std::io::Error> {
++    let input_metadata = std::fs::symlink_metadata(path)?;
++    if !input_metadata.file_type().is_dir() || input_metadata.file_type().is_symlink() {
++        return Err(std::io::Error::new(
++            std::io::ErrorKind::InvalidInput,
++            "isolated account home must be an ordinary non-symlink directory",
++        ));
++    }
++    let canonical = canonical_local_path(path, "isolated account home")?;
++    let metadata = std::fs::symlink_metadata(&canonical)?;
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::MetadataExt;
++        if metadata.mode() & 0o777 != 0o700 || metadata.uid() != unsafe { libc::geteuid() } {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                "isolated account home must be owner-only mode 0700",
++            ));
++        }
++    }
++    validate_auth_file(&canonical)?;
++    Ok(canonical)
++}
++
++fn validate_auth_file(home: &Path) -> Result<(), std::io::Error> {
++    validate_local_file(&home.join("auth.json"), "account auth file", true)
++}
+--- a/login/src/auth/manager.rs
++++ b/login/src/auth/manager.rs
+@@ -33,6 +33,7 @@
+ use std::sync::atomic::Ordering;
+ use std::time::Duration;
+ use std::time::Instant;
++use tokio::sync::Mutex as AsyncMutex;
+ use tokio::sync::Semaphore;
+ use tokio::sync::watch;
+ use tracing::instrument;
+@@ -2200,6 +2201,7 @@
+ /// `reload()` is called explicitly. This matches the design goal of avoiding
+ /// different parts of the program seeing inconsistent auth data mid‑run.
+ pub struct AuthManager {
++    workbench_account_managers: AsyncMutex<HashMap<(PathBuf, String), Arc<AuthManager>>>,
+     codex_home: PathBuf,
+     inner: RwLock<CachedAuth>,
+     auth_change_tx: watch::Sender<u64>,
+@@ -2378,6 +2380,7 @@
+             managed_auth_policy,
+             chatgpt_base_url,
+             agent_identity_authapi_base_url,
++            workbench_account_managers: AsyncMutex::default(),
+             refresh_lock: Arc::new(Semaphore::new(/*permits*/ 1)),
+             unsettled_chatgpt_refresh: Mutex::new(None),
+             agent_identity_lock: Semaphore::new(/*permits*/ 1),
+@@ -2416,6 +2419,7 @@
+             managed_auth_policy: ManagedAuthPolicy::default(),
+             chatgpt_base_url: None,
+             agent_identity_authapi_base_url: default_agent_identity_authapi_base_url(),
++            workbench_account_managers: AsyncMutex::default(),
+             refresh_lock: Arc::new(Semaphore::new(/*permits*/ 1)),
+             unsettled_chatgpt_refresh: Mutex::new(None),
+             agent_identity_lock: Semaphore::new(/*permits*/ 1),
+@@ -2448,6 +2452,7 @@
+             managed_auth_policy: ManagedAuthPolicy::default(),
+             chatgpt_base_url: None,
+             agent_identity_authapi_base_url: default_agent_identity_authapi_base_url(),
++            workbench_account_managers: AsyncMutex::default(),
+             refresh_lock: Arc::new(Semaphore::new(/*permits*/ 1)),
+             unsettled_chatgpt_refresh: Mutex::new(None),
+             agent_identity_lock: Semaphore::new(/*permits*/ 1),
+@@ -2488,6 +2493,7 @@
+                     .trim_end_matches('/')
+                     .to_string(),
+             ),
++            workbench_account_managers: AsyncMutex::default(),
+             refresh_lock: Arc::new(Semaphore::new(/*permits*/ 1)),
+             unsettled_chatgpt_refresh: Mutex::new(None),
+             agent_identity_lock: Semaphore::new(/*permits*/ 1),
+@@ -2527,6 +2533,7 @@
+             managed_auth_policy: ManagedAuthPolicy::default(),
+             chatgpt_base_url: None,
+             agent_identity_authapi_base_url: default_agent_identity_authapi_base_url(),
++            workbench_account_managers: AsyncMutex::default(),
+             refresh_lock: Arc::new(Semaphore::new(/*permits*/ 1)),
+             unsettled_chatgpt_refresh: Mutex::new(None),
+             agent_identity_lock: Semaphore::new(/*permits*/ 1),
+@@ -3288,6 +3295,118 @@
+                 .install_external_auth(Arc::new(external_auth))
+                 .await?;
+         }
++        Ok(manager)
++    }
++
++    /// Return an isolated manager for an already selected account home.
++    ///
++    /// The child has its own auth cache and external provider. Managers for the
++    /// same home share refresh coordination, while the parent runtime
++    /// replacement APIs cannot mutate the child's cached identity.
++    pub async fn account_manager_for_home(
++        self: &Arc<Self>,
++        codex_home: PathBuf,
++        expected_account_id: &str,
++    ) -> std::io::Result<Arc<AuthManager>> {
++        if !self.is_login_method_allowed(ForcedLoginMethod::Chatgpt) {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                "ChatGPT login is not allowed by the active authentication policy",
++            ));
++        }
++        if expected_account_id.is_empty() {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::InvalidInput,
++                "expected account id must not be empty",
++            ));
++        }
++        // Keep the parent managed policy, but bind this child to the account it
++        // was created for.  The child may reload its auth file later; without
++        // this exact workspace restriction a replacement file could silently
++        // make the child adopt another account.
++        let parent_workspaces = self.effective_chatgpt_workspaces();
++        if parent_workspaces
++            .as_deref()
++            .is_some_and(|workspaces| !workspaces.iter().any(|id| id == expected_account_id))
++        {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                "account identity is outside the parent workspace policy",
++            ));
++        }
++        let forced_chatgpt_workspace_id = Some(vec![expected_account_id.to_string()]);
++        let account_store = if codex_home == self.codex_home {
++            self.auth_credentials_store_mode.clone()
++        } else {
++            AuthCredentialsStoreMode::File
++        };
++        let config = AuthConfig {
++            codex_home: codex_home.clone(),
++            auth_credentials_store_mode: account_store,
++            keyring_backend_kind: self.keyring_backend_kind.clone(),
++            forced_login_method: Some(ForcedLoginMethod::Chatgpt),
++            chatgpt_base_url: self.chatgpt_base_url.clone(),
++            forced_chatgpt_workspace_id,
++            managed_auth_policy: self.managed_auth_policy.clone(),
++            auth_route_config: self.auth_route_config.clone(),
++        };
++        config.validate()?;
++        let key = (codex_home.clone(), expected_account_id.to_string());
++        let mut cache = self.workbench_account_managers.lock().await;
++        if let Some(manager) = cache.get(&key) {
++            let auth = manager.auth_cached().ok_or_else(|| {
++                std::io::Error::new(
++                    std::io::ErrorKind::PermissionDenied,
++                    "account auth unavailable",
++                )
++            })?;
++            if !config.allows_auth(&auth)
++                || !auth.is_chatgpt_auth()
++                || auth.get_account_id().as_deref() != Some(expected_account_id)
++            {
++                cache.remove(&key);
++                return Err(std::io::Error::new(
++                    std::io::ErrorKind::PermissionDenied,
++                    "account identity mismatch",
++                ));
++            }
++            return Ok(Arc::clone(manager));
++        }
++        let mut manager = Self::new_from_auth_config(
++            config.clone(),
++            /*enable_codex_api_key_env*/ false,
++            Some(vec![AuthMode::Chatgpt]),
++        )
++        .await;
++        // Managers may point at the same auth home (including two identity
++        // keys during a file replacement). Keep their refresh critical
++        // section shared, while retaining separate auth caches and identity
++        // policies.
++        if codex_home == self.codex_home {
++            manager.refresh_lock = Arc::clone(&self.refresh_lock);
++        } else if let Some(existing) = cache
++            .values()
++            .find(|existing| existing.codex_home == codex_home)
++        {
++            manager.refresh_lock = Arc::clone(&existing.refresh_lock);
++        }
++        let manager = Arc::new(manager);
++        let auth = manager.auth_cached().ok_or_else(|| {
++            std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                "account auth unavailable",
++            )
++        })?;
++        if !config.allows_auth(&auth)
++            || !auth.is_chatgpt_auth()
++            || auth.get_account_id().as_deref() != Some(expected_account_id)
++        {
++            return Err(std::io::Error::new(
++                std::io::ErrorKind::PermissionDenied,
++                "account identity mismatch",
++            ));
++        }
++        cache.insert(key, Arc::clone(&manager));
+         Ok(manager)
+     }
+ 
